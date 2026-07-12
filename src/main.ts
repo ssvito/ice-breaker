@@ -13,12 +13,13 @@ import {
 } from './render.ts';
 import { createEnemy, resetEnemy, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
-import { createFirewallNode, FIREWALL_NODE_RANGE, towerCenter } from './tower.ts';
+import { createFirewallNode, FIREWALL_NODE_COST, FIREWALL_NODE_RANGE, towerCenter } from './tower.ts';
 import type { Tower } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
 
 const MAX_CORE_HEALTH = 5;
+const STARTING_CYCLES = 100;
 
 const canvas = document.createElement('canvas');
 document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas);
@@ -32,6 +33,7 @@ window.addEventListener('resize', () => {
 const totalPathLength = pathLength(level1.waypoints);
 const enemies = [createEnemy()];
 let coreHealth = MAX_CORE_HEALTH;
+let cycles = STARTING_CYCLES;
 let gameOver = false;
 
 const buildable = buildableTileSet(level1);
@@ -60,7 +62,7 @@ function findTarget(tower: Tower): Enemy | null {
 
 function isPlaceable(tile: GridPos): boolean {
   const key = `${tile.x},${tile.y}`;
-  return buildable.has(key) && !occupied.has(key);
+  return buildable.has(key) && !occupied.has(key) && cycles >= FIREWALL_NODE_COST;
 }
 
 canvas.addEventListener('pointermove', (event) => {
@@ -78,6 +80,7 @@ canvas.addEventListener('pointerdown', (event) => {
 
   towers.push(createFirewallNode(tile.x, tile.y));
   occupied.add(`${tile.x},${tile.y}`);
+  cycles -= FIREWALL_NODE_COST;
 });
 
 const loop = new GameLoop(
@@ -119,7 +122,10 @@ const loop = new GameLoop(
       if (!hit) continue;
 
       projectile.target.hp -= projectile.damage;
-      if (projectile.target.hp <= 0) resetEnemy(projectile.target);
+      if (projectile.target.hp <= 0) {
+        cycles += projectile.target.reward;
+        resetEnemy(projectile.target);
+      }
       projectiles.splice(i, 1);
     }
   },
@@ -131,7 +137,7 @@ const loop = new GameLoop(
     if (hoverTile && !gameOver) {
       drawPlacementPreview(sized.ctx, hoverTile, isPlaceable(hoverTile), FIREWALL_NODE_RANGE, sized.tileSize);
     }
-    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, gameOver);
+    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, gameOver);
   },
 );
 

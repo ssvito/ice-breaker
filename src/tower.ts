@@ -1,6 +1,7 @@
 export const FIREWALL_NODE_RANGE = 2.5; // grid units
 export const FIREWALL_NODE_DAMAGE = 1;
 export const FIREWALL_NODE_FIRE_INTERVAL_MS = 600;
+export const FIREWALL_NODE_COST = 20; // Cycles
 
 export interface Tower {
   x: number; // tile coord

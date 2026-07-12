@@ -3,10 +3,11 @@ export interface Enemy {
   speed: number; // grid units per second
   hp: number;
   maxHp: number;
+  reward: number; // Cycles earned on kill
 }
 
-export function createEnemy(speed = 2, maxHp = 3): Enemy {
-  return { distance: 0, speed, hp: maxHp, maxHp };
+export function createEnemy(speed = 2, maxHp = 3, reward = 5): Enemy {
+  return { distance: 0, speed, hp: maxHp, maxHp, reward };
 }
 
 /** Advances the enemy; returns true if it reached the end of the path. */

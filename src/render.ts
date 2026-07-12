@@ -111,15 +111,18 @@ export function drawHud(
   tileSize: number,
   coreHealth: number,
   maxCoreHealth: number,
+  cycles: number,
   gameOver: boolean,
 ): void {
   const width = level.cols * tileSize;
   const height = level.rows * tileSize;
+  const fontSize = Math.max(12, tileSize * 0.5);
 
   ctx.fillStyle = '#e8f9ff';
-  ctx.font = `${Math.max(12, tileSize * 0.5)}px monospace`;
+  ctx.font = `${fontSize}px monospace`;
   ctx.textBaseline = 'top';
   ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, 8, 8);
+  ctx.fillText(`CYCLES ${cycles}`, 8, 8 + fontSize * 1.2);
 
   if (!gameOver) return;
 
