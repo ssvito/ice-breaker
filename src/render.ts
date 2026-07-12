@@ -2,6 +2,7 @@ import type { Enemy } from './enemy.ts';
 import type { GridPos, LevelData } from './map.ts';
 import { positionAlongPath, rasterizePath } from './map.ts';
 import type { Tower } from './tower.ts';
+import type { Projectile } from './projectile.ts';
 
 export const palette = {
   background: '#0a0e14',
@@ -11,6 +12,7 @@ export const palette = {
   core: '#ff2fd1',
   enemy: '#ffcc00',
   tower: '#eaffff',
+  projectile: '#ff2fd1',
   placeValid: 'rgba(57, 255, 136, 0.35)',
   placeInvalid: 'rgba(255, 47, 88, 0.35)',
 } as const;
@@ -86,6 +88,21 @@ export function drawPlacementPreview(
   ctx.arc(cx, cy, range * tileSize, 0, Math.PI * 2);
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+export function drawProjectiles(
+  ctx: CanvasRenderingContext2D,
+  projectiles: Projectile[],
+  tileSize: number,
+): void {
+  const radius = tileSize * 0.1;
+
+  ctx.fillStyle = palette.projectile;
+  for (const projectile of projectiles) {
+    ctx.beginPath();
+    ctx.arc(projectile.x * tileSize, projectile.y * tileSize, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 export function drawHud(
