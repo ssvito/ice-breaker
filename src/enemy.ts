@@ -4,20 +4,15 @@ export interface Enemy {
   hp: number;
   maxHp: number;
   reward: number; // Cycles earned on kill
+  removed: boolean; // left play, either killed or reached the core
 }
 
 export function createEnemy(speed = 2, maxHp = 3, reward = 5): Enemy {
-  return { distance: 0, speed, hp: maxHp, maxHp, reward };
+  return { distance: 0, speed, hp: maxHp, maxHp, reward, removed: false };
 }
 
 /** Advances the enemy; returns true if it reached the end of the path. */
 export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number): boolean {
   enemy.distance += enemy.speed * (dtMs / 1000);
   return enemy.distance >= pathLength;
-}
-
-/** Sends the enemy back to spawn at full health. */
-export function resetEnemy(enemy: Enemy): void {
-  enemy.distance = 0;
-  enemy.hp = enemy.maxHp;
 }

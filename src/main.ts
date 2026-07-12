@@ -11,12 +11,13 @@ import {
   drawProjectiles,
   drawTowers,
 } from './render.ts';
-import { createEnemy, resetEnemy, stepEnemy } from './enemy.ts';
+import { createEnemy, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
 import { createFirewallNode, FIREWALL_NODE_COST, FIREWALL_NODE_RANGE, towerCenter } from './tower.ts';
 import type { Tower } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
+import { createSpawner, stepSpawner, waveLabel } from './wave.ts';
 
 const MAX_CORE_HEALTH = 5;
 const STARTING_CYCLES = 100;
@@ -31,7 +32,8 @@ window.addEventListener('resize', () => {
 });
 
 const totalPathLength = pathLength(level1.waypoints);
-const enemies = [createEnemy()];
+const enemies: Enemy[] = [];
+const spawner = createSpawner();
 let coreHealth = MAX_CORE_HEALTH;
 let cycles = STARTING_CYCLES;
 let gameOver = false;
@@ -48,7 +50,6 @@ function findTarget(tower: Tower): Enemy | null {
   let nearestDist = Infinity;
 
   for (const enemy of enemies) {
-    if (enemy.hp <= 0) continue;
     const pos = positionAlongPath(level1.waypoints, enemy.distance);
     const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
     if (dist <= tower.range && dist < nearestDist) {
@@ -87,16 +88,19 @@ const loop = new GameLoop(
   (dtMs) => {
     if (gameOver) return;
 
-    for (const enemy of enemies) {
+    if (stepSpawner(spawner, dtMs, enemies.length)) {
+      enemies.push(createEnemy());
+    }
+
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const enemy = enemies[i];
       const reachedCore = stepEnemy(enemy, dtMs, totalPathLength);
       if (!reachedCore) continue;
 
+      enemy.removed = true;
+      enemies.splice(i, 1);
       coreHealth = Math.max(0, coreHealth - 1);
-      if (coreHealth === 0) {
-        gameOver = true;
-      } else {
-        resetEnemy(enemy);
-      }
+      if (coreHealth === 0) gameOver = true;
     }
 
     for (const tower of towers) {
@@ -112,7 +116,7 @@ const loop = new GameLoop(
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const projectile = projectiles[i];
-      if (projectile.target.hp <= 0) {
+      if (projectile.target.removed) {
         projectiles.splice(i, 1);
         continue;
       }
@@ -123,8 +127,10 @@ const loop = new GameLoop(
 
       projectile.target.hp -= projectile.damage;
       if (projectile.target.hp <= 0) {
+        projectile.target.removed = true;
         cycles += projectile.target.reward;
-        resetEnemy(projectile.target);
+        const idx = enemies.indexOf(projectile.target);
+        if (idx !== -1) enemies.splice(idx, 1);
       }
       projectiles.splice(i, 1);
     }
@@ -137,7 +143,7 @@ const loop = new GameLoop(
     if (hoverTile && !gameOver) {
       drawPlacementPreview(sized.ctx, hoverTile, isPlaceable(hoverTile), FIREWALL_NODE_RANGE, sized.tileSize);
     }
-    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, gameOver);
+    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, waveLabel(spawner), gameOver);
   },
 );
 

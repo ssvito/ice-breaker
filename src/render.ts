@@ -112,6 +112,7 @@ export function drawHud(
   coreHealth: number,
   maxCoreHealth: number,
   cycles: number,
+  waveText: string,
   gameOver: boolean,
 ): void {
   const width = level.cols * tileSize;
@@ -123,6 +124,7 @@ export function drawHud(
   ctx.textBaseline = 'top';
   ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, 8, 8);
   ctx.fillText(`CYCLES ${cycles}`, 8, 8 + fontSize * 1.2);
+  ctx.fillText(waveText, 8, 8 + fontSize * 2.4);
 
   if (!gameOver) return;
 
