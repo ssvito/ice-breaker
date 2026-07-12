@@ -1,3 +1,5 @@
+import type { GridPos } from './map.ts';
+
 export interface SizedCanvas {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -35,4 +37,13 @@ export function fitCanvasToViewport(
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   return { canvas, ctx, tileSize: cssWidth / cols };
+}
+
+/** Converts a pointer event's client coordinates to a grid tile. */
+export function clientToGrid(canvas: HTMLCanvasElement, tileSize: number, clientX: number, clientY: number): GridPos {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: Math.floor((clientX - rect.left) / tileSize),
+    y: Math.floor((clientY - rect.top) / tileSize),
+  };
 }
