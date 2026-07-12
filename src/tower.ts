@@ -1,5 +1,10 @@
 export type TowerKind = 'firewallNode' | 'aesTurret' | 'idsScanner' | 'honeypot';
 export type TowerPlacement = 'offPath' | 'onPath';
+export type OverclockState = 'idle' | 'boosted' | 'overheated';
+
+const OVERCLOCK_DURATION_MS = 4000;
+const OVERHEAT_DURATION_MS = 3000;
+const OVERCLOCK_FIRE_RATE_MULTIPLIER = 0.4; // fireIntervalMs is multiplied by this while boosted
 
 export interface Tower {
   kind: TowerKind;
@@ -10,6 +15,7 @@ export interface Tower {
   fireIntervalMs: number; // unused by aura towers
   cooldownMs: number; // unused by aura towers
   slowMultiplier?: number; // present only on aura towers; enemy speed is multiplied by this while in range
+  overclock?: { state: OverclockState; timerMs: number }; // present only on attack towers (fire-rate towers)
 }
 
 interface TowerStats {
@@ -74,10 +80,44 @@ export function createTower(kind: TowerKind, x: number, y: number): Tower {
     fireIntervalMs: stats.fireIntervalMs,
     cooldownMs: 0,
     slowMultiplier: stats.slowMultiplier,
+    overclock: stats.slowMultiplier === undefined ? { state: 'idle', timerMs: 0 } : undefined,
   };
 }
 
 /** Tower's center position in continuous grid coords (tiles are stored top-left). */
 export function towerCenter(tower: Tower): { x: number; y: number } {
   return { x: tower.x + 0.5, y: tower.y + 0.5 };
+}
+
+/** Starts the boost cycle; no-op if the tower has no Overclock or is already boosted/overheated. */
+export function triggerOverclock(tower: Tower): boolean {
+  if (!tower.overclock || tower.overclock.state !== 'idle') return false;
+  tower.overclock.state = 'boosted';
+  tower.overclock.timerMs = OVERCLOCK_DURATION_MS;
+  return true;
+}
+
+export function stepOverclock(tower: Tower, dtMs: number): void {
+  if (!tower.overclock || tower.overclock.state === 'idle') return;
+
+  tower.overclock.timerMs -= dtMs;
+  if (tower.overclock.timerMs > 0) return;
+
+  if (tower.overclock.state === 'boosted') {
+    tower.overclock.state = 'overheated';
+    tower.overclock.timerMs = OVERHEAT_DURATION_MS;
+  } else {
+    tower.overclock.state = 'idle';
+    tower.overclock.timerMs = 0;
+  }
+}
+
+export function canFire(tower: Tower): boolean {
+  return tower.overclock?.state !== 'overheated';
+}
+
+export function effectiveFireIntervalMs(tower: Tower): number {
+  return tower.overclock?.state === 'boosted'
+    ? tower.fireIntervalMs * OVERCLOCK_FIRE_RATE_MULTIPLIER
+    : tower.fireIntervalMs;
 }

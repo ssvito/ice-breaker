@@ -77,8 +77,18 @@ export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], tileS
     const visual = TOWER_VISUALS[tower.kind];
     const size = tileSize * 0.7 * visual.sizeScale;
     const offset = (tileSize - size) / 2;
+
+    ctx.globalAlpha = tower.overclock?.state === 'overheated' ? 0.4 : 1;
     ctx.fillStyle = visual.color;
     ctx.fillRect(tower.x * tileSize + offset, tower.y * tileSize + offset, size, size);
+    ctx.globalAlpha = 1;
+
+    if (tower.overclock?.state === 'boosted') {
+      ctx.strokeStyle = '#fff9b0';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(tower.x * tileSize + offset - 2, tower.y * tileSize + offset - 2, size + 4, size + 4);
+      ctx.lineWidth = 1;
+    }
 
     if (tower.slowMultiplier === undefined) continue;
     const center = towerCenter(tower);
@@ -139,6 +149,7 @@ export function drawHud(
   cycles: number,
   waveText: string,
   buildText: string,
+  overclockText: string,
   gameOver: boolean,
 ): void {
   const width = level.cols * tileSize;
@@ -152,6 +163,7 @@ export function drawHud(
   ctx.fillText(`CYCLES ${cycles}`, 8, 8 + fontSize * 1.2);
   ctx.fillText(waveText, 8, 8 + fontSize * 2.4);
   ctx.fillText(buildText, 8, 8 + fontSize * 3.6);
+  ctx.fillText(overclockText, 8, 8 + fontSize * 4.8);
 
   if (!gameOver) return;
 

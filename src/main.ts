@@ -13,7 +13,7 @@ import {
 } from './render.ts';
 import { createEnemy, getSplitKinds, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
-import { createTower, towerCenter, towerStats } from './tower.ts';
+import { canFire, createTower, effectiveFireIntervalMs, stepOverclock, towerCenter, towerStats, triggerOverclock } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
@@ -54,10 +54,15 @@ const TOWER_HOTKEYS: Record<string, TowerKind> = {
   '4': 'honeypot',
 };
 let selectedTowerKind: TowerKind = 'firewallNode';
+let overclockArmed = false;
 
 window.addEventListener('keydown', (event) => {
   const kind = TOWER_HOTKEYS[event.key];
-  if (kind) selectedTowerKind = kind;
+  if (kind) {
+    selectedTowerKind = kind;
+    return;
+  }
+  if (event.key === 'q' || event.key === 'Q') overclockArmed = true;
 });
 
 function findTarget(tower: Tower): Enemy | null {
@@ -101,6 +106,14 @@ canvas.addEventListener('pointerleave', () => {
 canvas.addEventListener('pointerdown', (event) => {
   if (gameOver) return;
   const tile = clientToGrid(canvas, sized.tileSize, event.clientX, event.clientY);
+
+  if (overclockArmed) {
+    overclockArmed = false;
+    const target = towers.find((t) => t.x === tile.x && t.y === tile.y);
+    if (target) triggerOverclock(target);
+    return;
+  }
+
   if (!isPlaceable(tile)) return;
 
   towers.push(createTower(selectedTowerKind, tile.x, tile.y));
@@ -139,7 +152,9 @@ const loop = new GameLoop(
     }
 
     for (const tower of towers) {
-      if (tower.slowMultiplier !== undefined) continue;
+      stepOverclock(tower, dtMs);
+
+      if (tower.slowMultiplier !== undefined || !canFire(tower)) continue;
 
       tower.cooldownMs -= dtMs;
       if (tower.cooldownMs > 0) continue;
@@ -148,7 +163,7 @@ const loop = new GameLoop(
       if (!target) continue;
 
       projectiles.push(createProjectile(towerCenter(tower), target, tower.damage));
-      tower.cooldownMs = tower.fireIntervalMs;
+      tower.cooldownMs = effectiveFireIntervalMs(tower);
     }
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -198,7 +213,19 @@ const loop = new GameLoop(
     }
     const buildStats = towerStats(selectedTowerKind);
     const buildText = `BUILD [1-4] ${buildStats.name} (${buildStats.cost})`;
-    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, waveLabel(spawner), buildText, gameOver);
+    const overclockText = overclockArmed ? 'OVERCLOCK: SELECT A TOWER' : 'OVERCLOCK [Q]';
+    drawHud(
+      sized.ctx,
+      level1,
+      sized.tileSize,
+      coreHealth,
+      MAX_CORE_HEALTH,
+      cycles,
+      waveLabel(spawner),
+      buildText,
+      overclockText,
+      gameOver,
+    );
   },
 );
 
