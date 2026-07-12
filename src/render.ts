@@ -51,6 +51,36 @@ export function drawBoard(
   ctx.fillRect(core.x * tileSize, core.y * tileSize, tileSize, tileSize);
 }
 
+export function drawHud(
+  ctx: CanvasRenderingContext2D,
+  level: LevelData,
+  tileSize: number,
+  coreHealth: number,
+  maxCoreHealth: number,
+  gameOver: boolean,
+): void {
+  const width = level.cols * tileSize;
+  const height = level.rows * tileSize;
+
+  ctx.fillStyle = '#e8f9ff';
+  ctx.font = `${Math.max(12, tileSize * 0.5)}px monospace`;
+  ctx.textBaseline = 'top';
+  ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, 8, 8);
+
+  if (!gameOver) return;
+
+  ctx.fillStyle = 'rgba(10, 14, 20, 0.75)';
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = palette.core;
+  ctx.font = `bold ${tileSize}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('GAME OVER', width / 2, height / 2);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+}
+
 export function drawEnemies(
   ctx: CanvasRenderingContext2D,
   enemies: Enemy[],
