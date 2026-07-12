@@ -151,7 +151,7 @@ export function drawHud(
   waveText: string,
   buildText: string,
   overclockText: string,
-  gameOver: boolean,
+  gameState: 'playing' | 'won' | 'lost',
 ): void {
   const width = level.cols * tileSize;
   const height = level.rows * tileSize;
@@ -166,16 +166,22 @@ export function drawHud(
   ctx.fillText(buildText, 8, 8 + fontSize * 3.6);
   ctx.fillText(overclockText, 8, 8 + fontSize * 4.8);
 
-  if (!gameOver) return;
+  if (gameState === 'playing') return;
+
+  const won = gameState === 'won';
 
   ctx.fillStyle = 'rgba(10, 14, 20, 0.75)';
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = palette.core;
+  ctx.fillStyle = won ? palette.spawn : palette.core;
   ctx.font = `bold ${tileSize}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('GAME OVER', width / 2, height / 2);
+  ctx.fillText(won ? 'SYSTEM SECURED' : 'GAME OVER', width / 2, height / 2 - fontSize * 0.6);
+
+  ctx.font = `${fontSize * 0.6}px monospace`;
+  ctx.fillText('TAP TO RESTART', width / 2, height / 2 + fontSize * 0.8);
+
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 }

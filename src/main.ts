@@ -33,10 +33,10 @@ window.addEventListener('resize', () => {
 
 const totalPathLength = pathLength(level1.waypoints);
 const enemies: Enemy[] = [];
-const spawner = createSpawner();
+let spawner = createSpawner();
 let coreHealth = MAX_CORE_HEALTH;
 let cycles = STARTING_CYCLES;
-let gameOver = false;
+let gameState: 'playing' | 'won' | 'lost' = 'playing';
 
 const buildable = buildableTileSet(level1);
 const pathTiles = new Set(rasterizePath(level1.waypoints).map((p) => `${p.x},${p.y}`));
@@ -83,6 +83,18 @@ function findTarget(tower: Tower): Enemy | null {
   return nearest;
 }
 
+function resetGame(): void {
+  enemies.length = 0;
+  towers.length = 0;
+  projectiles.length = 0;
+  occupied.clear();
+  spawner = createSpawner();
+  coreHealth = MAX_CORE_HEALTH;
+  cycles = STARTING_CYCLES;
+  gameState = 'playing';
+  overclockArmed = false;
+}
+
 function isPlaceable(tile: GridPos): boolean {
   const key = `${tile.x},${tile.y}`;
   if (occupied.has(key)) return false;
@@ -105,7 +117,10 @@ canvas.addEventListener('pointerleave', () => {
 });
 
 canvas.addEventListener('pointerdown', (event) => {
-  if (gameOver) return;
+  if (gameState !== 'playing') {
+    resetGame();
+    return;
+  }
   const tile = clientToGrid(canvas, sized.tileSize, event.clientX, event.clientY);
 
   if (overclockArmed) {
@@ -124,7 +139,7 @@ canvas.addEventListener('pointerdown', (event) => {
 
 const loop = new GameLoop(
   (dtMs) => {
-    if (gameOver) return;
+    if (gameState !== 'playing') return;
 
     const spawnKind = stepSpawner(spawner, dtMs, enemies.length);
     if (spawnKind) enemies.push(createEnemy(spawnKind));
@@ -149,7 +164,7 @@ const loop = new GameLoop(
       enemy.removed = true;
       enemies.splice(i, 1);
       coreHealth = Math.max(0, coreHealth - 1);
-      if (coreHealth === 0) gameOver = true;
+      if (coreHealth === 0) gameState = 'lost';
     }
 
     for (const tower of towers) {
@@ -196,13 +211,15 @@ const loop = new GameLoop(
       }
       projectiles.splice(i, 1);
     }
+
+    if (spawner.state === 'done' && enemies.length === 0) gameState = 'won';
   },
   () => {
     drawBoard(sized.ctx, level1, sized.tileSize);
     drawTowers(sized.ctx, towers, sized.tileSize);
     drawEnemies(sized.ctx, enemies, level1.waypoints, sized.tileSize);
     drawProjectiles(sized.ctx, projectiles, sized.tileSize);
-    if (hoverTile && !gameOver) {
+    if (hoverTile && gameState === 'playing') {
       drawPlacementPreview(
         sized.ctx,
         hoverTile,
@@ -225,7 +242,7 @@ const loop = new GameLoop(
       waveLabel(spawner),
       buildText,
       overclockText,
-      gameOver,
+      gameState,
     );
   },
 );
