@@ -1,6 +1,7 @@
 import type { Enemy, EnemyKind } from './enemy.ts';
 import type { GridPos, LevelData } from './map.ts';
 import { positionAlongPath, rasterizePath } from './map.ts';
+import { towerCenter } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
 import type { Projectile } from './projectile.ts';
 
@@ -27,6 +28,8 @@ const ENEMY_VISUALS: Record<EnemyKind, { color: string; radiusScale: number }> =
 const TOWER_VISUALS: Record<TowerKind, { color: string; sizeScale: number }> = {
   firewallNode: { color: '#eaffff', sizeScale: 1 },
   aesTurret: { color: '#ff3355', sizeScale: 1.25 },
+  idsScanner: { color: '#7dffe8', sizeScale: 0.9 },
+  honeypot: { color: '#ffe27d', sizeScale: 0.6 },
 };
 
 export function drawBoard(
@@ -76,6 +79,15 @@ export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], tileS
     const offset = (tileSize - size) / 2;
     ctx.fillStyle = visual.color;
     ctx.fillRect(tower.x * tileSize + offset, tower.y * tileSize + offset, size, size);
+
+    if (tower.slowMultiplier === undefined) continue;
+    const center = towerCenter(tower);
+    ctx.strokeStyle = visual.color;
+    ctx.globalAlpha = 0.25;
+    ctx.beginPath();
+    ctx.arc(center.x * tileSize, center.y * tileSize, tower.range * tileSize, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 

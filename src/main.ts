@@ -1,6 +1,6 @@
 import './style.css';
 import { GameLoop } from './game-loop.ts';
-import { level1, pathLength, buildableTileSet, positionAlongPath } from './map.ts';
+import { level1, pathLength, buildableTileSet, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos } from './map.ts';
 import { fitCanvasToViewport, clientToGrid } from './canvas.ts';
 import {
@@ -39,12 +39,20 @@ let cycles = STARTING_CYCLES;
 let gameOver = false;
 
 const buildable = buildableTileSet(level1);
+const pathTiles = new Set(rasterizePath(level1.waypoints).map((p) => `${p.x},${p.y}`));
+const spawnKey = `${level1.waypoints[0].x},${level1.waypoints[0].y}`;
+const coreKey = `${level1.waypoints[level1.waypoints.length - 1].x},${level1.waypoints[level1.waypoints.length - 1].y}`;
 const occupied = new Set<string>();
 const towers: Tower[] = [];
 const projectiles: Projectile[] = [];
 let hoverTile: GridPos | null = null;
 
-const TOWER_HOTKEYS: Record<string, TowerKind> = { '1': 'firewallNode', '2': 'aesTurret' };
+const TOWER_HOTKEYS: Record<string, TowerKind> = {
+  '1': 'firewallNode',
+  '2': 'aesTurret',
+  '3': 'idsScanner',
+  '4': 'honeypot',
+};
 let selectedTowerKind: TowerKind = 'firewallNode';
 
 window.addEventListener('keydown', (event) => {
@@ -71,7 +79,15 @@ function findTarget(tower: Tower): Enemy | null {
 
 function isPlaceable(tile: GridPos): boolean {
   const key = `${tile.x},${tile.y}`;
-  return buildable.has(key) && !occupied.has(key) && cycles >= towerStats(selectedTowerKind).cost;
+  if (occupied.has(key)) return false;
+
+  const stats = towerStats(selectedTowerKind);
+  const validTile =
+    stats.placement === 'onPath'
+      ? pathTiles.has(key) && key !== spawnKey && key !== coreKey
+      : buildable.has(key);
+
+  return validTile && cycles >= stats.cost;
 }
 
 canvas.addEventListener('pointermove', (event) => {
@@ -99,9 +115,21 @@ const loop = new GameLoop(
     const spawnKind = stepSpawner(spawner, dtMs, enemies.length);
     if (spawnKind) enemies.push(createEnemy(spawnKind));
 
+    const slowFactor = new Map<Enemy, number>();
+    for (const tower of towers) {
+      if (tower.slowMultiplier === undefined) continue;
+      const center = towerCenter(tower);
+      for (const enemy of enemies) {
+        const pos = positionAlongPath(level1.waypoints, enemy.distance);
+        const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
+        if (dist > tower.range) continue;
+        slowFactor.set(enemy, Math.min(slowFactor.get(enemy) ?? 1, tower.slowMultiplier));
+      }
+    }
+
     for (let i = enemies.length - 1; i >= 0; i--) {
       const enemy = enemies[i];
-      const reachedCore = stepEnemy(enemy, dtMs, totalPathLength);
+      const reachedCore = stepEnemy(enemy, dtMs, totalPathLength, slowFactor.get(enemy) ?? 1);
       if (!reachedCore) continue;
 
       enemy.removed = true;
@@ -111,6 +139,8 @@ const loop = new GameLoop(
     }
 
     for (const tower of towers) {
+      if (tower.slowMultiplier !== undefined) continue;
+
       tower.cooldownMs -= dtMs;
       if (tower.cooldownMs > 0) continue;
 
@@ -167,7 +197,7 @@ const loop = new GameLoop(
       );
     }
     const buildStats = towerStats(selectedTowerKind);
-    const buildText = `BUILD [1/2] ${buildStats.name} (${buildStats.cost})`;
+    const buildText = `BUILD [1-4] ${buildStats.name} (${buildStats.cost})`;
     drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, waveLabel(spawner), buildText, gameOver);
   },
 );

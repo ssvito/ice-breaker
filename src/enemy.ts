@@ -34,9 +34,9 @@ export function createEnemy(kind: EnemyKind): Enemy {
   return { kind, distance: 0, speed: stats.speed, hp: stats.maxHp, maxHp: stats.maxHp, reward: stats.reward, removed: false };
 }
 
-/** Advances the enemy; returns true if it reached the end of the path. */
-export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number): boolean {
-  enemy.distance += enemy.speed * (dtMs / 1000);
+/** Advances the enemy (speedMultiplier < 1 applies an aura slow for this tick); returns true if it reached the end of the path. */
+export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number, speedMultiplier = 1): boolean {
+  enemy.distance += enemy.speed * speedMultiplier * (dtMs / 1000);
   return enemy.distance >= pathLength;
 }
 
