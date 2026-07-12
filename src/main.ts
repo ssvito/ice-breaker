@@ -11,7 +11,7 @@ import {
   drawProjectiles,
   drawTowers,
 } from './render.ts';
-import { createEnemy, stepEnemy } from './enemy.ts';
+import { createEnemy, getSplitKinds, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
 import { createFirewallNode, FIREWALL_NODE_COST, FIREWALL_NODE_RANGE, towerCenter } from './tower.ts';
 import type { Tower } from './tower.ts';
@@ -130,6 +130,15 @@ const loop = new GameLoop(
         cycles += projectile.target.reward;
         const idx = enemies.indexOf(projectile.target);
         if (idx !== -1) enemies.splice(idx, 1);
+
+        const splitKinds = getSplitKinds(projectile.target.kind);
+        if (splitKinds) {
+          splitKinds.forEach((kind, i) => {
+            const child = createEnemy(kind);
+            child.distance = Math.max(0, projectile.target.distance - i * 0.4);
+            enemies.push(child);
+          });
+        }
       }
       projectiles.splice(i, 1);
     }

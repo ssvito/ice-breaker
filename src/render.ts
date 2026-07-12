@@ -20,6 +20,8 @@ const ENEMY_VISUALS: Record<EnemyKind, { color: string; radiusScale: number }> =
   worm: { color: '#ffcc00', radiusScale: 1 },
   trojan: { color: '#ff5f2e', radiusScale: 1.4 },
   packetSniffer: { color: '#fff9b0', radiusScale: 0.6 },
+  ransomware: { color: '#ff4477', radiusScale: 1.1 },
+  encryptor: { color: '#ff88aa', radiusScale: 0.7 },
 };
 
 export function drawBoard(

@@ -16,6 +16,7 @@ export const waves: WaveDefinition[] = [
     groups: [
       { enemyKind: 'worm', count: 5, spawnIntervalMs: 900 },
       { enemyKind: 'trojan', count: 3, spawnIntervalMs: 1500 },
+      { enemyKind: 'ransomware', count: 2, spawnIntervalMs: 1500 },
     ],
   },
   {
