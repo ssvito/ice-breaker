@@ -23,6 +23,7 @@ const ENEMY_VISUALS: Record<EnemyKind, { color: string; radiusScale: number }> =
   packetSniffer: { color: '#fff9b0', radiusScale: 0.6 },
   ransomware: { color: '#ff4477', radiusScale: 1.1 },
   encryptor: { color: '#ff88aa', radiusScale: 0.7 },
+  zeroDay: { color: '#f5f5ff', radiusScale: 2 },
 };
 
 const TOWER_VISUALS: Record<TowerKind, { color: string; sizeScale: number }> = {

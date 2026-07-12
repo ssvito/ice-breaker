@@ -1,4 +1,6 @@
-export type EnemyKind = 'worm' | 'trojan' | 'packetSniffer' | 'ransomware' | 'encryptor';
+import type { TowerKind } from './tower.ts';
+
+export type EnemyKind = 'worm' | 'trojan' | 'packetSniffer' | 'ransomware' | 'encryptor' | 'zeroDay';
 
 export interface Enemy {
   kind: EnemyKind;
@@ -22,11 +24,17 @@ const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
   packetSniffer: { speed: 4, maxHp: 1, reward: 2 },
   ransomware: { speed: 1.5, maxHp: 4, reward: 6 },
   encryptor: { speed: 2, maxHp: 2, reward: 3 },
+  zeroDay: { speed: 0.8, maxHp: 40, reward: 50 },
 };
 
 /** Enemy kinds that spawn replacements on death, and what they spawn. */
 const SPLIT_ON_DEATH: Partial<Record<EnemyKind, EnemyKind[]>> = {
   ransomware: ['encryptor', 'encryptor'],
+};
+
+/** Enemy kinds that take no damage from a specific tower kind. */
+const IMMUNE_TO: Partial<Record<EnemyKind, TowerKind>> = {
+  zeroDay: 'aesTurret',
 };
 
 export function createEnemy(kind: EnemyKind): Enemy {
@@ -43,4 +51,8 @@ export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number, speedM
 /** Enemy kinds to spawn (at the same path position) when this kind is killed by a tower. */
 export function getSplitKinds(kind: EnemyKind): EnemyKind[] | null {
   return SPLIT_ON_DEATH[kind] ?? null;
+}
+
+export function isImmuneTo(kind: EnemyKind, towerKind: TowerKind): boolean {
+  return IMMUNE_TO[kind] === towerKind;
 }

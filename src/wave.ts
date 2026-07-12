@@ -25,6 +25,7 @@ export const waves: WaveDefinition[] = [
       { enemyKind: 'trojan', count: 4, spawnIntervalMs: 1400 },
     ],
   },
+  { groups: [{ enemyKind: 'zeroDay', count: 1, spawnIntervalMs: 0 }] },
 ];
 
 export const INITIAL_WAVE_DELAY_MS = 3000;

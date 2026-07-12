@@ -11,7 +11,7 @@ import {
   drawProjectiles,
   drawTowers,
 } from './render.ts';
-import { createEnemy, getSplitKinds, stepEnemy } from './enemy.ts';
+import { createEnemy, getSplitKinds, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
 import { canFire, createTower, effectiveFireIntervalMs, stepOverclock, towerCenter, towerStats, triggerOverclock } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
@@ -71,6 +71,7 @@ function findTarget(tower: Tower): Enemy | null {
   let nearestDist = Infinity;
 
   for (const enemy of enemies) {
+    if (isImmuneTo(enemy.kind, tower.kind)) continue;
     const pos = positionAlongPath(level1.waypoints, enemy.distance);
     const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
     if (dist <= tower.range && dist < nearestDist) {
