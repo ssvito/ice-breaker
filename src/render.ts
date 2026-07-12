@@ -1,4 +1,4 @@
-import type { Enemy } from './enemy.ts';
+import type { Enemy, EnemyKind } from './enemy.ts';
 import type { GridPos, LevelData } from './map.ts';
 import { positionAlongPath, rasterizePath } from './map.ts';
 import type { Tower } from './tower.ts';
@@ -10,12 +10,17 @@ export const palette = {
   traceInactive: '#22e1ff',
   spawn: '#39ff88',
   core: '#ff2fd1',
-  enemy: '#ffcc00',
   tower: '#eaffff',
   projectile: '#ff2fd1',
   placeValid: 'rgba(57, 255, 136, 0.35)',
   placeInvalid: 'rgba(255, 47, 88, 0.35)',
 } as const;
+
+const ENEMY_VISUALS: Record<EnemyKind, { color: string; radiusScale: number }> = {
+  worm: { color: '#ffcc00', radiusScale: 1 },
+  trojan: { color: '#ff5f2e', radiusScale: 1.4 },
+  packetSniffer: { color: '#fff9b0', radiusScale: 0.6 },
+};
 
 export function drawBoard(
   ctx: CanvasRenderingContext2D,
@@ -146,16 +151,15 @@ export function drawEnemies(
   waypoints: GridPos[],
   tileSize: number,
 ): void {
-  const radius = tileSize * 0.3;
-
-  ctx.fillStyle = palette.enemy;
   for (const enemy of enemies) {
+    const visual = ENEMY_VISUALS[enemy.kind];
     const pos = positionAlongPath(waypoints, enemy.distance);
+    ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(
       pos.x * tileSize + tileSize / 2,
       pos.y * tileSize + tileSize / 2,
-      radius,
+      tileSize * 0.3 * visual.radiusScale,
       0,
       Math.PI * 2,
     );

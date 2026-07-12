@@ -88,9 +88,8 @@ const loop = new GameLoop(
   (dtMs) => {
     if (gameOver) return;
 
-    if (stepSpawner(spawner, dtMs, enemies.length)) {
-      enemies.push(createEnemy());
-    }
+    const spawnKind = stepSpawner(spawner, dtMs, enemies.length);
+    if (spawnKind) enemies.push(createEnemy(spawnKind));
 
     for (let i = enemies.length - 1; i >= 0; i--) {
       const enemy = enemies[i];

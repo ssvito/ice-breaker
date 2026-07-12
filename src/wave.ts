@@ -1,12 +1,29 @@
-export interface WaveDefinition {
+import type { EnemyKind } from './enemy.ts';
+
+export interface SpawnGroup {
+  enemyKind: EnemyKind;
   count: number;
   spawnIntervalMs: number;
 }
 
+export interface WaveDefinition {
+  groups: SpawnGroup[];
+}
+
 export const waves: WaveDefinition[] = [
-  { count: 5, spawnIntervalMs: 1200 },
-  { count: 8, spawnIntervalMs: 900 },
-  { count: 12, spawnIntervalMs: 700 },
+  { groups: [{ enemyKind: 'worm', count: 5, spawnIntervalMs: 1200 }] },
+  {
+    groups: [
+      { enemyKind: 'worm', count: 5, spawnIntervalMs: 900 },
+      { enemyKind: 'trojan', count: 3, spawnIntervalMs: 1500 },
+    ],
+  },
+  {
+    groups: [
+      { enemyKind: 'packetSniffer', count: 10, spawnIntervalMs: 400 },
+      { enemyKind: 'trojan', count: 4, spawnIntervalMs: 1400 },
+    ],
+  },
 ];
 
 export const INITIAL_WAVE_DELAY_MS = 3000;
@@ -16,52 +33,62 @@ export type SpawnState = 'countdown' | 'spawning' | 'waiting-clear' | 'done';
 
 export interface Spawner {
   waveIndex: number; // -1 before the first wave starts
+  groupIndex: number;
   state: SpawnState;
   waveTimerMs: number;
   spawnTimerMs: number;
-  spawnedInWave: number;
+  spawnedInGroup: number;
 }
 
 export function createSpawner(): Spawner {
   return {
     waveIndex: -1,
+    groupIndex: 0,
     state: 'countdown',
     waveTimerMs: INITIAL_WAVE_DELAY_MS,
     spawnTimerMs: 0,
-    spawnedInWave: 0,
+    spawnedInGroup: 0,
   };
 }
 
 /**
- * Advances the spawner and returns true exactly on the tick a new enemy
- * should be spawned. Caller is responsible for creating the enemy and
- * reporting the current live enemy count (so a wave can wait to clear).
+ * Advances the spawner and returns the enemy kind to spawn on the tick a
+ * new enemy is due, or null otherwise. Caller creates the enemy and
+ * reports the current live enemy count (so a wave can wait to clear).
  */
-export function stepSpawner(spawner: Spawner, dtMs: number, liveEnemyCount: number): boolean {
+export function stepSpawner(spawner: Spawner, dtMs: number, liveEnemyCount: number): EnemyKind | null {
   if (spawner.state === 'countdown') {
     spawner.waveTimerMs -= dtMs;
-    if (spawner.waveTimerMs > 0) return false;
+    if (spawner.waveTimerMs > 0) return null;
 
     spawner.waveIndex++;
     if (spawner.waveIndex >= waves.length) {
       spawner.state = 'done';
-      return false;
+      return null;
     }
-    spawner.spawnedInWave = 0;
+    spawner.groupIndex = 0;
+    spawner.spawnedInGroup = 0;
     spawner.spawnTimerMs = 0;
     spawner.state = 'spawning';
-    return false;
+    return null;
   }
 
   if (spawner.state === 'spawning') {
     spawner.spawnTimerMs -= dtMs;
-    if (spawner.spawnTimerMs > 0) return false;
+    if (spawner.spawnTimerMs > 0) return null;
 
     const wave = waves[spawner.waveIndex];
-    spawner.spawnedInWave++;
-    spawner.spawnTimerMs = wave.spawnIntervalMs;
-    if (spawner.spawnedInWave >= wave.count) spawner.state = 'waiting-clear';
-    return true;
+    const group = wave.groups[spawner.groupIndex];
+    spawner.spawnedInGroup++;
+    spawner.spawnTimerMs = group.spawnIntervalMs;
+
+    if (spawner.spawnedInGroup >= group.count) {
+      spawner.groupIndex++;
+      spawner.spawnedInGroup = 0;
+      if (spawner.groupIndex >= wave.groups.length) spawner.state = 'waiting-clear';
+    }
+
+    return group.enemyKind;
   }
 
   if (spawner.state === 'waiting-clear' && liveEnemyCount === 0) {
@@ -69,7 +96,7 @@ export function stepSpawner(spawner: Spawner, dtMs: number, liveEnemyCount: numb
     spawner.waveTimerMs = BETWEEN_WAVE_DELAY_MS;
   }
 
-  return false;
+  return null;
 }
 
 export function waveLabel(spawner: Spawner): string {
