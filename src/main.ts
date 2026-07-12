@@ -6,11 +6,14 @@ import { fitCanvasToViewport, clientToGrid } from './canvas.ts';
 import {
   drawBoard,
   drawEnemies,
+  drawGlitchParticles,
   drawHud,
   drawPlacementPreview,
   drawProjectiles,
   drawTowers,
 } from './render.ts';
+import { createGlitchBurst, stepParticle } from './effects.ts';
+import type { GlitchParticle } from './effects.ts';
 import { createEnemy, getSplitKinds, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
 import { canFire, createTower, effectiveFireIntervalMs, stepOverclock, towerCenter, towerStats, triggerOverclock } from './tower.ts';
@@ -45,6 +48,7 @@ const coreKey = `${level1.waypoints[level1.waypoints.length - 1].x},${level1.way
 const occupied = new Set<string>();
 const towers: Tower[] = [];
 const projectiles: Projectile[] = [];
+const particles: GlitchParticle[] = [];
 let hoverTile: GridPos | null = null;
 
 const TOWER_HOTKEYS: Record<string, TowerKind> = {
@@ -87,6 +91,7 @@ function resetGame(): void {
   enemies.length = 0;
   towers.length = 0;
   projectiles.length = 0;
+  particles.length = 0;
   occupied.clear();
   spawner = createSpawner();
   coreHealth = MAX_CORE_HEALTH;
@@ -200,6 +205,9 @@ const loop = new GameLoop(
         const idx = enemies.indexOf(projectile.target);
         if (idx !== -1) enemies.splice(idx, 1);
 
+        const deathPos = positionAlongPath(level1.waypoints, projectile.target.distance);
+        particles.push(...createGlitchBurst(deathPos.x + 0.5, deathPos.y + 0.5));
+
         const splitKinds = getSplitKinds(projectile.target.kind);
         if (splitKinds) {
           splitKinds.forEach((kind, i) => {
@@ -213,12 +221,17 @@ const loop = new GameLoop(
     }
 
     if (spawner.state === 'done' && enemies.length === 0) gameState = 'won';
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      if (!stepParticle(particles[i], dtMs)) particles.splice(i, 1);
+    }
   },
   () => {
     drawBoard(sized.ctx, level1, sized.tileSize);
     drawTowers(sized.ctx, towers, sized.tileSize);
     drawEnemies(sized.ctx, enemies, level1.waypoints, sized.tileSize);
     drawProjectiles(sized.ctx, projectiles, sized.tileSize);
+    drawGlitchParticles(sized.ctx, particles, sized.tileSize);
     if (hoverTile && gameState === 'playing') {
       drawPlacementPreview(
         sized.ctx,

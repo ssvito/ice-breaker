@@ -4,6 +4,8 @@ import { positionAlongPath, rasterizePath } from './map.ts';
 import { towerCenter } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
 import type { Projectile } from './projectile.ts';
+import { particleAlpha } from './effects.ts';
+import type { GlitchParticle } from './effects.ts';
 
 export const palette = {
   background: '#0a0e14',
@@ -139,6 +141,21 @@ export function drawProjectiles(
     ctx.arc(projectile.x * tileSize, projectile.y * tileSize, radius, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+export function drawGlitchParticles(
+  ctx: CanvasRenderingContext2D,
+  particles: GlitchParticle[],
+  tileSize: number,
+): void {
+  const size = tileSize * 0.15;
+
+  for (const particle of particles) {
+    ctx.globalAlpha = particleAlpha(particle);
+    ctx.fillStyle = particle.color;
+    ctx.fillRect(particle.x * tileSize - size / 2, particle.y * tileSize - size / 2, size, size);
+  }
+  ctx.globalAlpha = 1;
 }
 
 export function drawHud(
