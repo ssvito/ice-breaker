@@ -1,7 +1,7 @@
 import type { Enemy, EnemyKind } from './enemy.ts';
 import type { GridPos, LevelData } from './map.ts';
 import { positionAlongPath, rasterizePath } from './map.ts';
-import type { Tower } from './tower.ts';
+import type { Tower, TowerKind } from './tower.ts';
 import type { Projectile } from './projectile.ts';
 
 export const palette = {
@@ -22,6 +22,11 @@ const ENEMY_VISUALS: Record<EnemyKind, { color: string; radiusScale: number }> =
   packetSniffer: { color: '#fff9b0', radiusScale: 0.6 },
   ransomware: { color: '#ff4477', radiusScale: 1.1 },
   encryptor: { color: '#ff88aa', radiusScale: 0.7 },
+};
+
+const TOWER_VISUALS: Record<TowerKind, { color: string; sizeScale: number }> = {
+  firewallNode: { color: '#eaffff', sizeScale: 1 },
+  aesTurret: { color: '#ff3355', sizeScale: 1.25 },
 };
 
 export function drawBoard(
@@ -65,11 +70,11 @@ export function drawBoard(
 }
 
 export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], tileSize: number): void {
-  const size = tileSize * 0.7;
-  const offset = (tileSize - size) / 2;
-
-  ctx.fillStyle = palette.tower;
   for (const tower of towers) {
+    const visual = TOWER_VISUALS[tower.kind];
+    const size = tileSize * 0.7 * visual.sizeScale;
+    const offset = (tileSize - size) / 2;
+    ctx.fillStyle = visual.color;
     ctx.fillRect(tower.x * tileSize + offset, tower.y * tileSize + offset, size, size);
   }
 }
@@ -80,6 +85,7 @@ export function drawPlacementPreview(
   valid: boolean,
   range: number,
   tileSize: number,
+  previewKind: TowerKind,
 ): void {
   const cx = hover.x * tileSize + tileSize / 2;
   const cy = hover.y * tileSize + tileSize / 2;
@@ -89,7 +95,7 @@ export function drawPlacementPreview(
 
   if (!valid) return;
 
-  ctx.strokeStyle = palette.tower;
+  ctx.strokeStyle = TOWER_VISUALS[previewKind].color;
   ctx.globalAlpha = 0.4;
   ctx.beginPath();
   ctx.arc(cx, cy, range * tileSize, 0, Math.PI * 2);
@@ -120,6 +126,7 @@ export function drawHud(
   maxCoreHealth: number,
   cycles: number,
   waveText: string,
+  buildText: string,
   gameOver: boolean,
 ): void {
   const width = level.cols * tileSize;
@@ -132,6 +139,7 @@ export function drawHud(
   ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, 8, 8);
   ctx.fillText(`CYCLES ${cycles}`, 8, 8 + fontSize * 1.2);
   ctx.fillText(waveText, 8, 8 + fontSize * 2.4);
+  ctx.fillText(buildText, 8, 8 + fontSize * 3.6);
 
   if (!gameOver) return;
 

@@ -13,8 +13,8 @@ import {
 } from './render.ts';
 import { createEnemy, getSplitKinds, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
-import { createFirewallNode, FIREWALL_NODE_COST, FIREWALL_NODE_RANGE, towerCenter } from './tower.ts';
-import type { Tower } from './tower.ts';
+import { createTower, towerCenter, towerStats } from './tower.ts';
+import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
 import { createSpawner, stepSpawner, waveLabel } from './wave.ts';
@@ -44,6 +44,14 @@ const towers: Tower[] = [];
 const projectiles: Projectile[] = [];
 let hoverTile: GridPos | null = null;
 
+const TOWER_HOTKEYS: Record<string, TowerKind> = { '1': 'firewallNode', '2': 'aesTurret' };
+let selectedTowerKind: TowerKind = 'firewallNode';
+
+window.addEventListener('keydown', (event) => {
+  const kind = TOWER_HOTKEYS[event.key];
+  if (kind) selectedTowerKind = kind;
+});
+
 function findTarget(tower: Tower): Enemy | null {
   const center = towerCenter(tower);
   let nearest: Enemy | null = null;
@@ -63,7 +71,7 @@ function findTarget(tower: Tower): Enemy | null {
 
 function isPlaceable(tile: GridPos): boolean {
   const key = `${tile.x},${tile.y}`;
-  return buildable.has(key) && !occupied.has(key) && cycles >= FIREWALL_NODE_COST;
+  return buildable.has(key) && !occupied.has(key) && cycles >= towerStats(selectedTowerKind).cost;
 }
 
 canvas.addEventListener('pointermove', (event) => {
@@ -79,9 +87,9 @@ canvas.addEventListener('pointerdown', (event) => {
   const tile = clientToGrid(canvas, sized.tileSize, event.clientX, event.clientY);
   if (!isPlaceable(tile)) return;
 
-  towers.push(createFirewallNode(tile.x, tile.y));
+  towers.push(createTower(selectedTowerKind, tile.x, tile.y));
   occupied.add(`${tile.x},${tile.y}`);
-  cycles -= FIREWALL_NODE_COST;
+  cycles -= towerStats(selectedTowerKind).cost;
 });
 
 const loop = new GameLoop(
@@ -149,9 +157,18 @@ const loop = new GameLoop(
     drawEnemies(sized.ctx, enemies, level1.waypoints, sized.tileSize);
     drawProjectiles(sized.ctx, projectiles, sized.tileSize);
     if (hoverTile && !gameOver) {
-      drawPlacementPreview(sized.ctx, hoverTile, isPlaceable(hoverTile), FIREWALL_NODE_RANGE, sized.tileSize);
+      drawPlacementPreview(
+        sized.ctx,
+        hoverTile,
+        isPlaceable(hoverTile),
+        towerStats(selectedTowerKind).range,
+        sized.tileSize,
+        selectedTowerKind,
+      );
     }
-    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, waveLabel(spawner), gameOver);
+    const buildStats = towerStats(selectedTowerKind);
+    const buildText = `BUILD [1/2] ${buildStats.name} (${buildStats.cost})`;
+    drawHud(sized.ctx, level1, sized.tileSize, coreHealth, MAX_CORE_HEALTH, cycles, waveLabel(spawner), buildText, gameOver);
   },
 );
 

@@ -1,9 +1,7 @@
-export const FIREWALL_NODE_RANGE = 2.5; // grid units
-export const FIREWALL_NODE_DAMAGE = 1;
-export const FIREWALL_NODE_FIRE_INTERVAL_MS = 600;
-export const FIREWALL_NODE_COST = 20; // Cycles
+export type TowerKind = 'firewallNode' | 'aesTurret';
 
 export interface Tower {
+  kind: TowerKind;
   x: number; // tile coord
   y: number; // tile coord
   range: number; // grid units
@@ -12,15 +10,26 @@ export interface Tower {
   cooldownMs: number;
 }
 
-export function createFirewallNode(x: number, y: number): Tower {
-  return {
-    x,
-    y,
-    range: FIREWALL_NODE_RANGE,
-    damage: FIREWALL_NODE_DAMAGE,
-    fireIntervalMs: FIREWALL_NODE_FIRE_INTERVAL_MS,
-    cooldownMs: 0,
-  };
+interface TowerStats {
+  name: string;
+  range: number;
+  damage: number;
+  fireIntervalMs: number;
+  cost: number;
+}
+
+const TOWER_STATS: Record<TowerKind, TowerStats> = {
+  firewallNode: { name: 'FIREWALL NODE', range: 2.5, damage: 1, fireIntervalMs: 600, cost: 20 },
+  aesTurret: { name: 'AES TURRET', range: 2, damage: 4, fireIntervalMs: 1500, cost: 45 },
+};
+
+export function towerStats(kind: TowerKind): TowerStats {
+  return TOWER_STATS[kind];
+}
+
+export function createTower(kind: TowerKind, x: number, y: number): Tower {
+  const stats = TOWER_STATS[kind];
+  return { kind, x, y, range: stats.range, damage: stats.damage, fireIntervalMs: stats.fireIntervalMs, cooldownMs: 0 };
 }
 
 /** Tower's center position in continuous grid coords (tiles are stored top-left). */
