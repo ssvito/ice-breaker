@@ -21,3 +21,46 @@ canvas {
   display: block;
   image-rendering: pixelated;
 }
+
+.toolbar {
+  position: fixed;
+  left: 50%;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(10, 14, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font: 12px/1.2 ui-monospace, monospace;
+}
+
+.toolbar button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 8px;
+  background: #12161f;
+  color: #e8f9ff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+
+.toolbar button.selected {
+  border-color: #22e1ff;
+  box-shadow: 0 0 6px rgba(34, 225, 255, 0.6);
+}
+
+.toolbar button.armed {
+  border-color: #fff9b0;
+  box-shadow: 0 0 6px rgba(255, 249, 176, 0.6);
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+}

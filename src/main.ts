@@ -69,6 +69,44 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'q' || event.key === 'Q') overclockArmed = true;
 });
 
+const TOWER_BUTTON_LABELS: Record<TowerKind, string> = {
+  firewallNode: 'FW',
+  aesTurret: 'AES',
+  idsScanner: 'IDS',
+  honeypot: 'TRAP',
+};
+
+const toolbar = document.createElement('div');
+toolbar.className = 'toolbar';
+document.body.appendChild(toolbar);
+
+const towerButtons = (Object.keys(TOWER_BUTTON_LABELS) as TowerKind[]).map((kind) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.innerHTML = `<span>${TOWER_BUTTON_LABELS[kind]}</span><span>${towerStats(kind).cost}</span>`;
+  button.addEventListener('click', () => {
+    selectedTowerKind = kind;
+  });
+  toolbar.appendChild(button);
+  return { kind, button };
+});
+
+const overclockButton = document.createElement('button');
+overclockButton.type = 'button';
+overclockButton.innerHTML = '<span>OC</span><span>Q</span>';
+overclockButton.addEventListener('click', () => {
+  overclockArmed = true;
+});
+toolbar.appendChild(overclockButton);
+
+function updateToolbar(): void {
+  for (const { kind, button } of towerButtons) {
+    button.classList.toggle('selected', kind === selectedTowerKind);
+    button.disabled = cycles < towerStats(kind).cost;
+  }
+  overclockButton.classList.toggle('armed', overclockArmed);
+}
+
 function findTarget(tower: Tower): Enemy | null {
   const center = towerCenter(tower);
   let nearest: Enemy | null = null;
@@ -227,6 +265,7 @@ const loop = new GameLoop(
     }
   },
   () => {
+    updateToolbar();
     drawBoard(sized.ctx, level1, sized.tileSize);
     drawTowers(sized.ctx, towers, sized.tileSize);
     drawEnemies(sized.ctx, enemies, level1.waypoints, sized.tileSize);
@@ -242,9 +281,6 @@ const loop = new GameLoop(
         selectedTowerKind,
       );
     }
-    const buildStats = towerStats(selectedTowerKind);
-    const buildText = `BUILD [1-4] ${buildStats.name} (${buildStats.cost})`;
-    const overclockText = overclockArmed ? 'OVERCLOCK: SELECT A TOWER' : 'OVERCLOCK [Q]';
     drawHud(
       sized.ctx,
       level1,
@@ -253,8 +289,6 @@ const loop = new GameLoop(
       MAX_CORE_HEALTH,
       cycles,
       waveLabel(spawner),
-      buildText,
-      overclockText,
       gameState,
     );
   },
