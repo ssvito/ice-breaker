@@ -244,7 +244,7 @@ const loop = new GameLoop(
         if (idx !== -1) enemies.splice(idx, 1);
 
         const deathPos = positionAlongPath(level1.waypoints, projectile.target.distance);
-        particles.push(...createGlitchBurst(deathPos.x + 0.5, deathPos.y + 0.5));
+        particles.push(...createGlitchBurst(deathPos.x, deathPos.y));
 
         const splitKinds = getSplitKinds(projectile.target.kind);
         if (splitKinds) {

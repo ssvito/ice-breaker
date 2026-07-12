@@ -56,7 +56,7 @@ export function pathLength(waypoints: GridPos[]): number {
   return total;
 }
 
-/** Position (in grid units) at a given distance travelled along the waypoint path. */
+/** Tile-centered position (in grid units, matching towerCenter's convention) at a given distance travelled along the waypoint path. */
 export function positionAlongPath(waypoints: GridPos[], distanceTravelled: number): GridPos {
   let remaining = distanceTravelled;
 
@@ -67,12 +67,13 @@ export function positionAlongPath(waypoints: GridPos[], distanceTravelled: numbe
 
     if (remaining <= segmentLength) {
       const t = segmentLength === 0 ? 0 : remaining / segmentLength;
-      return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+      return { x: from.x + (to.x - from.x) * t + 0.5, y: from.y + (to.y - from.y) * t + 0.5 };
     }
     remaining -= segmentLength;
   }
 
-  return waypoints[waypoints.length - 1];
+  const last = waypoints[waypoints.length - 1];
+  return { x: last.x + 0.5, y: last.y + 0.5 };
 }
 
 export function buildableTileSet(level: LevelData): Set<string> {

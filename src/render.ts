@@ -211,8 +211,8 @@ export function drawEnemies(
     ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(
-      pos.x * tileSize + tileSize / 2,
-      pos.y * tileSize + tileSize / 2,
+      pos.x * tileSize,
+      pos.y * tileSize,
       tileSize * 0.3 * visual.radiusScale,
       0,
       Math.PI * 2,
