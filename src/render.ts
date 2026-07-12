@@ -1,5 +1,6 @@
-import type { LevelData } from './map.ts';
-import { rasterizePath } from './map.ts';
+import type { Enemy } from './enemy.ts';
+import type { GridPos, LevelData } from './map.ts';
+import { positionAlongPath, rasterizePath } from './map.ts';
 
 export const palette = {
   background: '#0a0e14',
@@ -7,6 +8,7 @@ export const palette = {
   traceInactive: '#22e1ff',
   spawn: '#39ff88',
   core: '#ff2fd1',
+  enemy: '#ffcc00',
 } as const;
 
 export function drawBoard(
@@ -47,4 +49,27 @@ export function drawBoard(
   ctx.fillRect(spawn.x * tileSize, spawn.y * tileSize, tileSize, tileSize);
   ctx.fillStyle = palette.core;
   ctx.fillRect(core.x * tileSize, core.y * tileSize, tileSize, tileSize);
+}
+
+export function drawEnemies(
+  ctx: CanvasRenderingContext2D,
+  enemies: Enemy[],
+  waypoints: GridPos[],
+  tileSize: number,
+): void {
+  const radius = tileSize * 0.3;
+
+  ctx.fillStyle = palette.enemy;
+  for (const enemy of enemies) {
+    const pos = positionAlongPath(waypoints, enemy.distance);
+    ctx.beginPath();
+    ctx.arc(
+      pos.x * tileSize + tileSize / 2,
+      pos.y * tileSize + tileSize / 2,
+      radius,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
 }
