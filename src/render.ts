@@ -1,107 +1,149 @@
-import type { Enemy, EnemyKind } from './enemy.ts';
+import type { Enemy } from './enemy.ts';
 import type { GridPos, LevelData } from './map.ts';
-import { positionAlongPath, rasterizePath } from './map.ts';
-import { towerCenter } from './tower.ts';
+import { positionAlongPath, directionAlongPath, rasterizePath } from './map.ts';
 import type { Tower, TowerKind } from './tower.ts';
 import type { Projectile } from './projectile.ts';
 import { particleAlpha } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
+import { VIRTUAL_TILE } from './canvas.ts';
+import type { Viewport } from './canvas.ts';
+import { drawSprite, spriteSize } from './sprites.ts';
+import type { SpriteName } from './sprites.ts';
 
 export const palette = {
   background: '#0a0e14',
   gridLine: 'rgba(255, 255, 255, 0.05)',
   traceInactive: '#22e1ff',
-  spawn: '#39ff88',
-  core: '#ff2fd1',
-  tower: '#eaffff',
-  projectile: '#ff2fd1',
+  traceFill: '#0f3a44', // dim channel behind entities so bright sprites still read
   placeValid: 'rgba(57, 255, 136, 0.35)',
   placeInvalid: 'rgba(255, 47, 88, 0.35)',
 } as const;
 
-const ENEMY_VISUALS: Record<EnemyKind, { color: string; radiusScale: number }> = {
-  worm: { color: '#ffcc00', radiusScale: 1 },
-  trojan: { color: '#ff5f2e', radiusScale: 1.4 },
-  packetSniffer: { color: '#fff9b0', radiusScale: 0.6 },
-  ransomware: { color: '#ff4477', radiusScale: 1.1 },
-  encryptor: { color: '#ff88aa', radiusScale: 0.7 },
-  zeroDay: { color: '#f5f5ff', radiusScale: 2 },
+const TOWER_RING: Record<TowerKind, string> = {
+  firewallNode: '#eaffff',
+  aesTurret: '#ff90a8',
+  idsScanner: '#7dffe8',
+  honeypot: '#ffe27d',
 };
 
-const TOWER_VISUALS: Record<TowerKind, { color: string; sizeScale: number }> = {
-  firewallNode: { color: '#eaffff', sizeScale: 1 },
-  aesTurret: { color: '#ff3355', sizeScale: 1.25 },
-  idsScanner: { color: '#7dffe8', sizeScale: 0.9 },
-  honeypot: { color: '#ffe27d', sizeScale: 0.6 },
-};
+const ANIM_FRAME_MS = 220;
 
-export function drawBoard(
-  ctx: CanvasRenderingContext2D,
-  level: LevelData,
-  tileSize: number,
-): void {
-  const width = level.cols * tileSize;
-  const height = level.rows * tileSize;
+/** Grid cell -> center point in virtual pixels. */
+function tileCenter(gx: number, gy: number): { x: number; y: number } {
+  return { x: (gx + 0.5) * VIRTUAL_TILE, y: (gy + 0.5) * VIRTUAL_TILE };
+}
+
+/**
+ * Renders the static board (background, grid, trace, spawn port, core) into an
+ * offscreen canvas once. Blit it each frame instead of redrawing. Requires the
+ * sprite atlas to be baked first (spawn/core are sprites).
+ */
+export function prerenderBoard(level: LevelData): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = level.cols * VIRTUAL_TILE;
+  canvas.height = level.rows * VIRTUAL_TILE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D context unavailable for board');
+  ctx.imageSmoothingEnabled = false;
+
+  const width = canvas.width;
+  const height = canvas.height;
 
   ctx.fillStyle = palette.background;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = palette.gridLine;
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= level.cols; x++) {
-    ctx.beginPath();
-    ctx.moveTo(x * tileSize, 0);
-    ctx.lineTo(x * tileSize, height);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= level.rows; y++) {
-    ctx.beginPath();
-    ctx.moveTo(0, y * tileSize);
-    ctx.lineTo(width, y * tileSize);
-    ctx.stroke();
-  }
+  ctx.fillStyle = palette.gridLine;
+  for (let x = 0; x <= level.cols; x++) ctx.fillRect(x * VIRTUAL_TILE, 0, 1, height);
+  for (let y = 0; y <= level.rows; y++) ctx.fillRect(0, y * VIRTUAL_TILE, width, 1);
 
-  const pathTiles = rasterizePath(level.waypoints);
-  ctx.fillStyle = palette.traceInactive;
-  for (const tile of pathTiles) {
-    ctx.fillRect(tile.x * tileSize, tile.y * tileSize, tileSize, tileSize);
+  for (const tile of rasterizePath(level.waypoints)) {
+    ctx.fillStyle = palette.traceFill;
+    ctx.fillRect(tile.x * VIRTUAL_TILE, tile.y * VIRTUAL_TILE, VIRTUAL_TILE, VIRTUAL_TILE);
+    ctx.fillStyle = palette.traceInactive;
+    ctx.fillRect(tile.x * VIRTUAL_TILE, tile.y * VIRTUAL_TILE, VIRTUAL_TILE, 1);
+    ctx.fillRect(tile.x * VIRTUAL_TILE, tile.y * VIRTUAL_TILE + VIRTUAL_TILE - 1, VIRTUAL_TILE, 1);
   }
 
   const spawn = level.waypoints[0];
   const core = level.waypoints[level.waypoints.length - 1];
-  ctx.fillStyle = palette.spawn;
-  ctx.fillRect(spawn.x * tileSize, spawn.y * tileSize, tileSize, tileSize);
-  ctx.fillStyle = palette.core;
-  ctx.fillRect(core.x * tileSize, core.y * tileSize, tileSize, tileSize);
+  const spawnC = tileCenter(spawn.x, spawn.y);
+  const coreC = tileCenter(core.x, core.y);
+  drawSprite(ctx, 'spawnPort', 0, spawnC.x, spawnC.y);
+  // Keep the oversized core sprite from clipping off the right board edge.
+  drawSprite(ctx, 'core', 0, Math.min(coreC.x, width - spriteSize('core').w / 2), coreC.y);
+
+  return canvas;
 }
 
-export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], tileSize: number): void {
+export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], timeMs: number): void {
   for (const tower of towers) {
-    const visual = TOWER_VISUALS[tower.kind];
-    const size = tileSize * 0.7 * visual.sizeScale;
-    const offset = (tileSize - size) / 2;
+    const { x: cx, y: cy } = tileCenter(tower.x, tower.y);
+    const name = tower.kind as SpriteName;
 
     ctx.globalAlpha = tower.overclock?.state === 'overheated' ? 0.4 : 1;
-    ctx.fillStyle = visual.color;
-    ctx.fillRect(tower.x * tileSize + offset, tower.y * tileSize + offset, size, size);
+    drawSprite(ctx, name, tower.flashMs > 0 ? 1 : 0, cx, cy);
     ctx.globalAlpha = 1;
 
-    if (tower.overclock?.state === 'boosted') {
-      ctx.strokeStyle = '#fff9b0';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(tower.x * tileSize + offset - 2, tower.y * tileSize + offset - 2, size + 4, size + 4);
+    if (tower.kind === 'idsScanner') {
+      const radius = spriteSize(name).w / 2 - 2;
+      const angle = (timeMs / 1000) * 2.2;
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = '#7dffe8';
       ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
-    if (tower.slowMultiplier === undefined) continue;
-    const center = towerCenter(tower);
-    ctx.strokeStyle = visual.color;
-    ctx.globalAlpha = 0.25;
-    ctx.beginPath();
-    ctx.arc(center.x * tileSize, center.y * tileSize, tower.range * tileSize, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    if (tower.overclock?.state === 'boosted') {
+      const { w, h } = spriteSize(name);
+      ctx.strokeStyle = '#fff9b0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(Math.round(cx - w / 2) - 1, Math.round(cy - h / 2) - 1, w + 2, h + 2);
+    }
+
+    if (tower.slowMultiplier !== undefined) {
+      ctx.strokeStyle = TOWER_RING[tower.kind];
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath();
+      ctx.arc(cx, cy, tower.range * VIRTUAL_TILE, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
+}
+
+export function drawEnemies(
+  ctx: CanvasRenderingContext2D,
+  enemies: Enemy[],
+  waypoints: GridPos[],
+  timeMs: number,
+): void {
+  const frame = Math.floor(timeMs / ANIM_FRAME_MS) % 2;
+  for (const enemy of enemies) {
+    const pos = positionAlongPath(waypoints, enemy.distance);
+    const dir = directionAlongPath(waypoints, enemy.distance);
+    const orientation = Math.atan2(dir.y, dir.x);
+    drawSprite(ctx, enemy.kind as SpriteName, frame, pos.x * VIRTUAL_TILE, pos.y * VIRTUAL_TILE, orientation);
+  }
+}
+
+export function drawProjectiles(ctx: CanvasRenderingContext2D, projectiles: Projectile[]): void {
+  for (const projectile of projectiles) {
+    const name: SpriteName = projectile.heavy ? 'projectileAes' : 'projectile';
+    drawSprite(ctx, name, 0, projectile.x * VIRTUAL_TILE, projectile.y * VIRTUAL_TILE);
+  }
+}
+
+export function drawGlitchParticles(ctx: CanvasRenderingContext2D, particles: GlitchParticle[]): void {
+  for (const particle of particles) {
+    ctx.globalAlpha = particleAlpha(particle);
+    ctx.fillStyle = particle.color;
+    ctx.fillRect(Math.round(particle.x * VIRTUAL_TILE), Math.round(particle.y * VIRTUAL_TILE), 2, 2);
+  }
+  ctx.globalAlpha = 1;
 }
 
 export function drawPlacementPreview(
@@ -109,114 +151,65 @@ export function drawPlacementPreview(
   hover: GridPos,
   valid: boolean,
   range: number,
-  tileSize: number,
   previewKind: TowerKind,
 ): void {
-  const cx = hover.x * tileSize + tileSize / 2;
-  const cy = hover.y * tileSize + tileSize / 2;
-
   ctx.fillStyle = valid ? palette.placeValid : palette.placeInvalid;
-  ctx.fillRect(hover.x * tileSize, hover.y * tileSize, tileSize, tileSize);
+  ctx.fillRect(hover.x * VIRTUAL_TILE, hover.y * VIRTUAL_TILE, VIRTUAL_TILE, VIRTUAL_TILE);
 
   if (!valid) return;
 
-  ctx.strokeStyle = TOWER_VISUALS[previewKind].color;
+  const { x: cx, y: cy } = tileCenter(hover.x, hover.y);
+  ctx.strokeStyle = TOWER_RING[previewKind];
   ctx.globalAlpha = 0.4;
   ctx.beginPath();
-  ctx.arc(cx, cy, range * tileSize, 0, Math.PI * 2);
+  ctx.arc(cx, cy, range * VIRTUAL_TILE, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.globalAlpha = 1;
-}
-
-export function drawProjectiles(
-  ctx: CanvasRenderingContext2D,
-  projectiles: Projectile[],
-  tileSize: number,
-): void {
-  const radius = tileSize * 0.1;
-
-  ctx.fillStyle = palette.projectile;
-  for (const projectile of projectiles) {
-    ctx.beginPath();
-    ctx.arc(projectile.x * tileSize, projectile.y * tileSize, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-export function drawGlitchParticles(
-  ctx: CanvasRenderingContext2D,
-  particles: GlitchParticle[],
-  tileSize: number,
-): void {
-  const size = tileSize * 0.15;
-
-  for (const particle of particles) {
-    ctx.globalAlpha = particleAlpha(particle);
-    ctx.fillStyle = particle.color;
-    ctx.fillRect(particle.x * tileSize - size / 2, particle.y * tileSize - size / 2, size, size);
-  }
+  ctx.globalAlpha = 0.5;
+  drawSprite(ctx, previewKind as SpriteName, 0, cx, cy);
   ctx.globalAlpha = 1;
 }
 
 export function drawHud(
   ctx: CanvasRenderingContext2D,
-  level: LevelData,
-  tileSize: number,
+  vp: Viewport,
   coreHealth: number,
   maxCoreHealth: number,
   cycles: number,
   waveText: string,
   gameState: 'playing' | 'won' | 'lost',
 ): void {
-  const width = level.cols * tileSize;
-  const height = level.rows * tileSize;
-  const fontSize = Math.max(12, tileSize * 0.5);
+  const ox = vp.offsetX;
+  const oy = vp.offsetY;
+  const worldW = vp.virtualWidth * vp.scale;
+  const worldH = vp.virtualHeight * vp.scale;
+  const unit = vp.scale * VIRTUAL_TILE; // device px per tile
+  const fontSize = Math.max(12 * vp.dpr, unit * 0.42);
+  const pad = Math.round(unit * 0.28);
 
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
   ctx.fillStyle = '#e8f9ff';
   ctx.font = `${fontSize}px monospace`;
-  ctx.textBaseline = 'top';
-  ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, 8, 8);
-  ctx.fillText(`CYCLES ${cycles}`, 8, 8 + fontSize * 1.2);
-  ctx.fillText(waveText, 8, 8 + fontSize * 2.4);
+  ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, ox + pad, oy + pad);
+  ctx.fillText(`CYCLES ${cycles}`, ox + pad, oy + pad + fontSize * 1.2);
+  ctx.fillText(waveText, ox + pad, oy + pad + fontSize * 2.4);
 
   if (gameState === 'playing') return;
 
   const won = gameState === 'won';
+  ctx.fillStyle = 'rgba(10, 14, 20, 0.78)';
+  ctx.fillRect(ox, oy, worldW, worldH);
 
-  ctx.fillStyle = 'rgba(10, 14, 20, 0.75)';
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.fillStyle = won ? palette.spawn : palette.core;
-  ctx.font = `bold ${tileSize}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(won ? 'SYSTEM SECURED' : 'GAME OVER', width / 2, height / 2 - fontSize * 0.6);
+  ctx.fillStyle = won ? '#39ff88' : '#ff2fd1';
+  ctx.font = `bold ${unit}px monospace`;
+  ctx.fillText(won ? 'SYSTEM SECURED' : 'GAME OVER', ox + worldW / 2, oy + worldH / 2 - fontSize * 0.6);
 
   ctx.font = `${fontSize * 0.6}px monospace`;
-  ctx.fillText('TAP TO RESTART', width / 2, height / 2 + fontSize * 0.8);
+  ctx.fillStyle = '#e8f9ff';
+  ctx.fillText('TAP TO RESTART', ox + worldW / 2, oy + worldH / 2 + fontSize * 0.8);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-}
-
-export function drawEnemies(
-  ctx: CanvasRenderingContext2D,
-  enemies: Enemy[],
-  waypoints: GridPos[],
-  tileSize: number,
-): void {
-  for (const enemy of enemies) {
-    const visual = ENEMY_VISUALS[enemy.kind];
-    const pos = positionAlongPath(waypoints, enemy.distance);
-    ctx.fillStyle = visual.color;
-    ctx.beginPath();
-    ctx.arc(
-      pos.x * tileSize,
-      pos.y * tileSize,
-      tileSize * 0.3 * visual.radiusScale,
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
-  }
 }

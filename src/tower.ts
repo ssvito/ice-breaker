@@ -16,6 +16,7 @@ export interface Tower {
   cooldownMs: number; // unused by aura towers
   slowMultiplier?: number; // present only on aura towers; enemy speed is multiplied by this while in range
   overclock?: { state: OverclockState; timerMs: number }; // present only on attack towers (fire-rate towers)
+  flashMs: number; // counts down after firing; drives the muzzle-flash sprite frame
 }
 
 interface TowerStats {
@@ -81,8 +82,11 @@ export function createTower(kind: TowerKind, x: number, y: number): Tower {
     cooldownMs: 0,
     slowMultiplier: stats.slowMultiplier,
     overclock: stats.slowMultiplier === undefined ? { state: 'idle', timerMs: 0 } : undefined,
+    flashMs: 0,
   };
 }
+
+export const MUZZLE_FLASH_MS = 90;
 
 /** Tower's center position in continuous grid coords (tiles are stored top-left). */
 export function towerCenter(tower: Tower): { x: number; y: number } {

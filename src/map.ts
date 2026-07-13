@@ -76,6 +76,26 @@ export function positionAlongPath(waypoints: GridPos[], distanceTravelled: numbe
   return { x: last.x + 0.5, y: last.y + 0.5 };
 }
 
+/** Unit travel direction (one of the 4 axis-aligned steps) at a given distance along the path. */
+export function directionAlongPath(waypoints: GridPos[], distanceTravelled: number): GridPos {
+  let remaining = distanceTravelled;
+
+  for (let i = 1; i < waypoints.length; i++) {
+    const from = waypoints[i - 1];
+    const to = waypoints[i];
+    const segmentLength = distance(from, to);
+    if (remaining <= segmentLength) {
+      return { x: Math.sign(to.x - from.x), y: Math.sign(to.y - from.y) };
+    }
+    remaining -= segmentLength;
+  }
+
+  const n = waypoints.length;
+  const from = waypoints[n - 2];
+  const to = waypoints[n - 1];
+  return { x: Math.sign(to.x - from.x), y: Math.sign(to.y - from.y) };
+}
+
 export function buildableTileSet(level: LevelData): Set<string> {
   const pathTiles = new Set(rasterizePath(level.waypoints).map((p) => `${p.x},${p.y}`));
   const buildable = new Set<string>();

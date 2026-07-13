@@ -10,10 +10,11 @@ export interface Projectile {
   target: Enemy;
   damage: number;
   speed: number;
+  heavy: boolean; // AES bolt - drawn with the larger projectile sprite
 }
 
-export function createProjectile(origin: GridPos, target: Enemy, damage: number): Projectile {
-  return { x: origin.x, y: origin.y, target, damage, speed: PROJECTILE_SPEED };
+export function createProjectile(origin: GridPos, target: Enemy, damage: number, heavy = false): Projectile {
+  return { x: origin.x, y: origin.y, target, damage, speed: PROJECTILE_SPEED, heavy };
 }
 
 /** Moves the projectile toward its target's current position; returns true on impact. */
