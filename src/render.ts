@@ -56,12 +56,25 @@ export function prerenderBoard(level: LevelData): HTMLCanvasElement {
   for (let x = 0; x <= level.cols; x++) ctx.fillRect(x * VIRTUAL_TILE, 0, 1, height);
   for (let y = 0; y <= level.rows; y++) ctx.fillRect(0, y * VIRTUAL_TILE, width, 1);
 
-  for (const tile of rasterizePath(level.waypoints)) {
-    ctx.fillStyle = palette.traceFill;
+  const pathTiles = rasterizePath(level.waypoints);
+  const pathSet = new Set(pathTiles.map((t) => `${t.x},${t.y}`));
+
+  ctx.fillStyle = palette.traceFill;
+  for (const tile of pathTiles) {
     ctx.fillRect(tile.x * VIRTUAL_TILE, tile.y * VIRTUAL_TILE, VIRTUAL_TILE, VIRTUAL_TILE);
-    ctx.fillStyle = palette.traceInactive;
-    ctx.fillRect(tile.x * VIRTUAL_TILE, tile.y * VIRTUAL_TILE, VIRTUAL_TILE, 1);
-    ctx.fillRect(tile.x * VIRTUAL_TILE, tile.y * VIRTUAL_TILE + VIRTUAL_TILE - 1, VIRTUAL_TILE, 1);
+  }
+
+  // Rail only the edges a tile doesn't share with another path tile, so the
+  // bright trace border follows the path (and turns corners) instead of banding
+  // every tile top-and-bottom.
+  ctx.fillStyle = palette.traceInactive;
+  for (const tile of pathTiles) {
+    const px = tile.x * VIRTUAL_TILE;
+    const py = tile.y * VIRTUAL_TILE;
+    if (!pathSet.has(`${tile.x},${tile.y - 1}`)) ctx.fillRect(px, py, VIRTUAL_TILE, 1);
+    if (!pathSet.has(`${tile.x},${tile.y + 1}`)) ctx.fillRect(px, py + VIRTUAL_TILE - 1, VIRTUAL_TILE, 1);
+    if (!pathSet.has(`${tile.x - 1},${tile.y}`)) ctx.fillRect(px, py, 1, VIRTUAL_TILE);
+    if (!pathSet.has(`${tile.x + 1},${tile.y}`)) ctx.fillRect(px + VIRTUAL_TILE - 1, py, 1, VIRTUAL_TILE);
   }
 
   const spawn = level.waypoints[0];
