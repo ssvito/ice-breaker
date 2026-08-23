@@ -13,19 +13,24 @@ export interface Enemy {
 }
 
 interface EnemyStats {
+  name: string;
   speed: number;
   maxHp: number;
   reward: number;
 }
 
 const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
-  worm: { speed: 2, maxHp: 3, reward: 5 },
-  trojan: { speed: 1, maxHp: 8, reward: 12 },
-  packetSniffer: { speed: 4, maxHp: 1, reward: 2 },
-  ransomware: { speed: 1.5, maxHp: 4, reward: 6 },
-  encryptor: { speed: 2, maxHp: 2, reward: 3 },
-  zeroDay: { speed: 0.8, maxHp: 40, reward: 50 },
+  worm: { name: 'WORM', speed: 2, maxHp: 3, reward: 5 },
+  trojan: { name: 'TROJAN', speed: 1, maxHp: 8, reward: 12 },
+  packetSniffer: { name: 'PACKET SNIFFER', speed: 4, maxHp: 1, reward: 2 },
+  ransomware: { name: 'RANSOMWARE', speed: 1.5, maxHp: 4, reward: 6 },
+  encryptor: { name: 'ENCRYPTOR', speed: 2, maxHp: 2, reward: 3 },
+  zeroDay: { name: 'ZERO-DAY', speed: 0.8, maxHp: 40, reward: 50 },
 };
+
+export function enemyStats(kind: EnemyKind): EnemyStats {
+  return ENEMY_STATS[kind];
+}
 
 /** Enemy kinds that spawn replacements on death, and what they spawn. */
 const SPLIT_ON_DEATH: Partial<Record<EnemyKind, EnemyKind[]>> = {
@@ -55,4 +60,9 @@ export function getSplitKinds(kind: EnemyKind): EnemyKind[] | null {
 
 export function isImmuneTo(kind: EnemyKind, towerKind: TowerKind): boolean {
   return IMMUNE_TO[kind] === towerKind;
+}
+
+/** The tower kind this enemy shrugs off, or null. Same table isImmuneTo reads. */
+export function immuneTowerKind(kind: EnemyKind): TowerKind | null {
+  return IMMUNE_TO[kind] ?? null;
 }

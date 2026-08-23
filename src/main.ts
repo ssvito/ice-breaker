@@ -2,16 +2,18 @@ import './style.css';
 import { GameLoop } from './game-loop.ts';
 import { level1, pathLength, buildableTileSet, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos } from './map.ts';
-import { createViewport, fitViewport, present, clientToGrid } from './canvas.ts';
+import { createViewport, fitViewport, present, clientToGrid, clientToWorld } from './canvas.ts';
 import {
   prerenderBoard,
   drawEnemies,
   drawGlitchParticles,
   drawHud,
   drawPlacementPreview,
+  drawEnemySelection,
   drawProjectiles,
-  drawSelection,
   drawTowers,
+  drawTowerSelection,
+  enemyHitRadius,
 } from './render.ts';
 import { bakeAtlas, spritePixels } from './sprites.ts';
 import type { SpriteName } from './sprites.ts';
@@ -38,6 +40,7 @@ import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
 import { createSpawner, stepSpawner, waveLabel } from './wave.ts';
 import { createTowerPanel } from './panel.ts';
+import type { PanelTarget } from './panel.ts';
 
 const MAX_CORE_HEALTH = 5;
 const STARTING_CYCLES = 100;
@@ -85,7 +88,8 @@ function startGame(): void {
     '4': 'honeypot',
   };
   let selectedTowerKind: TowerKind = 'firewallNode';
-  let selectedTower: Tower | null = null;
+  // One selection for the whole board: a tower or an enemy, never both.
+  let selection: PanelTarget = null;
 
   window.addEventListener('keydown', (event) => {
     const kind = TOWER_HOTKEYS[event.key];
@@ -93,10 +97,12 @@ function startGame(): void {
       selectedTowerKind = kind;
       return;
     }
-    if (event.key === 'Escape') selectedTower = null;
+    if (event.key === 'Escape') selection = null;
     // Kept as a desktop shortcut for the flow players already learned, but it now
     // acts on the selection instead of arming an invisible mode.
-    if ((event.key === 'q' || event.key === 'Q') && selectedTower) triggerOverclock(selectedTower);
+    if ((event.key === 'q' || event.key === 'Q') && selection?.kind === 'tower') {
+      triggerOverclock(selection.tower);
+    }
   });
 
   const TOWER_BUTTON_LABELS: Record<TowerKind, string> = {
@@ -135,7 +141,7 @@ function startGame(): void {
         towers.splice(index, 1);
         occupied.delete(`${tower.x},${tower.y}`);
         cycles += sellValue(tower);
-        selectedTower = null;
+        selection = null;
       },
       onUpgrade(tower) {
         const cost = upgradeCost(tower);
@@ -188,7 +194,7 @@ function startGame(): void {
     coreHealth = MAX_CORE_HEALTH;
     cycles = STARTING_CYCLES;
     gameState = 'playing';
-    selectedTower = null;
+    selection = null;
   }
 
   function isPlaceable(tile: GridPos): boolean {
@@ -202,6 +208,23 @@ function startGame(): void {
         : buildable.has(key);
 
     return validTile && cycles >= stats.cost;
+  }
+
+  /** Nearest enemy whose sprite covers this world point, or null. */
+  function enemyAt(x: number, y: number): Enemy | null {
+    let nearest: Enemy | null = null;
+    let nearestDist = Infinity;
+
+    for (const enemy of enemies) {
+      const pos = positionAlongPath(level1.waypoints, enemy.distance);
+      const dist = Math.hypot(pos.x - x, pos.y - y);
+      if (dist <= enemyHitRadius(enemy) && dist < nearestDist) {
+        nearest = enemy;
+        nearestDist = dist;
+      }
+    }
+
+    return nearest;
   }
 
   canvas.addEventListener('pointermove', (event) => {
@@ -219,20 +242,28 @@ function startGame(): void {
     }
     const tile = clientToGrid(viewport, event.clientX, event.clientY);
 
-    // Selecting and placing can share one tap because their targets are disjoint:
-    // isPlaceable rejects occupied tiles, so a tile either holds a tower or can take one.
-    const hit = towers.find((t) => t.x === tile.x && t.y === tile.y);
-    if (hit) {
-      selectedTower = hit;
+    // Tap resolves in one order: select a tower, else build, else inspect an enemy,
+    // else clear. Building outranks inspecting deliberately - the oversized Zero-Day
+    // sprite overhangs the trace onto buildable tiles, and losing a placement to a
+    // boss walking past would be maddening. Enemies stay tappable over the trace,
+    // which is where they always are.
+    const hitTower = towers.find((t) => t.x === tile.x && t.y === tile.y);
+    if (hitTower) {
+      selection = { kind: 'tower', tower: hitTower };
       return;
     }
-    selectedTower = null;
 
-    if (!isPlaceable(tile)) return;
+    if (isPlaceable(tile)) {
+      towers.push(createTower(selectedTowerKind, tile.x, tile.y));
+      occupied.add(`${tile.x},${tile.y}`);
+      cycles -= towerStats(selectedTowerKind).cost;
+      selection = null;
+      return;
+    }
 
-    towers.push(createTower(selectedTowerKind, tile.x, tile.y));
-    occupied.add(`${tile.x},${tile.y}`);
-    cycles -= towerStats(selectedTowerKind).cost;
+    const world = clientToWorld(viewport, event.clientX, event.clientY);
+    const hitEnemy = enemyAt(world.x, world.y);
+    selection = hitEnemy ? { kind: 'enemy', enemy: hitEnemy } : null;
   });
 
   const loop = new GameLoop(
@@ -315,6 +346,9 @@ function startGame(): void {
         projectiles.splice(i, 1);
       }
 
+      // A selected enemy can die or breach the core mid-tick; both paths set removed.
+      if (selection?.kind === 'enemy' && selection.enemy.removed) selection = null;
+
       if (spawner.state === 'done' && enemies.length === 0) gameState = 'won';
 
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -324,15 +358,16 @@ function startGame(): void {
     () => {
       const timeMs = performance.now();
       updateToolbar();
-      if (gameState === 'playing') panel.update(selectedTower, selectedTowerKind, cycles);
+      if (gameState === 'playing') panel.update(selection, selectedTowerKind, cycles);
       else panel.hide();
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;
       worldCtx.drawImage(board, 0, 0);
       drawTowers(worldCtx, towers, timeMs);
-      if (selectedTower) drawSelection(worldCtx, selectedTower);
+      if (selection?.kind === 'tower') drawTowerSelection(worldCtx, selection.tower);
       drawEnemies(worldCtx, enemies, level1.waypoints, timeMs);
+      if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, level1.waypoints);
       drawProjectiles(worldCtx, projectiles);
       drawGlitchParticles(worldCtx, particles);
       if (hoverTile && gameState === 'playing') {

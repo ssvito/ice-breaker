@@ -46,9 +46,21 @@ The panel started as a readout for a tower you already own. Seeing it work made 
 
 So the panel has two modes and is on screen whenever the game is playing. With a tower selected it shows that tower. Otherwise it shows the kind currently armed in the toolbar: name, cost, stats, and the placement rule.
 
-The placement rule appears only in build mode, and it is the reason this is more than a convenience. Honeypot is on-path only; today the only way to learn that is to try placing it somewhere sensible and get a red tile with no explanation.
+The placement rule appears only in build mode, and only on the tower where it is an exception. Three of the four towers go off-path, so printing `OFF PATH` on all of them was noise burying the one line worth reading: Honeypot is on-path only, otherwise discoverable just by trying to place it somewhere sensible and getting a red tile with no explanation.
 
 One consequence worth stating because it looks like a regression: toolbar buttons no longer go `disabled` when Cycles are short. A disabled button swallows its own click, which would mean the one tower you cannot afford is the one whose stats you cannot read - exactly backwards, since that is the tower you are saving for. They grey out through a class instead, and `isPlaceable` still refuses the placement.
+
+## Inspecting enemies (2026-08-23)
+
+The console reads three things now: a selected tower, a selected **enemy**, or - with nothing selected - the tower about to be built. Tapping an enemy shows its name, live HP in the header, speed, bounty, and whichever of its two special rules applies (`IMMUNE AES TURRET` on the Zero-Day, `SPLITS 2x ENCRYPTOR` on Ransomware).
+
+Both of those rules were previously invisible. A player watching AES Turrets retarget away from the boss had no way to learn why, and a Ransomware doubling on death just looked like a bug.
+
+Selection became one union - a tower or an enemy, never both - rather than two variables that could disagree. A selected enemy is cleared when it leaves play; kill and core-breach both set `removed`, so one check covers both.
+
+**Tap order: tower, then build, then enemy, then clear.** Building deliberately outranks inspecting. The Zero-Day sprite is 40px in a 32px trace and overhangs onto buildable tiles, so resolving enemies first would mean losing a placement because a boss walked past. Enemies stay tappable everywhere they actually are, which is over the trace, where nothing is placeable.
+
+Hit-testing needed a continuous world coordinate, so `clientToGrid` was split: `clientToWorld` returns the fractional position and `clientToGrid` floors it. The hit radius is the sprite's larger half-side, floored at a third of a tile - a Packet Sniffer is 10x6 virtual pixels and would otherwise be a target no thumb can hit.
 
 ## Tiers
 

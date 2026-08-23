@@ -1,17 +1,22 @@
 import { canUpgrade, MAX_TIER, sellValue, towerStats, upgradeCost } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
+import { enemyStats, getSplitKinds, immuneTowerKind } from './enemy.ts';
+import type { Enemy } from './enemy.ts';
 
 /**
- * Stats readout, styled as a console the mainframe is printing to. Shows the
- * selected tower when there is one, and otherwise the tower about to be built -
- * the four kinds are opaque until you have paid for one, and a portfolio visitor
- * gives the game about thirty seconds to explain itself.
+ * Stats readout, styled as a console the mainframe is printing to. Shows whatever
+ * is selected - a placed tower or an enemy on the board - and with nothing selected
+ * falls back to the tower about to be built. Both fallbacks exist for the same
+ * reason: the game was withholding what its pieces do until you had paid, or died,
+ * to find out, and a portfolio visitor gives it about thirty seconds.
  *
  * DOM rather than canvas for the same reason the v1 toolbar is: real elements get
  * native touch handling, focus, and disabled states for free.
  */
+export type PanelTarget = { kind: 'tower'; tower: Tower } | { kind: 'enemy'; enemy: Enemy } | null;
+
 export interface TowerPanel {
-  update(tower: Tower | null, buildKind: TowerKind, cycles: number): void;
+  update(target: PanelTarget, buildKind: TowerKind, cycles: number): void;
   hide(): void;
 }
 
@@ -185,22 +190,46 @@ export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement
     // Nothing to act on yet - a tower is built by tapping the board.
     actions.hidden = true;
 
-    // The placement rule only shows here. Honeypot being on-path only is otherwise
-    // discoverable just by trying to place it and getting a red tile.
-    const placement = base.placement === 'onPath' ? 'ON PATH' : 'OFF PATH';
+    // Only the exception earns a line. Three of four towers go off-path, so saying
+    // so on all of them is noise that buries the one rule worth reading: Honeypot
+    // is on-path only, otherwise discoverable just by getting an unexplained red tile.
+    const onPathOnly = base.placement === 'onPath';
 
     if (base.slowMultiplier !== undefined) {
       setStat(0, 'SLOW', slowText(base.slowMultiplier));
       setStat(1, 'RANGE', base.range.toFixed(1));
-      setStat(2, 'PLACE', placement);
-      clearStatsFrom(3);
+      if (onPathOnly) setStat(2, 'PLACE', 'ON PATH');
+      clearStatsFrom(onPathOnly ? 3 : 2);
       return;
     }
 
     setStat(0, 'DAMAGE', String(base.damage));
     setStat(1, 'RANGE', base.range.toFixed(1));
     setStat(2, 'RATE', rateText(base.fireIntervalMs));
-    setStat(3, 'PLACE', placement);
+    if (onPathOnly) setStat(3, 'PLACE', 'ON PATH');
+    clearStatsFrom(onPathOnly ? 4 : 3);
+  }
+
+  function renderEnemy(enemy: Enemy): void {
+    const stats = enemyStats(enemy.kind);
+    const immune = immuneTowerKind(enemy.kind);
+    const splits = getSplitKinds(enemy.kind);
+
+    title.textContent = stats.name;
+    // HP lives in the header so it stays readable with the console collapsed - it is
+    // the one number that changes while you watch.
+    meta.textContent = `HP ${enemy.hp}/${enemy.maxHp}`;
+    meta.classList.toggle('panel-short', enemy.hp <= enemy.maxHp / 3);
+
+    // Nothing to do to an enemy but shoot it, and that is the towers' job.
+    actions.hidden = true;
+
+    setStat(0, 'SPEED', enemy.speed.toFixed(1));
+    setStat(1, 'BOUNTY', String(enemy.reward));
+    let row = 2;
+    if (immune) setStat(row++, 'IMMUNE', towerStats(immune).name);
+    if (splits) setStat(row++, 'SPLITS', `${splits.length}x ${enemyStats(splits[0]).name}`);
+    clearStatsFrom(row);
   }
 
   // update() runs every frame off the render loop. Everything it writes is derived
@@ -209,23 +238,30 @@ export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement
   let signature = '';
 
   return {
-    update(tower: Tower | null, buildKind: TowerKind, cycles: number): void {
+    update(target: PanelTarget, buildKind: TowerKind, cycles: number): void {
+      const tower = target?.kind === 'tower' ? target.tower : null;
       current = tower;
 
       // Cycles enter the stamp as a yes/no against the price, not as a number: all
       // a balance decides is whether one thing is affordable, so every balance on
       // the same side of that price is the same panel and shouldn't redraw it.
       let stamp: string;
-      if (tower) {
-        const cost = upgradeCost(tower);
+      if (target?.kind === 'tower') {
+        const cost = upgradeCost(target.tower);
         stamp = [
-          tower.x,
-          tower.y,
-          tower.tier,
-          tower.invested,
-          tower.overclock?.state ?? '-',
+          'tower',
+          target.tower.x,
+          target.tower.y,
+          target.tower.tier,
+          target.tower.invested,
+          target.tower.overclock?.state ?? '-',
           cost !== null && cycles >= cost ? 1 : 0,
         ].join('|');
+      } else if (target?.kind === 'enemy') {
+        // Kind and HP fully determine what an enemy panel shows, and unlike the tower
+        // panel there is no button here acting on the thing, so two enemies that read
+        // the same really are the same panel.
+        stamp = ['enemy', target.enemy.kind, target.enemy.hp].join('|');
       } else {
         stamp = ['build', buildKind, cycles >= towerStats(buildKind).cost ? 1 : 0].join('|');
       }
@@ -233,7 +269,8 @@ export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement
       signature = stamp;
 
       root.hidden = false;
-      if (tower) renderSelected(tower, cycles);
+      if (target?.kind === 'tower') renderSelected(target.tower, cycles);
+      else if (target?.kind === 'enemy') renderEnemy(target.enemy);
       else renderBuild(buildKind, cycles);
     },
 

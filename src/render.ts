@@ -147,10 +147,33 @@ export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], timeM
 }
 
 /**
- * Marks the selected tower: corner brackets on its tile plus its range circle.
- * Brackets rather than a full outline so the tower's own silhouette stays readable.
+ * Corner brackets around a box. Brackets rather than a full outline so the thing
+ * being marked keeps its own silhouette instead of being boxed in by a border one
+ * pixel off it.
  */
-export function drawSelection(ctx: CanvasRenderingContext2D, tower: Tower): void {
+function drawBrackets(
+  ctx: CanvasRenderingContext2D,
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+): void {
+  const arm = Math.max(3, Math.min(6, Math.round((right - left) / 4)));
+
+  ctx.fillStyle = palette.selection;
+  for (const [px, py, dx, dy] of [
+    [left, top, 1, 1],
+    [right, top, -1, 1],
+    [left, bottom, 1, -1],
+    [right, bottom, -1, -1],
+  ] as const) {
+    ctx.fillRect(dx > 0 ? px : px - arm + 1, py, arm, 1);
+    ctx.fillRect(px, dy > 0 ? py : py - arm + 1, 1, arm);
+  }
+}
+
+/** Marks the selected tower: brackets on its tile plus its range circle. */
+export function drawTowerSelection(ctx: CanvasRenderingContext2D, tower: Tower): void {
   const { x: cx, y: cy } = tileCenter(tower.x, tower.y);
 
   ctx.strokeStyle = TOWER_RING[tower.kind];
@@ -163,20 +186,35 @@ export function drawSelection(ctx: CanvasRenderingContext2D, tower: Tower): void
 
   const left = tower.x * VIRTUAL_TILE;
   const top = tower.y * VIRTUAL_TILE;
-  const right = left + VIRTUAL_TILE - 1;
-  const bottom = top + VIRTUAL_TILE - 1;
-  const arm = 6;
+  drawBrackets(ctx, left, top, left + VIRTUAL_TILE - 1, top + VIRTUAL_TILE - 1);
+}
 
-  ctx.fillStyle = palette.selection;
-  for (const [px, py, dx, dy] of [
-    [left, top, 1, 1],
-    [right, top, -1, 1],
-    [left, bottom, 1, -1],
-    [right, bottom, -1, -1],
-  ] as const) {
-    ctx.fillRect(dx > 0 ? px : px - arm + 1, py, arm, 1);
-    ctx.fillRect(px, dy > 0 ? py : py - arm + 1, 1, arm);
-  }
+/**
+ * Marks the selected enemy. The box is square at the sprite's larger side: enemies
+ * rotate in 90-degree steps, so a 16x8 Worm is 8x16 going up, and a square box is
+ * the one that fits either way without recomputing per frame.
+ */
+export function drawEnemySelection(
+  ctx: CanvasRenderingContext2D,
+  enemy: Enemy,
+  waypoints: GridPos[],
+): void {
+  const pos = positionAlongPath(waypoints, enemy.distance);
+  const { w, h } = spriteSize(enemy.kind as SpriteName);
+  const half = Math.max(w, h) / 2 + 2;
+  const cx = Math.round(pos.x * VIRTUAL_TILE);
+  const cy = Math.round(pos.y * VIRTUAL_TILE);
+  drawBrackets(ctx, cx - half, cy - half, cx + half, cy + half);
+}
+
+/**
+ * Half-extent of an enemy's sprite in grid units, for hit-testing a tap. Floored at
+ * a third of a tile: a Packet Sniffer is 10x6 virtual pixels and would otherwise be
+ * a target no thumb can hit.
+ */
+export function enemyHitRadius(enemy: Enemy): number {
+  const { w, h } = spriteSize(enemy.kind as SpriteName);
+  return Math.max(Math.max(w, h) / 2 / VIRTUAL_TILE, 0.34);
 }
 
 export function drawEnemies(

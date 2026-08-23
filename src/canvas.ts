@@ -89,15 +89,23 @@ export function present(vp: Viewport): void {
   );
 }
 
-/** Converts a pointer event's client coordinates to a grid tile, accounting for the blit offset/scale. */
-export function clientToGrid(vp: Viewport, clientX: number, clientY: number): GridPos {
+/**
+ * Converts a pointer event's client coordinates to continuous grid coords,
+ * accounting for the blit offset/scale. Entities sit between tiles, so hit-testing
+ * one needs the fractional position that clientToGrid throws away.
+ */
+export function clientToWorld(vp: Viewport, clientX: number, clientY: number): { x: number; y: number } {
   const rect = vp.display.getBoundingClientRect();
   const deviceX = (clientX - rect.left) * vp.dpr;
   const deviceY = (clientY - rect.top) * vp.dpr;
-  const virtualX = (deviceX - vp.offsetX) / vp.scale;
-  const virtualY = (deviceY - vp.offsetY) / vp.scale;
   return {
-    x: Math.floor(virtualX / VIRTUAL_TILE),
-    y: Math.floor(virtualY / VIRTUAL_TILE),
+    x: (deviceX - vp.offsetX) / vp.scale / VIRTUAL_TILE,
+    y: (deviceY - vp.offsetY) / vp.scale / VIRTUAL_TILE,
   };
+}
+
+/** Converts a pointer event's client coordinates to a grid tile. */
+export function clientToGrid(vp: Viewport, clientX: number, clientY: number): GridPos {
+  const world = clientToWorld(vp, clientX, clientY);
+  return { x: Math.floor(world.x), y: Math.floor(world.y) };
 }
