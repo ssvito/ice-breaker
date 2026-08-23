@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Obsidian per-vault state, created when docs/ is opened directly as a vault
+docs/.obsidian/
