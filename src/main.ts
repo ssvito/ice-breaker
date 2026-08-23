@@ -21,12 +21,14 @@ import type { GlitchParticle } from './effects.ts';
 import { createEnemy, getSplitKinds, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
 import {
+  applyUpgrade,
   canFire,
   createTower,
   effectiveFireIntervalMs,
   MUZZLE_FLASH_MS,
   sellValue,
   stepOverclock,
+  upgradeCost,
   towerCenter,
   towerStats,
   triggerOverclock,
@@ -134,6 +136,12 @@ function startGame(): void {
       occupied.delete(`${tower.x},${tower.y}`);
       cycles += sellValue(tower);
       selectedTower = null;
+    },
+    onUpgrade(tower) {
+      const cost = upgradeCost(tower);
+      if (cost === null || cycles < cost) return;
+      cycles -= cost;
+      applyUpgrade(tower);
     },
   });
 
@@ -317,7 +325,7 @@ function startGame(): void {
     () => {
       const timeMs = performance.now();
       updateToolbar();
-      panel.update(gameState === 'playing' ? selectedTower : null);
+      panel.update(gameState === 'playing' ? selectedTower : null, cycles);
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;

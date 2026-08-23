@@ -118,6 +118,18 @@ export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], timeM
       ctx.strokeRect(Math.round(cx - w / 2) - 1, Math.round(cy - h / 2) - 1, w + 2, h + 2);
     }
 
+    // Tier tell is procedural for now: pips along the tile's bottom edge. Tier
+    // sprites would mean three variants per tower, which is its own milestone.
+    if (tower.tier > 1) {
+      const pips = tower.tier - 1;
+      const width = pips * 3 - 1;
+      const py = tower.y * VIRTUAL_TILE + VIRTUAL_TILE - 3;
+      ctx.fillStyle = TOWER_RING[tower.kind];
+      for (let i = 0; i < pips; i++) {
+        ctx.fillRect(Math.round(cx - width / 2) + i * 3, py, 2, 2);
+      }
+    }
+
     if (tower.slowMultiplier !== undefined) {
       ctx.strokeStyle = TOWER_RING[tower.kind];
       ctx.globalAlpha = 0.25;

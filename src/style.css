@@ -92,10 +92,19 @@ canvas {
   margin-bottom: 6px;
 }
 
+.panel-tier {
+  color: rgba(232, 249, 255, 0.55);
+  margin-bottom: 6px;
+}
+
 .panel-stats {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 2px 12px;
+  grid-template-columns: auto auto auto;
+  gap: 2px 10px;
+}
+
+.panel-next {
+  color: #39ff88;
 }
 
 .panel-value {
