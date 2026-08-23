@@ -86,7 +86,6 @@ function startGame(): void {
   };
   let selectedTowerKind: TowerKind = 'firewallNode';
   let selectedTower: Tower | null = null;
-  let overclockArmed = false;
 
   window.addEventListener('keydown', (event) => {
     const kind = TOWER_HOTKEYS[event.key];
@@ -95,7 +94,9 @@ function startGame(): void {
       return;
     }
     if (event.key === 'Escape') selectedTower = null;
-    if (event.key === 'q' || event.key === 'Q') overclockArmed = true;
+    // Kept as a desktop shortcut for the flow players already learned, but it now
+    // acts on the selection instead of arming an invisible mode.
+    if ((event.key === 'q' || event.key === 'Q') && selectedTower) triggerOverclock(selectedTower);
   });
 
   const TOWER_BUTTON_LABELS: Record<TowerKind, string> = {
@@ -120,14 +121,6 @@ function startGame(): void {
     return { kind, button };
   });
 
-  const overclockButton = document.createElement('button');
-  overclockButton.type = 'button';
-  overclockButton.innerHTML = '<span>OC</span><span>Q</span>';
-  overclockButton.addEventListener('click', () => {
-    overclockArmed = true;
-  });
-  toolbar.appendChild(overclockButton);
-
   const panel = createTowerPanel({
     onSell(tower) {
       const index = towers.indexOf(tower);
@@ -143,6 +136,9 @@ function startGame(): void {
       cycles -= cost;
       applyUpgrade(tower);
     },
+    onOverclock(tower) {
+      triggerOverclock(tower);
+    },
   });
 
   function updateToolbar(): void {
@@ -150,7 +146,6 @@ function startGame(): void {
       button.classList.toggle('selected', kind === selectedTowerKind);
       button.disabled = cycles < towerStats(kind).cost;
     }
-    overclockButton.classList.toggle('armed', overclockArmed);
   }
 
   function findTarget(tower: Tower): Enemy | null {
@@ -182,7 +177,6 @@ function startGame(): void {
     cycles = STARTING_CYCLES;
     gameState = 'playing';
     selectedTower = null;
-    overclockArmed = false;
   }
 
   function isPlaceable(tile: GridPos): boolean {
@@ -212,13 +206,6 @@ function startGame(): void {
       return;
     }
     const tile = clientToGrid(viewport, event.clientX, event.clientY);
-
-    if (overclockArmed) {
-      overclockArmed = false;
-      const target = towers.find((t) => t.x === tile.x && t.y === tile.y);
-      if (target) triggerOverclock(target);
-      return;
-    }
 
     // Selecting and placing can share one tap because their targets are disjoint:
     // isPlaceable rejects occupied tiles, so a tile either holds a tower or can take one.

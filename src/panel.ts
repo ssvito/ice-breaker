@@ -13,6 +13,7 @@ export interface TowerPanel {
 export interface TowerPanelHandlers {
   onSell(tower: Tower): void;
   onUpgrade(tower: Tower): void;
+  onOverclock(tower: Tower): void;
 }
 
 const ROW_COUNT = 3;
@@ -70,6 +71,14 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
   });
   actions.appendChild(upgradeButton);
 
+  const overclockButton = document.createElement('button');
+  overclockButton.type = 'button';
+  overclockButton.innerHTML = '<span>OC</span><span>Q</span>';
+  overclockButton.addEventListener('click', () => {
+    if (current) handlers.onOverclock(current);
+  });
+  actions.appendChild(overclockButton);
+
   const sellButton = document.createElement('button');
   sellButton.type = 'button';
   sellButton.innerHTML = '<span>SELL</span><span></span>';
@@ -107,6 +116,11 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
       upgradeButton.firstElementChild!.textContent = next ? 'UP' : 'MAX';
       upgradeButton.lastElementChild!.textContent = cost === null ? '' : String(cost);
       upgradeButton.disabled = cost === null || cycles < cost;
+      // Aura towers have no Overclock at all, so the button is absent rather than
+      // permanently greyed out.
+      overclockButton.hidden = tower.overclock === undefined;
+      overclockButton.disabled = tower.overclock?.state !== 'idle';
+      overclockButton.classList.toggle('armed', tower.overclock?.state === 'boosted');
 
       if (tower.slowMultiplier !== undefined) {
         // Auras have no damage or fire rate; show the slow as the cut it applies.

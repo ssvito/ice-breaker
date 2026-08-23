@@ -57,7 +57,8 @@ canvas {
   box-shadow: 0 0 6px rgba(34, 225, 255, 0.6);
 }
 
-.toolbar button.armed {
+.toolbar button.armed,
+.panel-actions button.armed {
   border-color: #fff9b0;
   box-shadow: 0 0 6px rgba(255, 249, 176, 0.6);
 }
@@ -120,4 +121,8 @@ canvas {
 
 .panel-actions button {
   flex: 1;
+}
+
+.panel-actions button[hidden] {
+  display: none;
 }
