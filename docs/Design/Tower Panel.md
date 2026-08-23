@@ -28,6 +28,16 @@ Contents:
 - `SELL` with the refund it pays.
 - `OC` for attack towers, disabled while boosted or overheated. Aura towers have no Overclock, so the button is absent rather than disabled.
 
+## Build mode (added 2026-08-23, after the panel existed)
+
+The panel started as a readout for a tower you already own. Seeing it work made the gap obvious: the four towers are opaque until you have spent 20 to 45 Cycles finding out what one does, and the stats existed the whole time - they were just being withheld until after the purchase.
+
+So the panel has two modes and is on screen whenever the game is playing. With a tower selected it shows that tower. Otherwise it shows the kind currently armed in the toolbar: name, cost, stats, and the placement rule.
+
+The placement rule appears only in build mode, and it is the reason this is more than a convenience. Honeypot is on-path only; today the only way to learn that is to try placing it somewhere sensible and get a red tile with no explanation.
+
+One consequence worth stating because it looks like a regression: toolbar buttons no longer go `disabled` when Cycles are short. A disabled button swallows its own click, which would mean the one tower you cannot afford is the one whose stats you cannot read - exactly backwards, since that is the tower you are saving for. They grey out through a class instead, and `isPlaceable` still refuses the placement.
+
 ## Tiers
 
 Three tiers per tower: the placed tower is tier 1, two upgrades above it. Two is enough to teach the decision (go wide with more towers, or go tall on the ones already covering the choke) without turning balance into a spreadsheet.

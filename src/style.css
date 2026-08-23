@@ -64,6 +64,7 @@ canvas {
 }
 
 .toolbar button:disabled,
+.toolbar button.short,
 .panel-actions button:disabled {
   opacity: 0.4;
 }
@@ -93,9 +94,14 @@ canvas {
   margin-bottom: 6px;
 }
 
-.panel-tier {
+.panel-subtitle {
   color: rgba(232, 249, 255, 0.55);
   margin-bottom: 6px;
+}
+
+/* Can't afford it: the toolbar button already greys out, this says why. */
+.panel-subtitle.panel-short {
+  color: #ff2f58;
 }
 
 .panel-stats {
@@ -123,6 +129,9 @@ canvas {
   flex: 1;
 }
 
+/* display:flex on the author side outranks the UA's [hidden] rule, so both the
+   row and its buttons need saying twice. */
+.panel-actions[hidden],
 .panel-actions button[hidden] {
   display: none;
 }

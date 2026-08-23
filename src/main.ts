@@ -144,7 +144,10 @@ function startGame(): void {
   function updateToolbar(): void {
     for (const { kind, button } of towerButtons) {
       button.classList.toggle('selected', kind === selectedTowerKind);
-      button.disabled = cycles < towerStats(kind).cost;
+      // Marked as unaffordable rather than disabled: a disabled button swallows its
+      // click, and picking a kind you can't afford yet is how you read its stats in
+      // the panel. Placement is blocked by isPlaceable regardless.
+      button.classList.toggle('short', cycles < towerStats(kind).cost);
     }
   }
 
@@ -312,7 +315,8 @@ function startGame(): void {
     () => {
       const timeMs = performance.now();
       updateToolbar();
-      panel.update(gameState === 'playing' ? selectedTower : null, cycles);
+      if (gameState === 'playing') panel.update(selectedTower, selectedTowerKind, cycles);
+      else panel.hide();
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;
