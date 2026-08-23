@@ -2,13 +2,13 @@ import { canUpgrade, MAX_TIER, sellValue, towerStats, upgradeCost } from './towe
 import type { Tower, TowerKind } from './tower.ts';
 
 /**
- * Stats panel. Shows the selected tower when there is one, and otherwise the tower
- * about to be built - the four kinds are opaque until you have paid for one, and a
- * portfolio visitor gives the game about thirty seconds to explain itself.
+ * Stats readout, styled as a console the mainframe is printing to. Shows the
+ * selected tower when there is one, and otherwise the tower about to be built -
+ * the four kinds are opaque until you have paid for one, and a portfolio visitor
+ * gives the game about thirty seconds to explain itself.
  *
  * DOM rather than canvas for the same reason the v1 toolbar is: real elements get
- * native touch handling and disabled states for free, and canvas hit-testing bought
- * nothing when it was tried.
+ * native touch handling, focus, and disabled states for free.
  */
 export interface TowerPanel {
   update(tower: Tower | null, buildKind: TowerKind, cycles: number): void;
@@ -22,7 +22,7 @@ export interface TowerPanelHandlers {
 }
 
 // Attack towers fill three (damage, range, rate) and build mode adds the placement rule.
-const ROW_COUNT = 4;
+const STAT_COUNT = 4;
 
 function slowText(multiplier: number): string {
   return `${Math.round((1 - multiplier) * 100)}%`;
@@ -32,42 +32,75 @@ function rateText(fireIntervalMs: number): string {
   return `${(1000 / fireIntervalMs).toFixed(1)}/s`;
 }
 
-export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
+export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement): TowerPanel {
   const root = document.createElement('div');
   root.className = 'panel';
   root.hidden = true;
 
-  const title = document.createElement('div');
+  // The whole header bar is the collapse control: a 44px tap target costs nothing
+  // here, where a small [-] in the corner would be the one thing on screen that
+  // needs a precise tap.
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'panel-head';
+
+  const title = document.createElement('span');
   title.className = 'panel-title';
-  root.appendChild(title);
+  head.appendChild(title);
 
-  const subtitle = document.createElement('div');
-  subtitle.className = 'panel-subtitle';
-  root.appendChild(subtitle);
+  const meta = document.createElement('span');
+  meta.className = 'panel-meta';
+  head.appendChild(meta);
 
-  const stats = document.createElement('div');
-  stats.className = 'panel-stats';
-  root.appendChild(stats);
+  const caret = document.createElement('span');
+  caret.className = 'panel-caret';
+  head.appendChild(caret);
+  root.appendChild(head);
 
-  // Fixed rows built once and rewritten in place: rebuilding the DOM every frame
+  const body = document.createElement('div');
+  body.className = 'panel-body';
+  root.appendChild(body);
+
+  const statList = document.createElement('div');
+  statList.className = 'panel-stats';
+  body.appendChild(statList);
+
+  // Fixed cells built once and rewritten in place: rebuilding the DOM every frame
   // would throw away the buttons, and any tap in flight on them.
-  const rows = Array.from({ length: ROW_COUNT }, () => {
+  const cells = Array.from({ length: STAT_COUNT }, () => {
+    const cell = document.createElement('div');
+    cell.className = 'stat';
     const label = document.createElement('span');
+    label.className = 'stat-label';
     const value = document.createElement('span');
+    value.className = 'stat-value';
     const next = document.createElement('span');
-    value.className = 'panel-value';
-    next.className = 'panel-next';
-    stats.append(label, value, next);
-    return { label, value, next };
+    next.className = 'stat-next';
+    cell.append(label, value, next);
+    statList.appendChild(cell);
+    return { cell, label, value, next };
   });
 
   const actions = document.createElement('div');
   actions.className = 'panel-actions';
-  root.appendChild(actions);
+  body.appendChild(actions);
 
   // The panel acts on whatever it is currently showing, so a button pressed after
   // the selection moved can't operate on a stale tower.
   let current: Tower | null = null;
+  let collapsed = false;
+
+  function applyCollapsed(): void {
+    body.hidden = collapsed;
+    caret.textContent = collapsed ? '[+]' : '[-]';
+    head.setAttribute('aria-expanded', String(!collapsed));
+  }
+
+  head.addEventListener('click', () => {
+    collapsed = !collapsed;
+    applyCollapsed();
+  });
+  applyCollapsed();
 
   const upgradeButton = document.createElement('button');
   upgradeButton.type = 'button';
@@ -93,22 +126,20 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
   });
   actions.appendChild(sellButton);
 
-  document.body.appendChild(root);
+  dock.prepend(root);
 
-  function setRow(index: number, label: string, value: string, next = ''): void {
-    const row = rows[index];
-    row.label.textContent = label;
-    row.value.textContent = value;
-    // The next tier's value sits in its own column so the upgrade price has
+  function setStat(index: number, label: string, value: string, next = ''): void {
+    const slot = cells[index];
+    slot.label.textContent = label;
+    slot.value.textContent = value;
+    // The next tier's value trails the current one so the upgrade price has
     // something concrete to argue against.
-    row.next.textContent = next === '' ? '' : `> ${next}`;
-    row.label.hidden = label === '';
-    row.value.hidden = label === '';
-    row.next.hidden = label === '';
+    slot.next.textContent = next === '' ? '' : `> ${next}`;
+    slot.cell.hidden = label === '';
   }
 
-  function clearRowsFrom(index: number): void {
-    for (let i = index; i < ROW_COUNT; i++) setRow(i, '', '');
+  function clearStatsFrom(index: number): void {
+    for (let i = index; i < STAT_COUNT; i++) setStat(i, '', '');
   }
 
   function renderSelected(tower: Tower, cycles: number): void {
@@ -116,8 +147,8 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
     const next = canUpgrade(tower) ? towerStats(tower.kind, tower.tier + 1) : null;
 
     title.textContent = towerStats(tower.kind).name;
-    subtitle.textContent = `TIER ${tower.tier}/${MAX_TIER}`;
-    subtitle.classList.remove('panel-short');
+    meta.textContent = `TIER ${tower.tier}/${MAX_TIER}`;
+    meta.classList.remove('panel-short');
 
     actions.hidden = false;
     sellButton.lastElementChild!.textContent = `+${sellValue(tower)}`;
@@ -132,24 +163,24 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
 
     if (tower.slowMultiplier !== undefined) {
       // Auras have no damage or fire rate; show the slow as the cut it applies.
-      setRow(0, 'SLOW', slowText(tower.slowMultiplier), next ? slowText(next.slowMultiplier!) : '');
-      setRow(1, 'RANGE', tower.range.toFixed(1), next ? next.range.toFixed(1) : '');
-      clearRowsFrom(2);
+      setStat(0, 'SLOW', slowText(tower.slowMultiplier), next ? slowText(next.slowMultiplier!) : '');
+      setStat(1, 'RANGE', tower.range.toFixed(1), next ? next.range.toFixed(1) : '');
+      clearStatsFrom(2);
       return;
     }
 
-    setRow(0, 'DAMAGE', String(tower.damage), next ? String(next.damage) : '');
-    setRow(1, 'RANGE', tower.range.toFixed(1), next ? next.range.toFixed(1) : '');
-    setRow(2, 'RATE', rateText(tower.fireIntervalMs), next ? rateText(next.fireIntervalMs) : '');
-    clearRowsFrom(3);
+    setStat(0, 'DAMAGE', String(tower.damage), next ? String(next.damage) : '');
+    setStat(1, 'RANGE', tower.range.toFixed(1), next ? next.range.toFixed(1) : '');
+    setStat(2, 'RATE', rateText(tower.fireIntervalMs), next ? rateText(next.fireIntervalMs) : '');
+    clearStatsFrom(3);
   }
 
   function renderBuild(kind: TowerKind, cycles: number): void {
     const base = towerStats(kind);
 
     title.textContent = base.name;
-    subtitle.textContent = `COST ${base.cost}`;
-    subtitle.classList.toggle('panel-short', cycles < base.cost);
+    meta.textContent = `COST ${base.cost}`;
+    meta.classList.toggle('panel-short', cycles < base.cost);
 
     // Nothing to act on yet - a tower is built by tapping the board.
     actions.hidden = true;
@@ -159,17 +190,17 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
     const placement = base.placement === 'onPath' ? 'ON PATH' : 'OFF PATH';
 
     if (base.slowMultiplier !== undefined) {
-      setRow(0, 'SLOW', slowText(base.slowMultiplier));
-      setRow(1, 'RANGE', base.range.toFixed(1));
-      setRow(2, 'PLACE', placement);
-      clearRowsFrom(3);
+      setStat(0, 'SLOW', slowText(base.slowMultiplier));
+      setStat(1, 'RANGE', base.range.toFixed(1));
+      setStat(2, 'PLACE', placement);
+      clearStatsFrom(3);
       return;
     }
 
-    setRow(0, 'DAMAGE', String(base.damage));
-    setRow(1, 'RANGE', base.range.toFixed(1));
-    setRow(2, 'RATE', rateText(base.fireIntervalMs));
-    setRow(3, 'PLACE', placement);
+    setStat(0, 'DAMAGE', String(base.damage));
+    setStat(1, 'RANGE', base.range.toFixed(1));
+    setStat(2, 'RATE', rateText(base.fireIntervalMs));
+    setStat(3, 'PLACE', placement);
   }
 
   // update() runs every frame off the render loop. Everything it writes is derived
@@ -209,7 +240,8 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
     hide(): void {
       root.hidden = true;
       // Force a redraw when the panel comes back: the signature it was last showing
-      // may no longer describe anything.
+      // may no longer describe anything. Collapsed state survives on purpose - it is
+      // the player's preference, not part of what is being displayed.
       signature = '';
     },
   };

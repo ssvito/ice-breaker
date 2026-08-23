@@ -22,18 +22,194 @@ canvas {
   image-rendering: pixelated;
 }
 
-.toolbar {
+
+/* The console: green is "powered trace" in the theme, so a green-on-black
+   readout reads as the mainframe reporting rather than as chrome bolted on.
+   Colors are the existing palette (#39ff88 green, #ffe27d amber, #ff2fd1
+   magenta for warnings); nothing new is introduced here. */
+:root {
+  --term: #39ff88;
+  --term-dim: rgba(57, 255, 136, 0.5);
+  --term-faint: rgba(57, 255, 136, 0.28);
+  --term-back: rgba(0, 10, 5, 0.94);
+  --term-glow: 0 0 6px rgba(57, 255, 136, 0.4);
+}
+
+/* Panel and toolbar stack as one unit above the bottom edge. pointer-events are
+   off on the container so its gaps don't swallow taps meant for the board. */
+.dock {
   position: fixed;
   left: 50%;
   bottom: max(8px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Definite width, not max-content: an auto-sized dock lets the stats grid ask
+     for all four columns on one line and stretches the console with it. */
+  width: min(94vw, 320px);
+  pointer-events: none;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.panel,
+.toolbar {
+  pointer-events: auto;
+  background: var(--term-back);
+  border: 1px solid var(--term-faint);
+  border-radius: 4px;
+  box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  color: var(--term);
+  text-shadow: var(--term-glow);
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+/* Scanlines. Non-interactive, and drawn over the panel's own rounding. */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    rgba(0, 0, 0, 0) 0 2px,
+    rgba(0, 0, 0, 0.22) 2px 3px
+  );
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 4px 8px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--term-faint);
+  color: inherit;
+  font: inherit;
+  text-shadow: inherit;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.panel-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.06em;
+}
+
+.panel-title::before {
+  content: '> ';
+  color: var(--term-dim);
+}
+
+.panel-title::after {
+  content: '_';
+  animation: term-blink 1.1s step-end infinite;
+}
+
+@keyframes term-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-title::after {
+    animation: none;
+  }
+}
+
+.panel-meta {
+  color: var(--term-dim);
+  white-space: nowrap;
+}
+
+/* Warning state borrows the theme's damage magenta rather than adding a red. */
+.panel-meta.panel-short {
+  color: #ff2fd1;
+  text-shadow: 0 0 6px rgba(255, 47, 209, 0.45);
+}
+
+.panel-caret {
+  color: var(--term-dim);
+}
+
+.panel-body[hidden] {
+  display: none;
+}
+
+.panel-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 0 14px;
+  padding: 6px 8px;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.stat[hidden] {
+  display: none;
+}
+
+/* Dot leader, the way a terminal fills the gap to a value. The dots live in the
+   label's overflow, so they stretch to whatever room is left. */
+.stat-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--term-dim);
+}
+
+.stat-label::after {
+  content: ' ..............................';
+  color: var(--term-faint);
+}
+
+.stat-next {
+  color: #ffe27d;
+  text-shadow: 0 0 6px rgba(255, 226, 125, 0.4);
+}
+
+.panel-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.panel-actions[hidden],
+.panel-actions button[hidden] {
+  display: none;
+}
+
+.panel-actions button {
+  flex: 1;
+}
+
+.toolbar {
+  display: flex;
   gap: 6px;
   padding: 6px;
-  background: rgba(10, 14, 20, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  font: 12px/1.2 ui-monospace, monospace;
+}
+
+.toolbar button {
+  flex: 1;
 }
 
 .toolbar button,
@@ -41,97 +217,34 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   min-width: 44px;
   min-height: 44px;
   padding: 4px 8px;
-  background: #12161f;
-  color: #e8f9ff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  background: rgba(57, 255, 136, 0.06);
+  color: var(--term);
+  border: 1px solid var(--term-faint);
+  border-radius: 3px;
+  font: inherit;
+  text-shadow: var(--term-glow);
   touch-action: manipulation;
 }
 
 .toolbar button.selected {
-  border-color: #22e1ff;
-  box-shadow: 0 0 6px rgba(34, 225, 255, 0.6);
+  border-color: var(--term);
+  background: rgba(57, 255, 136, 0.16);
 }
 
 .toolbar button.armed,
 .panel-actions button.armed {
-  border-color: #fff9b0;
-  box-shadow: 0 0 6px rgba(255, 249, 176, 0.6);
+  border-color: #ffe27d;
+  color: #ffe27d;
+  box-shadow: 0 0 8px rgba(255, 226, 125, 0.5);
 }
 
 .toolbar button:disabled,
 .toolbar button.short,
 .panel-actions button:disabled {
-  opacity: 0.4;
-}
-
-/* Selected-tower panel. Anchored opposite the toolbar so the two never fight
-   for the same corner, and clear of the HUD text in the top-left. */
-.panel {
-  position: fixed;
-  top: max(8px, env(safe-area-inset-top));
-  right: max(8px, env(safe-area-inset-right));
-  min-width: 140px;
-  padding: 8px 10px;
-  background: rgba(10, 14, 20, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  font: 12px/1.35 ui-monospace, monospace;
-  color: #e8f9ff;
-}
-
-.panel[hidden] {
-  display: none;
-}
-
-.panel-title {
-  color: #22e1ff;
-  letter-spacing: 0.06em;
-  margin-bottom: 6px;
-}
-
-.panel-subtitle {
-  color: rgba(232, 249, 255, 0.55);
-  margin-bottom: 6px;
-}
-
-/* Can't afford it: the toolbar button already greys out, this says why. */
-.panel-subtitle.panel-short {
-  color: #ff2f58;
-}
-
-.panel-stats {
-  display: grid;
-  grid-template-columns: auto auto auto;
-  gap: 2px 10px;
-}
-
-.panel-next {
-  color: #39ff88;
-}
-
-.panel-value {
-  text-align: right;
-}
-
-.panel-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.panel-actions button {
-  flex: 1;
-}
-
-/* display:flex on the author side outranks the UA's [hidden] rule, so both the
-   row and its buttons need saying twice. */
-.panel-actions[hidden],
-.panel-actions button[hidden] {
-  display: none;
+  opacity: 0.35;
 }

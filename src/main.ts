@@ -106,9 +106,15 @@ function startGame(): void {
     honeypot: 'TRAP',
   };
 
+  // Panel and toolbar share one bottom-centered column so they stack as a single
+  // console and the safe-area handling lives in one place.
+  const dock = document.createElement('div');
+  dock.className = 'dock';
+  document.body.appendChild(dock);
+
   const toolbar = document.createElement('div');
   toolbar.className = 'toolbar';
-  document.body.appendChild(toolbar);
+  dock.appendChild(toolbar);
 
   const towerButtons = (Object.keys(TOWER_BUTTON_LABELS) as TowerKind[]).map((kind) => {
     const button = document.createElement('button');
@@ -121,25 +127,28 @@ function startGame(): void {
     return { kind, button };
   });
 
-  const panel = createTowerPanel({
-    onSell(tower) {
-      const index = towers.indexOf(tower);
-      if (index === -1) return;
-      towers.splice(index, 1);
-      occupied.delete(`${tower.x},${tower.y}`);
-      cycles += sellValue(tower);
-      selectedTower = null;
+  const panel = createTowerPanel(
+    {
+      onSell(tower) {
+        const index = towers.indexOf(tower);
+        if (index === -1) return;
+        towers.splice(index, 1);
+        occupied.delete(`${tower.x},${tower.y}`);
+        cycles += sellValue(tower);
+        selectedTower = null;
+      },
+      onUpgrade(tower) {
+        const cost = upgradeCost(tower);
+        if (cost === null || cycles < cost) return;
+        cycles -= cost;
+        applyUpgrade(tower);
+      },
+      onOverclock(tower) {
+        triggerOverclock(tower);
+      },
     },
-    onUpgrade(tower) {
-      const cost = upgradeCost(tower);
-      if (cost === null || cycles < cost) return;
-      cycles -= cost;
-      applyUpgrade(tower);
-    },
-    onOverclock(tower) {
-      triggerOverclock(tower);
-    },
-  });
+    dock,
+  );
 
   function updateToolbar(): void {
     for (const { kind, button } of towerButtons) {

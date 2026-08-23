@@ -16,9 +16,21 @@ A selected tower draws a selection ring plus its range circle in the world canva
 
 ## Panel
 
-DOM, not canvas - same reasoning as the toolbar in v1: real buttons get native touch handling, focus, and disabled states for free, and hand-rolled canvas hit-testing bought nothing. It shares the toolbar's visual language (near-black panel, 1px hairline, cyan selected state, 44px minimum targets, safe-area aware).
+DOM, not canvas - same reasoning as the toolbar in v1: real buttons get native touch handling, focus, and disabled states for free, and hand-rolled canvas hit-testing bought nothing.
 
-It anchors opposite the toolbar so the two never fight for the same corner on a phone in landscape, and it exists only while something is selected.
+**Anchoring reversed 2026-08-23.** The panel first sat in the top-right corner, opposite the toolbar, on the theory that the two should never fight for the same edge. Wrong instinct: they are one control surface, and splitting them across opposite corners made the player's eyes cross the whole board to go from "which tower" to "what does it do". They now stack in one bottom-centered dock, panel above toolbar, sharing a single width and one safe-area rule. The dock itself is `pointer-events: none` so the gap between the two does not eat taps meant for the board.
+
+The cost of the move is real and should be watched: the dock is now taller and covers more of the bottom-center of the board, which is why the panel collapses.
+
+## Console styling (2026-08-23)
+
+The panel is a green-on-black terminal: dot leaders between label and value, a scanline overlay, a blinking cursor after the tower name, `[-]`/`[+]` to collapse.
+
+This is theme, not decoration. [Theme](./Theme.md) already assigns green to *powered/active* traces, so a green console reads as the mainframe reporting its own state, next to the cyan board it is reporting on. No new colors were introduced: green `#39ff88` for live values, amber `#ffe27d` for the next tier (the upgrade preview is a thing being powered up), magenta `#ff2fd1` for "cannot afford", all already in the palette.
+
+Font stays the system monospace stack. A real terminal face would be a downloaded font, and this is an offline-first PWA - one webfont would be the only asset in the project that can fail to load.
+
+The whole header bar is the collapse button rather than a small `[-]` in the corner, so the one control that is not a 44px target does not become the one thing on screen needing a precise tap. Collapsed state is per-session and in memory: it survives a restart within the session but not a reload. Persisting it means starting the localStorage story that [Idea Bank](../Idea%20Bank/Idea%20Bank.md) files under Meta / persistence, and that is a milestone, not a side effect of a style pass.
 
 Contents:
 
