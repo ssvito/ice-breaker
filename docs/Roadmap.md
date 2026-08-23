@@ -40,7 +40,7 @@ What and why: [Tower Panel](./Design/Tower%20Panel.md) - a placed tower is curre
 
 Sequenced like v1 and v1.1: each step is independently visible/testable and unblocks the next. Selection comes first because every later step acts on the selected tower; sell lands before upgrades because it is the smallest mutation that exercises the whole select-act-deselect loop.
 
-- [ ] Selection model - tap a placed tower to select, tap elsewhere or Escape to deselect; selection ring + range circle drawn in the world canvas. New branch in `main.ts`'s `pointerdown` ahead of the placement branch (the two targets are disjoint: `isPlaceable` already rejects `occupied` tiles). No panel yet.
+- [x] Selection model - tap a placed tower to select, tap elsewhere or Escape to deselect; selection ring + range circle drawn in the world canvas. New branch in `main.ts`'s `pointerdown` ahead of the placement branch (the two targets are disjoint: `isPlaceable` already rejects `occupied` tiles). No panel yet.
 - [ ] Panel shell - DOM panel (toolbar's visual language, 44px targets, safe-area aware) anchored opposite the toolbar, showing the selected tower's name and stats, appearing and disappearing with the selection. Read-only.
 - [ ] Sell - `invested` on the `Tower` entity (placement + upgrades, tracked rather than recomputed), partial refund at 60%, frees the tile and clears the selection.
 - [ ] Upgrade tiers - `TOWER_STATS` becomes a per-kind array of 3 tiers, `towerStats(kind, tier)`, `tier` on the entity. Attack towers buy damage + fire rate, aura towers buy slow strength + radius (Honeypot's radius stays tight - a wide Honeypot is just an IDS Scanner). Panel shows current vs next tier. Tier tell stays procedural; no tier sprites this milestone.

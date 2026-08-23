@@ -17,6 +17,7 @@ export const palette = {
   traceFill: '#0f3a44', // dim channel behind entities so bright sprites still read
   placeValid: 'rgba(57, 255, 136, 0.35)',
   placeInvalid: 'rgba(255, 47, 88, 0.35)',
+  selection: '#e8f9ff',
 } as const;
 
 const TOWER_RING: Record<TowerKind, string> = {
@@ -125,6 +126,39 @@ export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], timeM
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+  }
+}
+
+/**
+ * Marks the selected tower: corner brackets on its tile plus its range circle.
+ * Brackets rather than a full outline so the tower's own silhouette stays readable.
+ */
+export function drawSelection(ctx: CanvasRenderingContext2D, tower: Tower): void {
+  const { x: cx, y: cy } = tileCenter(tower.x, tower.y);
+
+  ctx.strokeStyle = TOWER_RING[tower.kind];
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, tower.range * VIRTUAL_TILE, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  const left = tower.x * VIRTUAL_TILE;
+  const top = tower.y * VIRTUAL_TILE;
+  const right = left + VIRTUAL_TILE - 1;
+  const bottom = top + VIRTUAL_TILE - 1;
+  const arm = 6;
+
+  ctx.fillStyle = palette.selection;
+  for (const [px, py, dx, dy] of [
+    [left, top, 1, 1],
+    [right, top, -1, 1],
+    [left, bottom, 1, -1],
+    [right, bottom, -1, -1],
+  ] as const) {
+    ctx.fillRect(dx > 0 ? px : px - arm + 1, py, arm, 1);
+    ctx.fillRect(px, dy > 0 ? py : py - arm + 1, 1, arm);
   }
 }
 

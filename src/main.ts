@@ -10,6 +10,7 @@ import {
   drawHud,
   drawPlacementPreview,
   drawProjectiles,
+  drawSelection,
   drawTowers,
 } from './render.ts';
 import { bakeAtlas, spritePixels } from './sprites.ts';
@@ -80,6 +81,7 @@ function startGame(): void {
     '4': 'honeypot',
   };
   let selectedTowerKind: TowerKind = 'firewallNode';
+  let selectedTower: Tower | null = null;
   let overclockArmed = false;
 
   window.addEventListener('keydown', (event) => {
@@ -88,6 +90,7 @@ function startGame(): void {
       selectedTowerKind = kind;
       return;
     }
+    if (event.key === 'Escape') selectedTower = null;
     if (event.key === 'q' || event.key === 'Q') overclockArmed = true;
   });
 
@@ -157,6 +160,7 @@ function startGame(): void {
     coreHealth = MAX_CORE_HEALTH;
     cycles = STARTING_CYCLES;
     gameState = 'playing';
+    selectedTower = null;
     overclockArmed = false;
   }
 
@@ -194,6 +198,15 @@ function startGame(): void {
       if (target) triggerOverclock(target);
       return;
     }
+
+    // Selecting and placing can share one tap because their targets are disjoint:
+    // isPlaceable rejects occupied tiles, so a tile either holds a tower or can take one.
+    const hit = towers.find((t) => t.x === tile.x && t.y === tile.y);
+    if (hit) {
+      selectedTower = hit;
+      return;
+    }
+    selectedTower = null;
 
     if (!isPlaceable(tile)) return;
 
@@ -296,6 +309,7 @@ function startGame(): void {
       worldCtx.imageSmoothingEnabled = false;
       worldCtx.drawImage(board, 0, 0);
       drawTowers(worldCtx, towers, timeMs);
+      if (selectedTower) drawSelection(worldCtx, selectedTower);
       drawEnemies(worldCtx, enemies, level1.waypoints, timeMs);
       drawProjectiles(worldCtx, projectiles);
       drawGlitchParticles(worldCtx, particles);
