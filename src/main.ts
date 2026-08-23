@@ -34,6 +34,7 @@ import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
 import { createSpawner, stepSpawner, waveLabel } from './wave.ts';
+import { createTowerPanel } from './panel.ts';
 
 const MAX_CORE_HEALTH = 5;
 const STARTING_CYCLES = 100;
@@ -123,6 +124,8 @@ function startGame(): void {
     overclockArmed = true;
   });
   toolbar.appendChild(overclockButton);
+
+  const panel = createTowerPanel();
 
   function updateToolbar(): void {
     for (const { kind, button } of towerButtons) {
@@ -304,6 +307,7 @@ function startGame(): void {
     () => {
       const timeMs = performance.now();
       updateToolbar();
+      panel.update(gameState === 'playing' ? selectedTower : null);
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;

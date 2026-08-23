@@ -64,3 +64,38 @@ canvas {
 .toolbar button:disabled {
   opacity: 0.4;
 }
+
+/* Selected-tower panel. Anchored opposite the toolbar so the two never fight
+   for the same corner, and clear of the HUD text in the top-left. */
+.panel {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  min-width: 140px;
+  padding: 8px 10px;
+  background: rgba(10, 14, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font: 12px/1.35 ui-monospace, monospace;
+  color: #e8f9ff;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panel-title {
+  color: #22e1ff;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.panel-stats {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+}
+
+.panel-value {
+  text-align: right;
+}
