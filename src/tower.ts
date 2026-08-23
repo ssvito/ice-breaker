@@ -17,6 +17,7 @@ export interface Tower {
   slowMultiplier?: number; // present only on aura towers; enemy speed is multiplied by this while in range
   overclock?: { state: OverclockState; timerMs: number }; // present only on attack towers (fire-rate towers)
   flashMs: number; // counts down after firing; drives the muzzle-flash sprite frame
+  invested: number; // total Cycles put into this tower; tracked, not recomputed, so rebalancing costs can't rewrite history
 }
 
 interface TowerStats {
@@ -83,7 +84,18 @@ export function createTower(kind: TowerKind, x: number, y: number): Tower {
     slowMultiplier: stats.slowMultiplier,
     overclock: stats.slowMultiplier === undefined ? { state: 'idle', timerMs: 0 } : undefined,
     flashMs: 0,
+    invested: stats.cost,
   };
+}
+
+/**
+ * Partial on purpose: a full refund would make a bad placement free, and placement
+ * cost is the decision the game is made of. Too small and selling becomes a trap.
+ */
+export const SELL_REFUND = 0.6;
+
+export function sellValue(tower: Tower): number {
+  return Math.floor(tower.invested * SELL_REFUND);
 }
 
 export const MUZZLE_FLASH_MS = 90;

@@ -25,6 +25,7 @@ import {
   createTower,
   effectiveFireIntervalMs,
   MUZZLE_FLASH_MS,
+  sellValue,
   stepOverclock,
   towerCenter,
   towerStats,
@@ -125,7 +126,16 @@ function startGame(): void {
   });
   toolbar.appendChild(overclockButton);
 
-  const panel = createTowerPanel();
+  const panel = createTowerPanel({
+    onSell(tower) {
+      const index = towers.indexOf(tower);
+      if (index === -1) return;
+      towers.splice(index, 1);
+      occupied.delete(`${tower.x},${tower.y}`);
+      cycles += sellValue(tower);
+      selectedTower = null;
+    },
+  });
 
   function updateToolbar(): void {
     for (const { kind, button } of towerButtons) {

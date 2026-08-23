@@ -42,7 +42,7 @@ Sequenced like v1 and v1.1: each step is independently visible/testable and unbl
 
 - [x] Selection model - tap a placed tower to select, tap elsewhere or Escape to deselect; selection ring + range circle drawn in the world canvas. New branch in `main.ts`'s `pointerdown` ahead of the placement branch (the two targets are disjoint: `isPlaceable` already rejects `occupied` tiles). No panel yet.
 - [x] Panel shell - DOM panel (toolbar's visual language, 44px targets, safe-area aware) anchored opposite the toolbar, showing the selected tower's name and stats, appearing and disappearing with the selection. Read-only.
-- [ ] Sell - `invested` on the `Tower` entity (placement + upgrades, tracked rather than recomputed), partial refund at 60%, frees the tile and clears the selection.
+- [x] Sell - `invested` on the `Tower` entity (placement + upgrades, tracked rather than recomputed), partial refund at 60%, frees the tile and clears the selection.
 - [ ] Upgrade tiers - `TOWER_STATS` becomes a per-kind array of 3 tiers, `towerStats(kind, tier)`, `tier` on the entity. Attack towers buy damage + fire rate, aura towers buy slow strength + radius (Honeypot's radius stays tight - a wide Honeypot is just an IDS Scanner). Panel shows current vs next tier. Tier tell stays procedural; no tier sprites this milestone.
 - [ ] Overclock migration - `OC` moves into the panel, the `overclockArmed` mode and the toolbar `OC` button go, `Q` stays as a shortcut acting on the selection.
 - [ ] Verify - full playthrough, **plus the multi-size/DPR and physical-device QA still owed from v1.1 step 6**. Folded in here on purpose: v1.2 is the milestone that rewrites touch interaction, so testing the old flow on a phone first would have tested something about to be deleted.

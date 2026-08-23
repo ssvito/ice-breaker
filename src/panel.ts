@@ -1,4 +1,4 @@
-import { towerStats } from './tower.ts';
+import { sellValue, towerStats } from './tower.ts';
 import type { Tower } from './tower.ts';
 
 /**
@@ -10,9 +10,13 @@ export interface TowerPanel {
   update(tower: Tower | null): void;
 }
 
+export interface TowerPanelHandlers {
+  onSell(tower: Tower): void;
+}
+
 const ROW_COUNT = 3;
 
-export function createTowerPanel(): TowerPanel {
+export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
   const root = document.createElement('div');
   root.className = 'panel';
   root.hidden = true;
@@ -35,6 +39,22 @@ export function createTowerPanel(): TowerPanel {
     return { label, value };
   });
 
+  const actions = document.createElement('div');
+  actions.className = 'panel-actions';
+  root.appendChild(actions);
+
+  // The panel acts on whatever it is currently showing, so a button pressed after
+  // the selection moved can't operate on a stale tower.
+  let current: Tower | null = null;
+
+  const sellButton = document.createElement('button');
+  sellButton.type = 'button';
+  sellButton.innerHTML = '<span>SELL</span><span></span>';
+  sellButton.addEventListener('click', () => {
+    if (current) handlers.onSell(current);
+  });
+  actions.appendChild(sellButton);
+
   document.body.appendChild(root);
 
   function setRow(index: number, label: string, value: string): void {
@@ -46,9 +66,11 @@ export function createTowerPanel(): TowerPanel {
 
   return {
     update(tower: Tower | null): void {
+      current = tower;
       root.hidden = tower === null;
       if (!tower) return;
 
+      sellButton.lastElementChild!.textContent = `+${sellValue(tower)}`;
       title.textContent = towerStats(tower.kind).name;
 
       if (tower.slowMultiplier !== undefined) {

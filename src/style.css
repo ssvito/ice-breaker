@@ -36,7 +36,8 @@ canvas {
   font: 12px/1.2 ui-monospace, monospace;
 }
 
-.toolbar button {
+.toolbar button,
+.panel-actions button {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -61,7 +62,8 @@ canvas {
   box-shadow: 0 0 6px rgba(255, 249, 176, 0.6);
 }
 
-.toolbar button:disabled {
+.toolbar button:disabled,
+.panel-actions button:disabled {
   opacity: 0.4;
 }
 
@@ -98,4 +100,15 @@ canvas {
 
 .panel-value {
   text-align: right;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.panel-actions button {
+  flex: 1;
 }
