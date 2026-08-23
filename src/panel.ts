@@ -101,14 +101,36 @@ export function createTowerPanel(handlers: TowerPanelHandlers): TowerPanel {
     row.next.hidden = label === '';
   }
 
+  // update() runs every frame off the render loop. Everything it writes is derived
+  // from these few values, so a signature check keeps a still panel from churning
+  // a dozen text nodes 60 times a second on the low-end phones the renderer worries about.
+  let signature = '';
+
   return {
     update(tower: Tower | null, cycles: number): void {
       current = tower;
+
+      const next = tower && canUpgrade(tower) ? towerStats(tower.kind, tower.tier + 1) : null;
+      // Cycles enter the stamp clamped to the upgrade cost: the only thing they
+      // decide is whether UPGRADE is affordable, so every balance above the price
+      // is the same panel and shouldn't redraw it on each kill.
+      const stamp = tower
+        ? [
+            tower.x,
+            tower.y,
+            tower.tier,
+            tower.invested,
+            tower.overclock?.state ?? '-',
+            next ? Math.min(cycles, next.cost) : 0,
+          ].join('|')
+        : '';
+      if (stamp === signature) return;
+      signature = stamp;
+
       root.hidden = tower === null;
       if (!tower) return;
 
       const cost = upgradeCost(tower);
-      const next = canUpgrade(tower) ? towerStats(tower.kind, tower.tier + 1) : null;
 
       title.textContent = towerStats(tower.kind).name;
       tierLine.textContent = `TIER ${tower.tier}/${MAX_TIER}`;

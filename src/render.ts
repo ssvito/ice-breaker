@@ -124,9 +124,14 @@ export function drawTowers(ctx: CanvasRenderingContext2D, towers: Tower[], timeM
       const pips = tower.tier - 1;
       const width = pips * 3 - 1;
       const py = tower.y * VIRTUAL_TILE + VIRTUAL_TILE - 3;
+      const px = Math.round(cx - width / 2);
+      // Dark backing so the pips read over the sprite they sit on - the AES
+      // Turret is 30px in a 32px tile and leaves them nowhere clear to land.
+      ctx.fillStyle = palette.background;
+      ctx.fillRect(px - 1, py - 1, width + 2, 4);
       ctx.fillStyle = TOWER_RING[tower.kind];
       for (let i = 0; i < pips; i++) {
-        ctx.fillRect(Math.round(cx - width / 2) + i * 3, py, 2, 2);
+        ctx.fillRect(px + i * 3, py, 2, 2);
       }
     }
 
