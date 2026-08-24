@@ -120,8 +120,15 @@ export const waves: WaveDefinition[] = [
   },
 ];
 
-export const INITIAL_WAVE_DELAY_MS = 3000;
-export const BETWEEN_WAVE_DELAY_MS = 4000;
+/**
+ * The lull. Both went up when the preview landed: four seconds is not long enough
+ * to read what is coming and act on it, so a preview inside it would have been a
+ * thing that flashes past rather than a thing you use. It is also the countdown the
+ * early-call bonus is about to buy back, and a bonus for skipping four seconds is
+ * not a decision worth posing.
+ */
+export const INITIAL_WAVE_DELAY_MS = 5000;
+export const BETWEEN_WAVE_DELAY_MS = 8000;
 
 export type SpawnState = 'countdown' | 'spawning' | 'waiting-clear' | 'done';
 
@@ -200,6 +207,48 @@ export function stepSpawner(spawner: Spawner, dtMs: number, liveEnemyCount: numb
   }
 
   return NO_SPAWNS;
+}
+
+/**
+ * What the console reads out during a countdown. Composition is merged by kind
+ * rather than by group, because two groups of Worms at different offsets are a
+ * shape the wave has, not a thing the player needs counted twice.
+ */
+export interface WavePreview {
+  number: number; // 1-based, as the HUD says it
+  total: number;
+  hpScale: number;
+  composition: { kind: EnemyKind; count: number }[];
+  countdownMs: number;
+}
+
+/**
+ * The wave being counted down to, or null whenever there isn't one - mid-wave,
+ * waiting for the board to clear, or after the last wave. Null is the signal that
+ * there is nothing to preview, so the caller can fall back rather than test the
+ * spawner's state itself.
+ */
+export function nextWavePreview(spawner: Spawner): WavePreview | null {
+  if (spawner.state !== 'countdown') return null;
+
+  const index = spawner.waveIndex + 1;
+  if (index >= waves.length) return null;
+
+  const wave = waves[index];
+  const composition: { kind: EnemyKind; count: number }[] = [];
+  for (const group of wave.groups) {
+    const merged = composition.find((entry) => entry.kind === group.enemyKind);
+    if (merged) merged.count += group.count;
+    else composition.push({ kind: group.enemyKind, count: group.count });
+  }
+
+  return {
+    number: index + 1,
+    total: waves.length,
+    hpScale: wave.hpScale ?? 1,
+    composition,
+    countdownMs: Math.max(0, spawner.waveTimerMs),
+  };
 }
 
 /** HP multiplier of the wave currently running - what `createEnemy` is handed. */

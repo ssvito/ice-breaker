@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSpawner, stepSpawner, waves } from '../src/wave.ts';
+import { createSpawner, nextWavePreview, stepSpawner, waves } from '../src/wave.ts';
 import { createEnemy, enemyStats, getSplitKinds } from '../src/enemy.ts';
 import type { EnemyKind } from '../src/enemy.ts';
 import { STARTING_CYCLES, TICK_MS } from '../src/game.ts';
@@ -161,4 +161,49 @@ test('a flawless run can top out some towers and not all of them', () => {
     purse > twoDearest,
     `a perfect run banks ${purse} and the two dearest ladders cost ${twoDearest} - nothing can be topped out, so the tiers are decoration`,
   );
+});
+
+test('the preview reads the wave that is coming, and only while one is coming', () => {
+  const spawner = createSpawner();
+
+  const opening = nextWavePreview(spawner);
+  assert.ok(opening, 'the run opens on a countdown, so there is a wave to preview');
+  assert.equal(opening.number, 1, 'before the first wave, the preview is the first wave');
+  assert.equal(opening.total, waves.length);
+
+  const seen = new Set<number>();
+  let sawSpawningWithoutPreview = false;
+
+  for (let tick = 0; tick < 60 * 60 * 5; tick++) {
+    stepSpawner(spawner, TICK_MS, 0);
+    const preview = nextWavePreview(spawner);
+
+    if (spawner.state === 'spawning' || spawner.state === 'waiting-clear') {
+      assert.equal(preview, null, `wave ${spawner.waveIndex + 1} is running; there is nothing to preview`);
+      sawSpawningWithoutPreview = true;
+      continue;
+    }
+    if (!preview) continue;
+
+    // The preview is always one ahead of the wave that just finished.
+    assert.equal(preview.number, spawner.waveIndex + 2);
+    assert.ok(preview.countdownMs >= 0, 'a countdown never reads negative');
+    seen.add(preview.number);
+
+    const wave = waves[preview.number - 1];
+    assert.equal(
+      preview.composition.reduce((total, entry) => total + entry.count, 0),
+      wave.groups.reduce((total, group) => total + group.count, 0),
+      `the preview of wave ${preview.number} does not add up to what it spawns`,
+    );
+    assert.equal(
+      new Set(preview.composition.map((entry) => entry.kind)).size,
+      preview.composition.length,
+      `the preview of wave ${preview.number} lists a kind twice instead of merging its groups`,
+    );
+    assert.equal(preview.hpScale, wave.hpScale ?? 1);
+  }
+
+  assert.ok(sawSpawningWithoutPreview, 'the walk should have passed through a wave actually spawning');
+  assert.equal(seen.size, waves.length, 'every wave in the curve should get previewed on the way past');
 });

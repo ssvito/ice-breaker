@@ -21,7 +21,7 @@ import { renderGallery } from './gallery.ts';
 import type { Enemy } from './enemy.ts';
 import { towerStats, triggerOverclock } from './tower.ts';
 import type { TowerKind } from './tower.ts';
-import { waveLabel } from './wave.ts';
+import { nextWavePreview, waveLabel } from './wave.ts';
 import {
   createGameState,
   isPlaceable,
@@ -110,6 +110,22 @@ function startGame(): void {
   // One selection for the whole board: a tower or an enemy, never both.
   let selection: PanelTarget = null;
 
+  /**
+   * Which of the two unselected readings the console shows: the wave being counted
+   * down to, or the tower about to be built. Picking a kind is the player saying
+   * they are shopping, so it hands the console back to the build stats; a new
+   * countdown takes it back, because "what is coming" is the question that lull
+   * exists to ask. Without this the preview would eat the build panel during the
+   * exact seconds it is used.
+   */
+  let buildFocus = false;
+  let previewedWave = 0;
+
+  function pickTowerKind(kind: TowerKind): void {
+    selectedTowerKind = kind;
+    buildFocus = true;
+  }
+
   window.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {
       // Space activates a focused button, so a press that just worked the console's
@@ -126,7 +142,7 @@ function startGame(): void {
 
     const kind = TOWER_HOTKEYS[event.key];
     if (kind) {
-      selectedTowerKind = kind;
+      pickTowerKind(kind);
       return;
     }
     // Same verb as tapping the selected thing again, so the keyboard out and the
@@ -163,9 +179,7 @@ function startGame(): void {
     const button = document.createElement('button');
     button.type = 'button';
     button.innerHTML = `<span>${TOWER_BUTTON_LABELS[kind]}</span><span>${towerStats(kind).cost}</span>`;
-    button.addEventListener('click', () => {
-      selectedTowerKind = kind;
-    });
+    button.addEventListener('click', () => pickTowerKind(kind));
     toolbar.appendChild(button);
     return { kind, button };
   });
@@ -219,6 +233,9 @@ function startGame(): void {
   function select(target: PanelTarget): void {
     selection = target;
     panel.setCollapsed(target === null);
+    // Dismissing a reading during a lull should land on the wave, not back on the
+    // build stats the player already walked away from.
+    if (target === null) buildFocus = false;
   }
 
   function updateToolbar(): void {
@@ -234,6 +251,8 @@ function startGame(): void {
   function resetGame(): void {
     state = createGameState(level1);
     selection = null;
+    buildFocus = false;
+    previewedWave = 0;
     // Speed is a preference and survives; pause is a state, and restarting into a
     // frozen board would read as the tap-to-restart having failed.
     paused = false;
@@ -309,8 +328,14 @@ function startGame(): void {
       const timeMs = performance.now();
       updateToolbar();
       if (state.status === 'playing') {
+        const preview = nextWavePreview(state.spawner);
+        // Each new countdown claims the console back from the build stats, once.
+        if (preview && preview.number !== previewedWave) {
+          previewedWave = preview.number;
+          buildFocus = false;
+        }
         panel.setRun(paused, speed);
-        panel.update(selection, selectedTowerKind, state.cycles);
+        panel.update(selection, selectedTowerKind, state.cycles, buildFocus ? null : preview);
       } else panel.hide();
 
       const { worldCtx } = viewport;

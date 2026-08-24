@@ -2,13 +2,14 @@ import { canUpgrade, MAX_TIER, sellValue, towerStats, upgradeCost } from './towe
 import type { Tower, TowerKind } from './tower.ts';
 import { enemyStats, getSplitKinds, immuneTowerKind } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
+import type { WavePreview } from './wave.ts';
 
 /**
- * Stats readout, styled as a console the mainframe is printing to. Shows whatever
- * is selected - a placed tower or an enemy on the board - and with nothing selected
- * falls back to the tower about to be built. Both fallbacks exist for the same
- * reason: the game was withholding what its pieces do until you had paid, or died,
- * to find out, and a portfolio visitor gives it about thirty seconds.
+ * Stats readout, styled as a console the mainframe is printing to. Four modes on
+ * one surface, in priority order: the selected tower, the selected enemy, the wave
+ * being counted down to, and the tower about to be built. They all exist for the
+ * same reason: the game was withholding what its pieces do until you had paid, or
+ * died, to find out, and a portfolio visitor gives it about thirty seconds.
  *
  * DOM rather than canvas for the same reason the v1 toolbar is: real elements get
  * native touch handling, focus, and disabled states for free.
@@ -16,7 +17,7 @@ import type { Enemy } from './enemy.ts';
 export type PanelTarget = { kind: 'tower'; tower: Tower } | { kind: 'enemy'; enemy: Enemy } | null;
 
 export interface TowerPanel {
-  update(target: PanelTarget, buildKind: TowerKind, cycles: number): void;
+  update(target: PanelTarget, buildKind: TowerKind, cycles: number, preview: WavePreview | null): void;
   setRun(paused: boolean, speed: number): void;
   setCollapsed(value: boolean): void;
   hide(): void;
@@ -30,8 +31,9 @@ export interface TowerPanelHandlers {
   onToggleSpeed(): void;
 }
 
-// Attack towers fill three (damage, range, rate) and build mode adds the placement rule.
-const STAT_COUNT = 4;
+// Four for a tower in build mode (damage, range, rate, placement); five because a
+// wave preview can carry three kinds and the toughness line with them.
+const STAT_COUNT = 5;
 
 function slowText(multiplier: number): string {
   return `${Math.round((1 - multiplier) * 100)}%`;
@@ -261,6 +263,27 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     clearStatsFrom(row);
   }
 
+  function renderWave(preview: WavePreview): void {
+    title.textContent = `WAVE ${preview.number}/${preview.total}`;
+    // Seconds, not milliseconds: the console is a readout, not a stopwatch, and a
+    // number changing sixty times a second is a number nobody reads.
+    meta.textContent = `IN ${Math.ceil(preview.countdownMs / 1000)}s`;
+    meta.classList.remove('panel-short');
+
+    // Nothing to act on: the wave arrives whether or not you are ready. Until the
+    // early-call bonus, at which point this row grows a button.
+    actions.hidden = true;
+
+    let row = 0;
+    for (const entry of preview.composition) {
+      if (row >= STAT_COUNT) break;
+      setStat(row++, enemyStats(entry.kind).name, `x${entry.count}`);
+    }
+    // Same rule as the enemy panel's BREACH line: the ordinary case earns no row.
+    if (preview.hpScale > 1 && row < STAT_COUNT) setStat(row++, 'HARDENED', `${preview.hpScale}x`);
+    clearStatsFrom(row);
+  }
+
   // Same argument as the stats signature below, on the two values that change least
   // often in the whole console.
   let runStamp = '';
@@ -271,7 +294,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   let signature = '';
 
   return {
-    update(target: PanelTarget, buildKind: TowerKind, cycles: number): void {
+    update(target: PanelTarget, buildKind: TowerKind, cycles: number, preview: WavePreview | null): void {
       const tower = target?.kind === 'tower' ? target.tower : null;
       current = tower;
 
@@ -295,6 +318,10 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
         // panel there is no button here acting on the thing, so two enemies that read
         // the same really are the same panel.
         stamp = ['enemy', target.enemy.kind, target.enemy.hp].join('|');
+      } else if (preview) {
+        // The countdown is the only thing here that moves, and it is read to the
+        // second, so the panel redraws once a second instead of every frame.
+        stamp = ['wave', preview.number, Math.ceil(preview.countdownMs / 1000)].join('|');
       } else {
         stamp = ['build', buildKind, cycles >= towerStats(buildKind).cost ? 1 : 0].join('|');
       }
@@ -304,6 +331,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       root.hidden = false;
       if (target?.kind === 'tower') renderSelected(target.tower, cycles);
       else if (target?.kind === 'enemy') renderEnemy(target.enemy);
+      else if (preview) renderWave(preview);
       else renderBuild(buildKind, cycles);
     },
 
