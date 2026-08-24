@@ -114,15 +114,15 @@ function startGame(): void {
     honeypot: 'TRAP',
   };
 
-  // Panel and toolbar share one bottom-centered column so they stack as a single
-  // console and the safe-area handling lives in one place.
-  const dock = document.createElement('div');
-  dock.className = 'dock';
-  document.body.appendChild(dock);
-
+  // Build menu down the left edge, console along the bottom. They were one stacked
+  // dock until playing it on a phone: stacked, the two of them ate the whole bottom
+  // of the board, and the board's bottom band is where the trace runs into the core.
+  // Split, each takes an edge the other isn't using, and neither grows into the
+  // middle. They stay one control surface by sharing the console's visual language,
+  // not by sharing a container.
   const toolbar = document.createElement('div');
   toolbar.className = 'toolbar';
-  dock.appendChild(toolbar);
+  document.body.appendChild(toolbar);
 
   const towerButtons = (Object.keys(TOWER_BUTTON_LABELS) as TowerKind[]).map((kind) => {
     const button = document.createElement('button');
@@ -155,13 +155,13 @@ function startGame(): void {
         triggerOverclock(tower);
       },
     },
-    dock,
+    document.body,
   );
 
   /**
    * Every selection made by tapping the board. Tapping a thing opens the console on
    * it; tapping that same thing again dismisses the reading and folds the console to
-   * its header. The dock covers real board on a phone, and the readout you just
+   * its header. The console covers real board on a phone, and the readout you just
    * finished is exactly the one you want out of the way - so the tap that dismisses
    * it is the same tap that opened it, with no second control to find.
    *

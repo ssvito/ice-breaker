@@ -35,34 +35,27 @@ canvas {
   --term-glow: 0 0 6px rgba(57, 255, 136, 0.4);
 }
 
-/* Panel and toolbar stack as one unit above the bottom edge. pointer-events are
-   off on the container so its gaps don't swallow taps meant for the board. */
-.dock {
-  position: fixed;
-  left: 50%;
-  bottom: max(8px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  /* Definite width, not max-content: an auto-sized dock lets the stats grid ask
-     for all four columns on one line and stretches the console with it. */
-  width: min(94vw, 320px);
-  pointer-events: none;
-  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
+/* Two edges, one language. They read as one control surface because they share
+   the terminal styling below, not because they share a box. */
 .panel,
 .toolbar {
-  pointer-events: auto;
+  position: fixed;
   background: var(--term-back);
   border: 1px solid var(--term-faint);
   border-radius: 4px;
   box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* The console keeps the bottom center, where a readout belongs and where nothing
+   needs to be tapped through it once it is collapsed. */
 .panel {
-  position: relative;
+  left: 50%;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  /* Definite width, not max-content: an auto-sized panel lets the stats grid ask
+     for all four columns on one line and stretches the console with it. */
+  width: min(94vw, 320px);
   overflow: hidden;
   color: var(--term);
   text-shadow: var(--term-glow);
@@ -202,14 +195,17 @@ canvas {
   flex: 1;
 }
 
+/* Vertical, hugging the left edge and centered on it: the build menu is a thumb
+   target, not a readout, so it wants the side the console isn't on. Vertically
+   centered clears the HUD text in the top-left corner. */
 .toolbar {
+  left: max(8px, env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
+  flex-direction: column;
   gap: 6px;
   padding: 6px;
-}
-
-.toolbar button {
-  flex: 1;
 }
 
 .toolbar button,

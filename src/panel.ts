@@ -38,7 +38,7 @@ function rateText(fireIntervalMs: number): string {
   return `${(1000 / fireIntervalMs).toFixed(1)}/s`;
 }
 
-export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement): TowerPanel {
+export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement): TowerPanel {
   const root = document.createElement('div');
   root.className = 'panel';
   root.hidden = true;
@@ -132,7 +132,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement
   });
   actions.appendChild(sellButton);
 
-  dock.prepend(root);
+  host.appendChild(root);
 
   function setStat(index: number, label: string, value: string, next = ''): void {
     const slot = cells[index];

@@ -18,9 +18,17 @@ A selected tower draws a selection ring plus its range circle in the world canva
 
 DOM, not canvas - same reasoning as the toolbar in v1: real buttons get native touch handling, focus, and disabled states for free, and hand-rolled canvas hit-testing bought nothing.
 
-**Anchoring reversed 2026-08-23.** The panel first sat in the top-right corner, opposite the toolbar, on the theory that the two should never fight for the same edge. Wrong instinct: they are one control surface, and splitting them across opposite corners made the player's eyes cross the whole board to go from "which tower" to "what does it do". They now stack in one bottom-centered dock, panel above toolbar, sharing a single width and one safe-area rule. The dock itself is `pointer-events: none` so the gap between the two does not eat taps meant for the board.
+**Anchoring, in three passes on 2026-08-23.** It started top-right, opposite the toolbar, on the theory that the two should never fight for the same edge. Wrong instinct: they are one control surface, and opposite corners made the player's eyes cross the whole board to get from "which tower" to "what does it do". So they merged into one bottom-centered dock, panel stacked above toolbar. That was right about the relationship and wrong about the geometry, which only playing it on a phone showed: stacked, the two of them ate the whole bottom band of the board - which is exactly where the trace runs into the core, the part of the board you most need to watch.
 
-The cost of the move is real and should be watched: the dock is now taller and covers more of the bottom-center of the board, which is why the panel collapses.
+**Where it landed: build menu down the left edge, console along the bottom center.** Each takes an edge the other is not using and neither grows into the middle. The pairing that the dock was built to express survives, but it is carried by shared styling - same terminal palette, border, glow, and 44px targets - rather than by a shared container. The toolbar is vertical and centered on the left edge, which also keeps it clear of the HUD text in the top-left corner.
+
+Collapse stays, for the same reason it was added: even alone, the console covers board, and the fastest way to put it away is [the re-tap](#dismissal).
+
+## Dismissal
+
+Tapping a tower or an enemy opens the console on it; tapping that same thing again clears the selection and folds the console to its header bar. Making the re-tap the dismissal, rather than adding a close control, keeps the gesture where the thumb already is and avoids a second 44px target competing for the corner the header collapse already owns. `Escape` routes through the same path so the keyboard out and the touch out leave the console in the same state.
+
+A *new* selection always expands, because a collapsed console hides the stats and the `UP`/`OC`/`SELL` row both - tapping a tower to act on it and getting a folded header would be a dead end. Selling and placing clear the selection without folding: neither is dismissing a readout, and the build preview is what you want on screen right after either one.
 
 ## Console styling (2026-08-23)
 
