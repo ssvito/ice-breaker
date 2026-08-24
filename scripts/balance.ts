@@ -56,9 +56,10 @@ function printReport(report: RunReport): void {
   const cost = loadout ? loadoutCost(loadout) : 0;
 
   console.log(`${report.loadout.toUpperCase()} - ${report.note}`);
+  const called = report.totalCalledEarly > 0 ? `  (${report.totalCalledEarly} of it called early)` : '';
   console.log(
     `  ${OUTCOME[report.status]}  core ${report.coreHealth}/${MAX_CORE_HEALTH}  ` +
-      `banked ${report.cyclesEnd}  earned ${report.totalEarned}  spent ${report.totalSpent}/${cost}  ${clock(report.durationMs)}`,
+      `banked ${report.cyclesEnd}  earned ${report.totalEarned}  spent ${report.totalSpent}/${cost}  ${clock(report.durationMs)}${called}`,
   );
   console.log('');
   console.log('  WAVE  SIZE  PEAK  LEAK  EARNED  SPENT  BANKED   TIME  BOUGHT');

@@ -8,7 +8,8 @@ Cross-cutting observations: the **tap-tower info panel** (Mobile / UX) is the fo
 
 - Tower upgrades - **promoted to v1.2** (2026-08-23): specced in [Tower Panel](../Design/Tower%20Panel.md), build order in [Roadmap](../Roadmap.md).
 - Sell/refund towers - **promoted to v1.2** (2026-08-23), same note.
-- Wave preview + early-call bonus - **promoted to v1.3** (2026-08-23): specced in [Run Structure](../Design/Run%20Structure.md), build order in [Roadmap](../Roadmap.md).
+- Wave preview + early-call bonus - **promoted to v1.3** (2026-08-23): specced in [Run Structure](../Design/Run%20Structure.md), build order in [Roadmap](../Roadmap.md). Both shipped 2026-08-24, and the call left one thing behind, below.
+- Give the early call a mechanical cost (2026-08-24) - as shipped it is free money for anyone with a plan: Cycles come only from kills and the countdown only starts once the board is clear, so the skipped seconds were not producing anything, and the harness measures identical defense with +77 Cycles. Its intended cost is reaction time, which a scripted player has infinitely much of. Two candidates, both rejected as out of scope mid-milestone: start the countdown when a wave finishes *spawning* rather than when the board clears (retunes the whole curve), or allow the call during `waiting-clear` so an early wave overlaps the stragglers still walking - an opt-in risk, and the more interesting of the two.
 - New enemy behaviors - stealth (would re-justify IDS Scanner's dropped "reveals stealth" ability), healer/repair-bot, shielded enemy, EMP unit that briefly disables the nearest tower (mirrors Overclock's overheat).
 - Endless mode - after the scripted waves, procedurally scale further waves; gives high scores something to measure. Held out of v1.3 on purpose: it measures a run against a standard, and v1.3 is building the standard.
 

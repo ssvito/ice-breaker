@@ -1,4 +1,13 @@
-import { createGameState, MAX_CORE_HEALTH, placeTower, stepGame, TICK_MS, towerAt, upgradeTower } from './game.ts';
+import {
+  callWaveEarly,
+  createGameState,
+  MAX_CORE_HEALTH,
+  placeTower,
+  stepGame,
+  TICK_MS,
+  towerAt,
+  upgradeTower,
+} from './game.ts';
 import type { GameState, GameStatus } from './game.ts';
 import { level1 } from './map.ts';
 import type { LevelData } from './map.ts';
@@ -48,10 +57,22 @@ export interface Loadout {
    * makes "is tier 3 reachable by wave 8" a question the harness can answer.
    */
   builds: Build[];
+  /**
+   * Calls every wave the instant it can be called, taking the bonus and giving up
+   * the lull. The aggressive end of the run: more Cycles, less time to spend them
+   * in, and every wave met with whatever was already standing.
+   */
+  callWavesEarly?: boolean;
 }
 
 export interface WaveReport {
   wave: number;
+  /**
+   * Cycles taken for calling the *next* wave early, counted inside `earned`. Booked
+   * to this row because the countdown it buys out belongs to this row - the lull
+   * after a wave is charged to the wave that just finished, same as its seconds are.
+   */
+  calledEarly: number;
   /** Enemies the wave definition spawns. Split children are not counted; they show up in `peakEnemies`. */
   spawned: number;
   peakEnemies: number;
@@ -74,6 +95,8 @@ export interface RunReport {
   cyclesEnd: number;
   totalEarned: number;
   totalSpent: number;
+  /** Of `totalEarned`, how much came from calling waves early rather than from kills. */
+  totalCalledEarly: number;
   durationMs: number;
   waves: WaveReport[];
   /** Builds the run never afforded, in the order they were still waiting in. */
@@ -166,6 +189,7 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
   function openWave(number: number): WaveReport {
     return {
       wave: number,
+      calledEarly: 0,
       spawned: number <= waves.length ? waveSize(number - 1) : 0,
       peakEnemies: 0,
       leaks: 0,
@@ -182,6 +206,14 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
     const cyclesBeforeBuying = state.cycles;
     wave.bought.push(...advanceBuildOrder(state, pending, wave.wave));
     wave.spent += cyclesBeforeBuying - state.cycles;
+
+    // Called before the tick and after the buying, so the bonus is in hand for the
+    // wave it belongs to rather than the one that just ended.
+    if (loadout.callWavesEarly) {
+      const bonus = callWaveEarly(state);
+      wave.calledEarly += bonus;
+      wave.earned += bonus;
+    }
 
     const cyclesBeforeTick = state.cycles;
     const healthBeforeTick = state.coreHealth;
@@ -219,6 +251,7 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
     totalLeaks: MAX_CORE_HEALTH - state.coreHealth,
     cyclesEnd: state.cycles,
     totalEarned: reports.reduce((total, report) => total + report.earned, 0),
+    totalCalledEarly: reports.reduce((total, report) => total + report.calledEarly, 0),
     totalSpent: reports.reduce((total, report) => total + report.spent, 0),
     durationMs: ticks * TICK_MS,
     waves: reports,
@@ -238,6 +271,21 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
  * Tiles are on level 1's serpentine: the trace runs y=2 (x 0-4), down x=4, y=4
  * (x 4-9), down x=9, then y=6 (x 9-15).
  */
+/**
+ * Shared so `rush` differs from `veteran` in exactly one thing - the early call -
+ * and the two reports can be read as a controlled comparison rather than as two
+ * different runs that also happen to disagree about where the towers go.
+ */
+const VETERAN_BUILDS: Build[] = [
+  { kind: 'firewallNode', x: 2, y: 3 },
+  { kind: 'firewallNode', x: 5, y: 3 },
+  { kind: 'honeypot', x: 6, y: 4 },
+  { kind: 'firewallNode', x: 2, y: 3, tier: 3, fromWave: 3 },
+  { kind: 'idsScanner', x: 3, y: 3, tier: 2, fromWave: 5 },
+  { kind: 'firewallNode', x: 5, y: 3, tier: 3, fromWave: 7 },
+  { kind: 'aesTurret', x: 12, y: 5, fromWave: 9 },
+];
+
 export const loadouts: Loadout[] = [
   {
     name: 'bare',
@@ -292,15 +340,13 @@ export const loadouts: Loadout[] = [
   {
     name: 'veteran',
     note: 'mixed: upgrade what is already shooting, then widen with a slow and a turret',
-    builds: [
-      { kind: 'firewallNode', x: 2, y: 3 },
-      { kind: 'firewallNode', x: 5, y: 3 },
-      { kind: 'honeypot', x: 6, y: 4 },
-      { kind: 'firewallNode', x: 2, y: 3, tier: 3, fromWave: 3 },
-      { kind: 'idsScanner', x: 3, y: 3, tier: 2, fromWave: 5 },
-      { kind: 'firewallNode', x: 5, y: 3, tier: 3, fromWave: 7 },
-      { kind: 'aesTurret', x: 12, y: 5, fromWave: 9 },
-    ],
+    builds: VETERAN_BUILDS,
+  },
+  {
+    name: 'rush',
+    note: 'the veteran line, taking every early call - more Cycles, less time to spend them',
+    builds: VETERAN_BUILDS,
+    callWavesEarly: true,
   },
 ];
 

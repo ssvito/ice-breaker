@@ -17,7 +17,7 @@ import {
 import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
-import { createSpawner, stepSpawner, waveHpScale } from './wave.ts';
+import { createSpawner, nextWavePreview, stepSpawner, waveHpScale } from './wave.ts';
 import type { Spawner } from './wave.ts';
 import { createGlitchBurst, stepParticle } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
@@ -157,6 +157,29 @@ export function upgradeTower(state: GameState, tower: Tower): boolean {
   state.cycles -= cost;
   applyUpgrade(tower);
   return true;
+}
+
+/**
+ * Starts the wave being counted down to, right now, and pays for the seconds
+ * skipped. Returns the Cycles paid, or 0 when there is nothing to call - mid-wave,
+ * or after the last one.
+ *
+ * The bonus turns the lull from dead time into the run's recurring bet: bank the
+ * seconds and build, or take the money and meet the wave with what you have. It
+ * lands after the preview on purpose, because paying a player for a decision whose
+ * terms are hidden is a slot machine, not a decision.
+ */
+export function callWaveEarly(state: GameState): number {
+  if (state.status !== 'playing') return 0;
+
+  const preview = nextWavePreview(state.spawner);
+  if (!preview) return 0;
+
+  state.cycles += preview.earlyBonus;
+  // Zero rather than negative: the next tick takes it below zero and opens the
+  // wave, through the same branch a countdown that ran out would have taken.
+  state.spawner.waveTimerMs = 0;
+  return preview.earlyBonus;
 }
 
 /** Nearest enemy in range that this tower is able to hurt, or null. */

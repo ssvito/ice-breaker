@@ -220,6 +220,22 @@ export interface WavePreview {
   hpScale: number;
   composition: { kind: EnemyKind; count: number }[];
   countdownMs: number;
+  /** Cycles the player is paid for calling this wave now, at this instant of the countdown. */
+  earlyBonus: number;
+}
+
+/**
+ * One Cycle per whole second of countdown skipped. Deliberately modest: over the
+ * ten waves it is worth about 80 Cycles against a curve that pays 409, so calling
+ * everything early is a Firewall Node's ladder and a bit - real money, and nowhere
+ * near a way around the economy. Rounded up rather than down so the button's `+8`
+ * and the meta's `IN 8s` are always the same number; two readings of one countdown
+ * disagreeing by one is the kind of small lie that costs trust in all of it.
+ */
+export const EARLY_CALL_RATE = 1;
+
+export function earlyCallBonus(countdownMs: number): number {
+  return Math.ceil(Math.max(0, countdownMs) / 1000) * EARLY_CALL_RATE;
 }
 
 /**
@@ -242,12 +258,14 @@ export function nextWavePreview(spawner: Spawner): WavePreview | null {
     else composition.push({ kind: group.enemyKind, count: group.count });
   }
 
+  const countdownMs = Math.max(0, spawner.waveTimerMs);
   return {
     number: index + 1,
     total: waves.length,
     hpScale: wave.hpScale ?? 1,
     composition,
-    countdownMs: Math.max(0, spawner.waveTimerMs),
+    countdownMs,
+    earlyBonus: earlyCallBonus(countdownMs),
   };
 }
 

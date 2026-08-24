@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGameState, placeTower, stepGame } from '../src/game.ts';
+import { callWaveEarly, createGameState, placeTower, stepGame, TICK_MS as SIM_TICK_MS } from '../src/game.ts';
 import type { GameHooks } from '../src/game.ts';
+import { earlyCallBonus, nextWavePreview } from '../src/wave.ts';
 import { createEnemy, enemyStats } from '../src/enemy.ts';
 import { level1 } from '../src/map.ts';
 
@@ -93,4 +94,47 @@ test('the same run twice produces the same numbers', () => {
   // simulation reaches no randomness at all once the cosmetic hook is left out.
   assert.deepEqual(second, first);
   assert.notEqual(first.status, 'playing', 'the run should actually finish inside the cap');
+});
+
+test('calling a wave early pays exactly what the console offered, and starts it', () => {
+  const state = createGameState(level1);
+
+  const preview = nextWavePreview(state.spawner);
+  assert.ok(preview, 'the run opens on a countdown');
+  assert.ok(preview.earlyBonus > 0, 'a full countdown is worth something to skip');
+
+  const before = state.cycles;
+  const paid = callWaveEarly(state);
+
+  // The button reads its price off the same preview the player is looking at, so
+  // a mismatch here is the game charging one number and paying another.
+  assert.equal(paid, preview.earlyBonus);
+  assert.equal(state.cycles, before + paid);
+  assert.equal(state.spawner.waveIndex, -1, 'the wave has not opened yet, only the countdown ended');
+
+  stepGame(state, SIM_TICK_MS);
+  assert.equal(state.spawner.waveIndex, 0, 'the next tick opens the wave that was called');
+  assert.equal(state.enemies.length, 1, 'and its first group, which starts at 0ms, spawns with it');
+});
+
+test('there is nothing to call while a wave is running', () => {
+  const state = createGameState(level1);
+  callWaveEarly(state);
+
+  // Into the wave proper, past the countdown that could have been bought out.
+  while (state.spawner.state === 'countdown') stepGame(state, SIM_TICK_MS);
+
+  const before = state.cycles;
+  assert.equal(callWaveEarly(state), 0, 'a wave already on the board is not for sale');
+  assert.equal(state.cycles, before);
+});
+
+test('the bonus is the countdown the console prints, rounded the same way', () => {
+  // `IN 8s` and `+8` come from one number read twice; ceil on both sides is what
+  // keeps them from ever disagreeing by one.
+  assert.equal(earlyCallBonus(8000), 8);
+  assert.equal(earlyCallBonus(7001), 8);
+  assert.equal(earlyCallBonus(1), 1);
+  assert.equal(earlyCallBonus(0), 0);
+  assert.equal(earlyCallBonus(-500), 0, 'an overshot countdown is worth nothing, not a refund');
 });

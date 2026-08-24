@@ -23,6 +23,7 @@ import { towerStats, triggerOverclock } from './tower.ts';
 import type { TowerKind } from './tower.ts';
 import { nextWavePreview, waveLabel } from './wave.ts';
 import {
+  callWaveEarly,
   createGameState,
   isPlaceable,
   MAX_CORE_HEALTH,
@@ -215,6 +216,9 @@ function startGame(): void {
       },
       onTogglePause: togglePause,
       onToggleSpeed: toggleSpeed,
+      onCallWave: () => {
+        callWaveEarly(state);
+      },
     },
     document.body,
   );

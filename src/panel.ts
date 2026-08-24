@@ -29,6 +29,7 @@ export interface TowerPanelHandlers {
   onOverclock(tower: Tower): void;
   onTogglePause(): void;
   onToggleSpeed(): void;
+  onCallWave(): void;
 }
 
 // Four for a tower in build mode (damage, range, rate, placement); five because a
@@ -151,6 +152,15 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   });
   actions.appendChild(overclockButton);
 
+  // Lives in the same row as UP/OC/SELL and is the only thing in it during a wave
+  // preview: the actions row is "what can be done to the thing on screen", and the
+  // thing on screen is a wave that has not arrived yet.
+  const callButton = document.createElement('button');
+  callButton.type = 'button';
+  callButton.innerHTML = '<span>CALL</span><span></span>';
+  callButton.addEventListener('click', () => handlers.onCallWave());
+  actions.appendChild(callButton);
+
   const sellButton = document.createElement('button');
   sellButton.type = 'button';
   sellButton.innerHTML = '<span>SELL</span><span></span>';
@@ -184,6 +194,9 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     meta.classList.remove('panel-short');
 
     actions.hidden = false;
+    callButton.hidden = true;
+    sellButton.hidden = false;
+    upgradeButton.hidden = false;
     sellButton.lastElementChild!.textContent = `+${sellValue(tower)}`;
     upgradeButton.firstElementChild!.textContent = next ? 'UP' : 'MAX';
     upgradeButton.lastElementChild!.textContent = cost === null ? '' : String(cost);
@@ -270,9 +283,14 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     meta.textContent = `IN ${Math.ceil(preview.countdownMs / 1000)}s`;
     meta.classList.remove('panel-short');
 
-    // Nothing to act on: the wave arrives whether or not you are ready. Until the
-    // early-call bonus, at which point this row grows a button.
-    actions.hidden = true;
+    // The one thing there is to do to a wave that has not arrived: bring it
+    // forward and get paid for the seconds nobody spends waiting.
+    actions.hidden = false;
+    callButton.hidden = false;
+    callButton.lastElementChild!.textContent = `+${preview.earlyBonus}`;
+    upgradeButton.hidden = true;
+    overclockButton.hidden = true;
+    sellButton.hidden = true;
 
     let row = 0;
     for (const entry of preview.composition) {
