@@ -253,6 +253,9 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     setStat(0, 'SPEED', enemy.speed.toFixed(1));
     setStat(1, 'BOUNTY', String(enemy.reward));
     let row = 2;
+    // Only worth a row when it is not the ordinary 1: the boss costing the whole
+    // core is a rule, and an unwritten rule is the thing the console exists to end.
+    if (stats.coreDamage > 1) setStat(row++, 'BREACH', `${stats.coreDamage} HP`);
     if (immune) setStat(row++, 'IMMUNE', towerStats(immune).name);
     if (splits) setStat(row++, 'SPLITS', `${splits.length}x ${enemyStats(splits[0]).name}`);
     clearStatsFrom(row);

@@ -48,6 +48,14 @@ So it moves: an explicit state object and a `stepGame(state, dtMs)` that mutates
 
 The checkpoint for this step is that nothing changes. No new behavior, no new numbers; the game plays exactly as it did, and the win is that the harness and the speed toggle both become possible afterwards. A refactor that lands with a feature attached is a refactor nobody can verify.
 
+## What the curve became
+
+Three mechanics the spec above did not ask for, each one forced by a reading off the harness and kept because the curve needs it, not because it was planned:
+
+- **Groups run concurrently inside a wave.** A `SpawnGroup` has a `startMs` offset and every group reads the wave's own clock, so wave 4 is Trojans walking through a Worm stream rather than after one. Before this, groups were a queue, and "introduced alone before it appears mixed" was a promise the data could not keep.
+- **Waves past 6 carry an HP multiplier** (`hpScale`, 1.5x through 2.75x). Difficulty had to come from somewhere that is not counts, because counts are also the bounty, and the economy is the other half of what this milestone sizes. It moves HP only - not speed, not the reward. The ramp starts late because rounding makes a small multiplier a big jump on a three-HP Worm.
+- **A Zero-Day breach costs 3 core HP.** It used to cost 1, like a Worm, so the boss could walk into the core and the run still ended in `SYSTEM SECURED`. Three, not five: a run that arrives clean survives it, a run that has been leaking does not, which keeps every earlier leak on the books until the last wave.
+
 ## Deliberately not in scope
 
 - **Audio.** The biggest single learning module left and the loudest gap in a portfolio piece, which is exactly why it deserves a milestone instead of a corner of this one.

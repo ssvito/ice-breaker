@@ -1,4 +1,4 @@
-import { createGameState, MAX_CORE_HEALTH, placeTower, stepGame, TICK_MS, upgradeTower } from './game.ts';
+import { createGameState, MAX_CORE_HEALTH, placeTower, stepGame, TICK_MS, towerAt, upgradeTower } from './game.ts';
 import type { GameState, GameStatus } from './game.ts';
 import { level1 } from './map.ts';
 import type { LevelData } from './map.ts';
@@ -115,12 +115,21 @@ function advanceBuildOrder(state: GameState, pending: PendingBuild[], waveNumber
 
     let tower = entry.tower;
     if (tower === null) {
-      tower = placeTower(state, entry.build.kind, { x: entry.build.x, y: entry.build.y });
-      // Short on Cycles, or an illegal tile. Either way this entry blocks the ones
-      // behind it: a build order is an order.
-      if (tower === null) break;
+      // A later entry on a tile an earlier one already built reads as "and take
+      // that one to tier 3" - the ladder is bought over the run, not at once, and
+      // that is how a player actually spends. Adopting it costs nothing; without
+      // this the entry would sit blocked on a tile it can never place on.
+      const existing = towerAt(state, { x: entry.build.x, y: entry.build.y });
+      tower = existing?.kind === entry.build.kind ? existing : null;
+
+      if (tower === null) {
+        tower = placeTower(state, entry.build.kind, { x: entry.build.x, y: entry.build.y });
+        // Short on Cycles, or a tile the rules refuse. Either way this entry blocks
+        // the ones behind it: a build order is an order.
+        if (tower === null) break;
+        bought.push(label(tower.kind, 1));
+      }
       entry.tower = tower;
-      bought.push(label(tower.kind, 1));
     }
 
     while (tower.tier < entry.targetTier && upgradeTower(state, tower)) {
@@ -237,7 +246,7 @@ export const loadouts: Loadout[] = [
   },
   {
     name: 'starter',
-    note: 'what the opening 100 Cycles buys, and nothing after it',
+    note: 'the opening 100 Cycles, and nothing after it - how far a frozen board gets',
     builds: [
       { kind: 'firewallNode', x: 2, y: 3 },
       { kind: 'firewallNode', x: 5, y: 3 },
@@ -246,21 +255,51 @@ export const loadouts: Loadout[] = [
   },
   {
     name: 'spread',
-    note: 'one of every kind at tier 1 - breadth over depth',
+    note: 'breadth: the same opening, then a new tier-1 tower every couple of waves',
     builds: [
       { kind: 'firewallNode', x: 2, y: 3 },
+      { kind: 'firewallNode', x: 5, y: 3 },
       { kind: 'honeypot', x: 6, y: 4 },
-      { kind: 'idsScanner', x: 8, y: 5 },
-      { kind: 'aesTurret', x: 12, y: 5 },
+      { kind: 'idsScanner', x: 8, y: 5, fromWave: 3 },
+      { kind: 'aesTurret', x: 12, y: 5, fromWave: 5 },
+      { kind: 'firewallNode', x: 10, y: 5, fromWave: 7 },
+      { kind: 'honeypot', x: 12, y: 6, fromWave: 9 },
     ],
   },
   {
     name: 'focused',
-    note: 'one Firewall to open, then everything into a tier-3 AES Turret',
+    note: 'depth: the same opening, then every Cycle into upgrading the three towers it has',
     builds: [
       { kind: 'firewallNode', x: 2, y: 3 },
-      { kind: 'aesTurret', x: 5, y: 3, tier: 3 },
-      { kind: 'firewallNode', x: 12, y: 5, tier: 2, fromWave: 3 },
+      { kind: 'firewallNode', x: 5, y: 3 },
+      { kind: 'honeypot', x: 6, y: 4 },
+      { kind: 'firewallNode', x: 2, y: 3, tier: 3, fromWave: 3 },
+      { kind: 'firewallNode', x: 5, y: 3, tier: 3, fromWave: 5 },
+      { kind: 'honeypot', x: 6, y: 4, tier: 3, fromWave: 7 },
+    ],
+  },
+  {
+    name: 'turret',
+    note: 'the gamble: stay tier 1 at the front and bank for a tier-3 AES Turret late',
+    builds: [
+      { kind: 'firewallNode', x: 2, y: 3 },
+      { kind: 'firewallNode', x: 5, y: 3 },
+      { kind: 'honeypot', x: 6, y: 4 },
+      { kind: 'idsScanner', x: 3, y: 3, tier: 2, fromWave: 3 },
+      { kind: 'aesTurret', x: 12, y: 5, tier: 3, fromWave: 5 },
+    ],
+  },
+  {
+    name: 'veteran',
+    note: 'mixed: upgrade what is already shooting, then widen with a slow and a turret',
+    builds: [
+      { kind: 'firewallNode', x: 2, y: 3 },
+      { kind: 'firewallNode', x: 5, y: 3 },
+      { kind: 'honeypot', x: 6, y: 4 },
+      { kind: 'firewallNode', x: 2, y: 3, tier: 3, fromWave: 3 },
+      { kind: 'idsScanner', x: 3, y: 3, tier: 2, fromWave: 5 },
+      { kind: 'firewallNode', x: 5, y: 3, tier: 3, fromWave: 7 },
+      { kind: 'aesTurret', x: 12, y: 5, fromWave: 9 },
     ],
   },
 ];

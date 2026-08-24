@@ -17,7 +17,7 @@ import {
 import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
-import { createSpawner, stepSpawner } from './wave.ts';
+import { createSpawner, stepSpawner, waveHpScale } from './wave.ts';
 import type { Spawner } from './wave.ts';
 import { createGlitchBurst, stepParticle } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
@@ -188,8 +188,13 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
 
   const waypoints = state.level.waypoints;
 
-  const spawnKind = stepSpawner(state.spawner, dtMs, state.enemies.length);
-  if (spawnKind) state.enemies.push(createEnemy(spawnKind));
+  const spawnKinds = stepSpawner(state.spawner, dtMs, state.enemies.length);
+  if (spawnKinds.length > 0) {
+    // Read after stepping, never before: the tick a wave opens is a tick that both
+    // advances the wave index and spawns, and the enemies belong to the new wave.
+    const hpScale = waveHpScale(state.spawner);
+    for (const kind of spawnKinds) state.enemies.push(createEnemy(kind, hpScale));
+  }
 
   const slowFactor = new Map<Enemy, number>();
   for (const tower of state.towers) {
@@ -210,7 +215,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
 
     enemy.removed = true;
     state.enemies.splice(i, 1);
-    state.coreHealth = Math.max(0, state.coreHealth - 1);
+    state.coreHealth = Math.max(0, state.coreHealth - enemy.coreDamage);
     if (state.coreHealth === 0) state.status = 'lost';
   }
 
@@ -258,7 +263,9 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
       const splitKinds = getSplitKinds(projectile.target.kind);
       if (splitKinds) {
         splitKinds.forEach((kind, i) => {
-          const child = createEnemy(kind);
+          // Children inherit the wave their parent was born under, not whatever
+          // wave is running when the parent finally dies.
+          const child = createEnemy(kind, projectile.target.hpScale);
           child.distance = Math.max(0, projectile.target.distance - i * 0.4);
           state.enemies.push(child);
         });
