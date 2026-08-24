@@ -222,6 +222,12 @@ export interface WavePreview {
   countdownMs: number;
   /** Cycles the player is paid for calling this wave now, at this instant of the countdown. */
   earlyBonus: number;
+  /**
+   * Whether this wave can still be brought forward. False for the wave already on
+   * the board, which the player can open from the HUD to re-read what they are in
+   * the middle of - a reading, with nothing to decide.
+   */
+  callable: boolean;
 }
 
 /**
@@ -238,6 +244,26 @@ export function earlyCallBonus(countdownMs: number): number {
   return Math.ceil(Math.max(0, countdownMs) / 1000) * EARLY_CALL_RATE;
 }
 
+function readWave(index: number, countdownMs: number, callable: boolean): WavePreview {
+  const wave = waves[index];
+  const composition: { kind: EnemyKind; count: number }[] = [];
+  for (const group of wave.groups) {
+    const merged = composition.find((entry) => entry.kind === group.enemyKind);
+    if (merged) merged.count += group.count;
+    else composition.push({ kind: group.enemyKind, count: group.count });
+  }
+
+  return {
+    number: index + 1,
+    total: waves.length,
+    hpScale: wave.hpScale ?? 1,
+    composition,
+    countdownMs,
+    earlyBonus: callable ? earlyCallBonus(countdownMs) : 0,
+    callable,
+  };
+}
+
 /**
  * The wave being counted down to, or null whenever there isn't one - mid-wave,
  * waiting for the board to clear, or after the last wave. Null is the signal that
@@ -250,23 +276,20 @@ export function nextWavePreview(spawner: Spawner): WavePreview | null {
   const index = spawner.waveIndex + 1;
   if (index >= waves.length) return null;
 
-  const wave = waves[index];
-  const composition: { kind: EnemyKind; count: number }[] = [];
-  for (const group of wave.groups) {
-    const merged = composition.find((entry) => entry.kind === group.enemyKind);
-    if (merged) merged.count += group.count;
-    else composition.push({ kind: group.enemyKind, count: group.count });
-  }
+  return readWave(index, Math.max(0, spawner.waveTimerMs), true);
+}
 
-  const countdownMs = Math.max(0, spawner.waveTimerMs);
-  return {
-    number: index + 1,
-    total: waves.length,
-    hpScale: wave.hpScale ?? 1,
-    composition,
-    countdownMs,
-    earlyBonus: earlyCallBonus(countdownMs),
-  };
+/**
+ * What the wave indicator opens: the wave being counted down to if there is one,
+ * otherwise the wave currently on the board. Asking "what is this?" of a wave in
+ * progress is the same question as asking it of one that has not landed, and the
+ * console had no way to answer it once the countdown was over.
+ */
+export function currentWaveReading(spawner: Spawner): WavePreview | null {
+  const incoming = nextWavePreview(spawner);
+  if (incoming) return incoming;
+  if (spawner.waveIndex < 0 || spawner.waveIndex >= waves.length) return null;
+  return readWave(spawner.waveIndex, 0, false);
 }
 
 /** HP multiplier of the wave currently running - what `createEnemy` is handed. */
@@ -275,8 +298,7 @@ export function waveHpScale(spawner: Spawner): number {
   return wave?.hpScale ?? 1;
 }
 
-export function waveLabel(spawner: Spawner): string {
-  if (spawner.state === 'done') return 'ALL WAVES CLEARED';
-  const displayIndex = Math.max(0, spawner.waveIndex) + 1;
-  return `WAVE ${displayIndex}/${waves.length}`;
+/** The wave the run is on, 1-based, counting the opening countdown as wave 1. */
+export function waveNumber(spawner: Spawner): number {
+  return Math.min(waves.length, Math.max(0, spawner.waveIndex) + 1);
 }

@@ -56,6 +56,14 @@ Three mechanics the spec above did not ask for, each one forced by a reading off
 - **Waves past 6 carry an HP multiplier** (`hpScale`, 1.5x through 2.75x). Difficulty had to come from somewhere that is not counts, because counts are also the bounty, and the economy is the other half of what this milestone sizes. It moves HP only - not speed, not the reward. The ramp starts late because rounding makes a small multiplier a big jump on a three-HP Worm.
 - **A Zero-Day breach costs 3 core HP.** It used to cost 1, like a Worm, so the boss could walk into the core and the run still ended in `SYSTEM SECURED`. Three, not five: a run that arrives clean survives it, a run that has been leaking does not, which keeps every earlier leak on the books until the last wave.
 
+## The status bar
+
+Three glyphs at the top center, replacing three labelled lines in the top-left corner: a heart for the core, a coin for Cycles, `Lv 4` for the wave. `CORE 5/5 / CYCLES 100 / WAVE 1/10` is three times more words than the readings need, and the denominators are facts about the game rather than about this second of it - the core's maximum and the curve's length do not change.
+
+It is DOM, like the toolbar and the console, and that is what makes the last piece work: **the wave indicator is a button.** Tapping it puts the wave in the console, which is the only way to read one that is already on the board - the automatic preview appears during a countdown and disappears with it, while "what am I fighting" outlives it. During a countdown it opens the incoming wave with its `CALL`; mid-wave it opens what is walking the trace, headed `ON BOARD`, with nothing to press.
+
+Each reading keeps a colour that already means something: the core is the magenta of the core sprite and of damage, Cycles are the amber the console spends on values, the wave is terminal green. Nothing new enters the palette.
+
 ## Deliberately not in scope
 
 - **Audio.** The biggest single learning module left and the loudest gap in a portfolio piece, which is exactly why it deserves a milestone instead of a corner of this one.

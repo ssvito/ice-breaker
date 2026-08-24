@@ -271,32 +271,26 @@ export function drawPlacementPreview(
   ctx.globalAlpha = 1;
 }
 
-export function drawHud(
+/**
+ * The end screen, and only that. The run's numbers used to be painted here too -
+ * three labelled lines in the top-left corner - and they are a DOM status bar now
+ * (`hud.ts`), which is what let the wave indicator become something you can tap.
+ * What is left is the one thing that genuinely belongs on the board: the overlay
+ * that covers it when the run is over.
+ */
+export function drawEndScreen(
   ctx: CanvasRenderingContext2D,
   vp: Viewport,
-  coreHealth: number,
-  maxCoreHealth: number,
-  cycles: number,
-  waveText: string,
   gameState: 'playing' | 'won' | 'lost',
 ): void {
+  if (gameState === 'playing') return;
+
   const ox = vp.offsetX;
   const oy = vp.offsetY;
   const worldW = vp.virtualWidth * vp.scale;
   const worldH = vp.virtualHeight * vp.scale;
   const unit = vp.scale * VIRTUAL_TILE; // device px per tile
   const fontSize = Math.max(12 * vp.dpr, unit * 0.42);
-  const pad = Math.round(unit * 0.28);
-
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#e8f9ff';
-  ctx.font = `${fontSize}px monospace`;
-  ctx.fillText(`CORE ${coreHealth}/${maxCoreHealth}`, ox + pad, oy + pad);
-  ctx.fillText(`CYCLES ${cycles}`, ox + pad, oy + pad + fontSize * 1.2);
-  ctx.fillText(waveText, ox + pad, oy + pad + fontSize * 2.4);
-
-  if (gameState === 'playing') return;
 
   const won = gameState === 'won';
   ctx.fillStyle = 'rgba(10, 14, 20, 0.78)';

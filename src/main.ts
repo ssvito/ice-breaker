@@ -7,7 +7,7 @@ import {
   prerenderBoard,
   drawEnemies,
   drawGlitchParticles,
-  drawHud,
+  drawEndScreen,
   drawPlacementPreview,
   drawEnemySelection,
   drawProjectiles,
@@ -21,12 +21,11 @@ import { renderGallery } from './gallery.ts';
 import type { Enemy } from './enemy.ts';
 import { towerStats, triggerOverclock } from './tower.ts';
 import type { TowerKind } from './tower.ts';
-import { nextWavePreview, waveLabel } from './wave.ts';
+import { currentWaveReading, nextWavePreview, waveNumber } from './wave.ts';
 import {
   callWaveEarly,
   createGameState,
   isPlaceable,
-  MAX_CORE_HEALTH,
   placeTower,
   sellTower,
   stepGame,
@@ -34,6 +33,7 @@ import {
   upgradeTower,
 } from './game.ts';
 import type { GameHooks } from './game.ts';
+import { createHud } from './hud.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 
@@ -55,6 +55,7 @@ function startGame(): void {
   window.addEventListener('resize', () => {
     fitViewport(viewport);
     placeToolbar();
+    placeHud();
   });
 
   // The whole simulation, reassigned wholesale on restart rather than reset field by
@@ -92,13 +93,6 @@ function startGame(): void {
     applyRunSpeed();
   }
 
-  /** Wave line plus whatever is making the run behave unusually, if anything. */
-  function runLabel(): string {
-    const base = waveLabel(state.spawner);
-    if (paused) return `${base} - PAUSED`;
-    return speed === 1 ? base : `${base} - ${speed}x`;
-  }
-
   let hoverTile: GridPos | null = null;
 
   const TOWER_HOTKEYS: Record<string, TowerKind> = {
@@ -122,9 +116,17 @@ function startGame(): void {
   let buildFocus = false;
   let previewedWave = 0;
 
+  /**
+   * Set by tapping the wave indicator in the HUD, which is the only way to read a
+   * wave that is already on the board - the automatic preview only ever appears
+   * during a countdown, and "what am I fighting" is a question that outlives it.
+   */
+  let waveFocus = false;
+
   function pickTowerKind(kind: TowerKind): void {
     selectedTowerKind = kind;
     buildFocus = true;
+    waveFocus = false;
   }
 
   window.addEventListener('keydown', (event) => {
@@ -158,6 +160,9 @@ function startGame(): void {
 
   /** Breathing room between the build menu and the board's edge, CSS px. */
   const BOARD_GAP = 6;
+  // Measured once rather than read back per resize: the bar's contents are three
+  // fixed-height rows of text and its height never changes with the numbers in it.
+  const HUD_HEIGHT = 30;
 
   const TOWER_BUTTON_LABELS: Record<TowerKind, string> = {
     firewallNode: 'FW',
@@ -203,6 +208,19 @@ function startGame(): void {
   }
   placeToolbar();
 
+  /**
+   * Same parking trick as the build menu, on the other axis: the status bar tucks
+   * into the letterbox above the board when the band is tall enough to hold it,
+   * and sits on the board's top edge when it isn't.
+   */
+  const hud = createHud({ onWave: () => showWave() }, document.body);
+
+  function placeHud(): void {
+    const rect = boardRect(viewport);
+    document.documentElement.style.setProperty('--hud-top', `${Math.round(rect.top - HUD_HEIGHT - BOARD_GAP)}px`);
+  }
+  placeHud();
+
   const panel = createTowerPanel(
     {
       onSell(tower) {
@@ -240,6 +258,19 @@ function startGame(): void {
     // Dismissing a reading during a lull should land on the wave, not back on the
     // build stats the player already walked away from.
     if (target === null) buildFocus = false;
+    waveFocus = false;
+  }
+
+  /**
+   * The wave indicator's job: put the wave in the console. It drops any board
+   * selection first, because the console shows one thing at a time and the thing
+   * just asked for is the wave.
+   */
+  function showWave(): void {
+    selection = null;
+    buildFocus = false;
+    waveFocus = true;
+    panel.setCollapsed(false);
   }
 
   function updateToolbar(): void {
@@ -256,6 +287,7 @@ function startGame(): void {
     state = createGameState(level1);
     selection = null;
     buildFocus = false;
+    waveFocus = false;
     previewedWave = 0;
     // Speed is a preference and survives; pause is a state, and restarting into a
     // frozen board would read as the tap-to-restart having failed.
@@ -332,15 +364,25 @@ function startGame(): void {
       const timeMs = performance.now();
       updateToolbar();
       if (state.status === 'playing') {
-        const preview = nextWavePreview(state.spawner);
+        const incoming = nextWavePreview(state.spawner);
         // Each new countdown claims the console back from the build stats, once.
-        if (preview && preview.number !== previewedWave) {
-          previewedWave = preview.number;
+        if (incoming && incoming.number !== previewedWave) {
+          previewedWave = incoming.number;
           buildFocus = false;
         }
+        // Asked for explicitly, counting down on its own, or neither.
+        const reading = waveFocus ? currentWaveReading(state.spawner) : buildFocus ? null : incoming;
+
+        hud.setVisible(true);
+        hud.update(state.coreHealth, state.cycles, waveNumber(state.spawner));
         panel.setRun(paused, speed);
-        panel.update(selection, selectedTowerKind, state.cycles, buildFocus ? null : preview);
-      } else panel.hide();
+        panel.update(selection, selectedTowerKind, state.cycles, reading);
+      } else {
+        // The end screen covers the board; a status bar floating over it would be
+        // the one piece of chrome arguing with it.
+        hud.setVisible(false);
+        panel.hide();
+      }
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;
@@ -362,7 +404,7 @@ function startGame(): void {
       }
 
       present(viewport);
-      drawHud(viewport.ctx, viewport, state.coreHealth, MAX_CORE_HEALTH, state.cycles, runLabel(), state.status);
+      drawEndScreen(viewport.ctx, viewport, state.status);
     },
   );
 

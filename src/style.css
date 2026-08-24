@@ -35,6 +35,110 @@ canvas {
   --term-glow: 0 0 6px rgba(57, 255, 136, 0.4);
 }
 
+/* The status bar: three glyphs at the top of the board. It shares the console's
+   box so the game reads as one surface, and stays narrow enough that it never
+   competes with the board it sits on. */
+.hud {
+  position: fixed;
+  left: 50%;
+  top: max(8px, env(safe-area-inset-top), var(--hud-top, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 12px;
+  background: var(--term-back);
+  border: 1px solid var(--term-faint);
+  border-radius: 4px;
+  box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
+  /* Bigger than the console's 12px: these three are the readings you take at a
+     glance while looking at the board, not ones you lean in for. Fixed rather
+     than scaled with the board, same as the toolbar - the chrome holds its size
+     and the world grows around it. */
+  font: 16px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
+
+.hud[hidden] {
+  display: none;
+}
+
+.hud-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Each reading keeps the meaning its colour already has elsewhere: the core is the
+   magenta of the core sprite and of damage, Cycles are the amber the console uses
+   for values, the wave is terminal green. */
+.hud-core {
+  color: #ff2fd1;
+  text-shadow: 0 0 6px rgba(255, 47, 209, 0.45);
+}
+
+.hud-heart {
+  height: 0.8em;
+  width: auto;
+  fill: currentColor;
+  shape-rendering: crispEdges;
+}
+
+/* A core this low is the one reading that should catch the eye on its own. */
+.hud-core.hud-critical {
+  animation: hud-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hud-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-core.hud-critical {
+    animation: none;
+  }
+}
+
+.hud-cycles {
+  color: #ffe27d;
+  text-shadow: 0 0 6px rgba(255, 226, 125, 0.4);
+}
+
+/* The coin is drawn, not written: a circle with the currency's initial in it. */
+.hud-coin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.hud-wave {
+  /* The only tappable thing up here, so it takes pointer events back and a real
+     touch target, without growing a button's chrome - the bar should read as a
+     readout, not as a control strip. */
+  pointer-events: auto;
+  min-height: 28px;
+  padding: 0 2px;
+  margin: -4px 0;
+  border: 0;
+  background: none;
+  color: var(--term);
+  text-shadow: var(--term-glow);
+  font: inherit;
+  cursor: pointer;
+}
+
+.hud-lv {
+  color: var(--term-dim);
+}
+
 /* Two edges, one language. They read as one control surface because they share
    the terminal styling below, not because they share a box. */
 .panel,

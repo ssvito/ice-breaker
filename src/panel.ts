@@ -280,13 +280,14 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     title.textContent = `WAVE ${preview.number}/${preview.total}`;
     // Seconds, not milliseconds: the console is a readout, not a stopwatch, and a
     // number changing sixty times a second is a number nobody reads.
-    meta.textContent = `IN ${Math.ceil(preview.countdownMs / 1000)}s`;
+    meta.textContent = preview.callable ? `IN ${Math.ceil(preview.countdownMs / 1000)}s` : 'ON BOARD';
     meta.classList.remove('panel-short');
 
     // The one thing there is to do to a wave that has not arrived: bring it
-    // forward and get paid for the seconds nobody spends waiting.
-    actions.hidden = false;
-    callButton.hidden = false;
+    // forward and get paid for the seconds nobody spends waiting. A wave already
+    // walking the trace is a reading with nothing to decide, so the row goes.
+    actions.hidden = !preview.callable;
+    callButton.hidden = !preview.callable;
     callButton.lastElementChild!.textContent = `+${preview.earlyBonus}`;
     upgradeButton.hidden = true;
     overclockButton.hidden = true;
@@ -339,7 +340,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       } else if (preview) {
         // The countdown is the only thing here that moves, and it is read to the
         // second, so the panel redraws once a second instead of every frame.
-        stamp = ['wave', preview.number, Math.ceil(preview.countdownMs / 1000)].join('|');
+        stamp = ['wave', preview.number, preview.callable ? Math.ceil(preview.countdownMs / 1000) : 'live'].join('|');
       } else {
         stamp = ['build', buildKind, cycles >= towerStats(buildKind).cost ? 1 : 0].join('|');
       }
