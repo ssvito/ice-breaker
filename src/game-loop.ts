@@ -1,4 +1,4 @@
-const TICK_MS = 1000 / 60;
+import { TICK_MS } from './game.ts';
 
 export class GameLoop {
   private accumulator = 0;

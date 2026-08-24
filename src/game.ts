@@ -36,6 +36,13 @@ import type { SpritePixel } from './sprites.ts';
  * ones the renderer walks.
  */
 
+/**
+ * One simulation tick. Lives here rather than in `game-loop.ts` because it is a
+ * property of the simulation, not of the browser loop that happens to drive it:
+ * the harness steps the same size tick with no loop at all.
+ */
+export const TICK_MS = 1000 / 60;
+
 export const MAX_CORE_HEALTH = 5;
 export const STARTING_CYCLES = 100;
 

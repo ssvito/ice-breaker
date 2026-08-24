@@ -21,3 +21,5 @@ Don't restate in prose what git already knows (what is committed, what is deploy
 ## Commands
 
 `npm run dev` (Vite dev server), `npm run build` (`tsc && vite build`), `npm run preview`. Pushing to `main` deploys to GitHub Pages via Actions.
+
+`npm test` runs the headless simulation tests on Node's own runner (no framework). `npm run balance` runs the wave curve headless against the declared tower layouts and prints leaks, core HP and Cycles wave by wave - the tuning instrument for the curve; `npm run balance -- --help` lists the layouts.
