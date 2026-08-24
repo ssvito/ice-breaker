@@ -1,6 +1,6 @@
 import './style.css';
 import { GameLoop } from './game-loop.ts';
-import { level1, pathLength, buildableTileSet, positionAlongPath, rasterizePath } from './map.ts';
+import { level1, positionAlongPath } from './map.ts';
 import type { GridPos } from './map.ts';
 import { boardRect, createViewport, fitViewport, present, clientToGrid, clientToWorld } from './canvas.ts';
 import {
@@ -18,32 +18,23 @@ import {
 import { bakeAtlas, spritePixels } from './sprites.ts';
 import type { SpriteName } from './sprites.ts';
 import { renderGallery } from './gallery.ts';
-import { createGlitchBurst, stepParticle } from './effects.ts';
-import type { GlitchParticle } from './effects.ts';
-import { createEnemy, getSplitKinds, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
+import { towerStats, triggerOverclock } from './tower.ts';
+import type { TowerKind } from './tower.ts';
+import { waveLabel } from './wave.ts';
 import {
-  applyUpgrade,
-  canFire,
-  createTower,
-  effectiveFireIntervalMs,
-  MUZZLE_FLASH_MS,
-  sellValue,
-  stepOverclock,
-  upgradeCost,
-  towerCenter,
-  towerStats,
-  triggerOverclock,
-} from './tower.ts';
-import type { Tower, TowerKind } from './tower.ts';
-import { createProjectile, stepProjectile } from './projectile.ts';
-import type { Projectile } from './projectile.ts';
-import { createSpawner, stepSpawner, waveLabel } from './wave.ts';
+  createGameState,
+  isPlaceable,
+  MAX_CORE_HEALTH,
+  placeTower,
+  sellTower,
+  stepGame,
+  towerAt,
+  upgradeTower,
+} from './game.ts';
+import type { GameHooks } from './game.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
-
-const MAX_CORE_HEALTH = 5;
-const STARTING_CYCLES = 100;
 
 if (new URLSearchParams(location.search).has('gallery')) {
   renderGallery(document.querySelector<HTMLDivElement>('#app')!);
@@ -65,12 +56,15 @@ function startGame(): void {
     placeToolbar();
   });
 
-  const totalPathLength = pathLength(level1.waypoints);
-  const enemies: Enemy[] = [];
-  let spawner = createSpawner();
-  let coreHealth = MAX_CORE_HEALTH;
-  let cycles = STARTING_CYCLES;
-  let gameState: 'playing' | 'won' | 'lost' = 'playing';
+  // The whole simulation, reassigned wholesale on restart rather than reset field by
+  // field. Everything below reads it at call time, so nothing holds a stale run.
+  let state = createGameState(level1);
+
+  // The only thing the sim can't work out alone: the kill burst scatters the dead
+  // enemy's own sprite pixels, and those live in the baked atlas.
+  const hooks: GameHooks = {
+    enemyPixels: (kind) => spritePixels(kind as SpriteName),
+  };
 
   // Pause and 2x scale the simulation, not the frame rate: the loop keeps drawing
   // at whatever the display gives it, and pausing stops the sim while the board,
@@ -99,19 +93,11 @@ function startGame(): void {
 
   /** Wave line plus whatever is making the run behave unusually, if anything. */
   function runLabel(): string {
-    const base = waveLabel(spawner);
+    const base = waveLabel(state.spawner);
     if (paused) return `${base} - PAUSED`;
     return speed === 1 ? base : `${base} - ${speed}x`;
   }
 
-  const buildable = buildableTileSet(level1);
-  const pathTiles = new Set(rasterizePath(level1.waypoints).map((p) => `${p.x},${p.y}`));
-  const spawnKey = `${level1.waypoints[0].x},${level1.waypoints[0].y}`;
-  const coreKey = `${level1.waypoints[level1.waypoints.length - 1].x},${level1.waypoints[level1.waypoints.length - 1].y}`;
-  const occupied = new Set<string>();
-  const towers: Tower[] = [];
-  const projectiles: Projectile[] = [];
-  const particles: GlitchParticle[] = [];
   let hoverTile: GridPos | null = null;
 
   const TOWER_HOTKEYS: Record<string, TowerKind> = {
@@ -205,18 +191,10 @@ function startGame(): void {
   const panel = createTowerPanel(
     {
       onSell(tower) {
-        const index = towers.indexOf(tower);
-        if (index === -1) return;
-        towers.splice(index, 1);
-        occupied.delete(`${tower.x},${tower.y}`);
-        cycles += sellValue(tower);
-        selection = null;
+        if (sellTower(state, tower)) selection = null;
       },
       onUpgrade(tower) {
-        const cost = upgradeCost(tower);
-        if (cost === null || cycles < cost) return;
-        cycles -= cost;
-        applyUpgrade(tower);
+        upgradeTower(state, tower);
       },
       onOverclock(tower) {
         triggerOverclock(tower);
@@ -249,38 +227,12 @@ function startGame(): void {
       // Marked as unaffordable rather than disabled: a disabled button swallows its
       // click, and picking a kind you can't afford yet is how you read its stats in
       // the panel. Placement is blocked by isPlaceable regardless.
-      button.classList.toggle('short', cycles < towerStats(kind).cost);
+      button.classList.toggle('short', state.cycles < towerStats(kind).cost);
     }
-  }
-
-  function findTarget(tower: Tower): Enemy | null {
-    const center = towerCenter(tower);
-    let nearest: Enemy | null = null;
-    let nearestDist = Infinity;
-
-    for (const enemy of enemies) {
-      if (isImmuneTo(enemy.kind, tower.kind)) continue;
-      const pos = positionAlongPath(level1.waypoints, enemy.distance);
-      const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
-      if (dist <= tower.range && dist < nearestDist) {
-        nearest = enemy;
-        nearestDist = dist;
-      }
-    }
-
-    return nearest;
   }
 
   function resetGame(): void {
-    enemies.length = 0;
-    towers.length = 0;
-    projectiles.length = 0;
-    particles.length = 0;
-    occupied.clear();
-    spawner = createSpawner();
-    coreHealth = MAX_CORE_HEALTH;
-    cycles = STARTING_CYCLES;
-    gameState = 'playing';
+    state = createGameState(level1);
     selection = null;
     // Speed is a preference and survives; pause is a state, and restarting into a
     // frozen board would read as the tap-to-restart having failed.
@@ -288,25 +240,12 @@ function startGame(): void {
     applyRunSpeed();
   }
 
-  function isPlaceable(tile: GridPos): boolean {
-    const key = `${tile.x},${tile.y}`;
-    if (occupied.has(key)) return false;
-
-    const stats = towerStats(selectedTowerKind);
-    const validTile =
-      stats.placement === 'onPath'
-        ? pathTiles.has(key) && key !== spawnKey && key !== coreKey
-        : buildable.has(key);
-
-    return validTile && cycles >= stats.cost;
-  }
-
   /** Nearest enemy whose sprite covers this world point, or null. */
   function enemyAt(x: number, y: number): Enemy | null {
     let nearest: Enemy | null = null;
     let nearestDist = Infinity;
 
-    for (const enemy of enemies) {
+    for (const enemy of state.enemies) {
       const pos = positionAlongPath(level1.waypoints, enemy.distance);
       const dist = Math.hypot(pos.x - x, pos.y - y);
       if (dist <= enemyHitRadius(enemy) && dist < nearestDist) {
@@ -327,7 +266,7 @@ function startGame(): void {
   });
 
   canvas.addEventListener('pointerdown', (event) => {
-    if (gameState !== 'playing') {
+    if (state.status !== 'playing') {
       resetGame();
       return;
     }
@@ -338,17 +277,14 @@ function startGame(): void {
     // sprite overhangs the trace onto buildable tiles, and losing a placement to a
     // boss walking past would be maddening. Enemies stay tappable over the trace,
     // which is where they always are.
-    const hitTower = towers.find((t) => t.x === tile.x && t.y === tile.y);
+    const hitTower = towerAt(state, tile);
     if (hitTower) {
       const same = selection?.kind === 'tower' && selection.tower === hitTower;
       select(same ? null : { kind: 'tower', tower: hitTower });
       return;
     }
 
-    if (isPlaceable(tile)) {
-      towers.push(createTower(selectedTowerKind, tile.x, tile.y));
-      occupied.add(`${tile.x},${tile.y}`);
-      cycles -= towerStats(selectedTowerKind).cost;
+    if (placeTower(state, selectedTowerKind, tile)) {
       selection = null;
       return;
     }
@@ -365,122 +301,39 @@ function startGame(): void {
 
   const loop = new GameLoop(
     (dtMs) => {
-      if (gameState !== 'playing') return;
-
-      const spawnKind = stepSpawner(spawner, dtMs, enemies.length);
-      if (spawnKind) enemies.push(createEnemy(spawnKind));
-
-      const slowFactor = new Map<Enemy, number>();
-      for (const tower of towers) {
-        if (tower.slowMultiplier === undefined) continue;
-        const center = towerCenter(tower);
-        for (const enemy of enemies) {
-          const pos = positionAlongPath(level1.waypoints, enemy.distance);
-          const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
-          if (dist > tower.range) continue;
-          slowFactor.set(enemy, Math.min(slowFactor.get(enemy) ?? 1, tower.slowMultiplier));
-        }
-      }
-
-      for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        const reachedCore = stepEnemy(enemy, dtMs, totalPathLength, slowFactor.get(enemy) ?? 1);
-        if (!reachedCore) continue;
-
-        enemy.removed = true;
-        enemies.splice(i, 1);
-        coreHealth = Math.max(0, coreHealth - 1);
-        if (coreHealth === 0) gameState = 'lost';
-      }
-
-      for (const tower of towers) {
-        stepOverclock(tower, dtMs);
-        if (tower.flashMs > 0) tower.flashMs = Math.max(0, tower.flashMs - dtMs);
-
-        if (tower.slowMultiplier !== undefined || !canFire(tower)) continue;
-
-        tower.cooldownMs -= dtMs;
-        if (tower.cooldownMs > 0) continue;
-
-        const target = findTarget(tower);
-        if (!target) continue;
-
-        projectiles.push(createProjectile(towerCenter(tower), target, tower.damage, tower.kind === 'aesTurret'));
-        tower.cooldownMs = effectiveFireIntervalMs(tower);
-        tower.flashMs = MUZZLE_FLASH_MS;
-      }
-
-      for (let i = projectiles.length - 1; i >= 0; i--) {
-        const projectile = projectiles[i];
-        if (projectile.target.removed) {
-          projectiles.splice(i, 1);
-          continue;
-        }
-
-        const targetPos = positionAlongPath(level1.waypoints, projectile.target.distance);
-        const hit = stepProjectile(projectile, dtMs, targetPos);
-        if (!hit) continue;
-
-        projectile.target.hp -= projectile.damage;
-        if (projectile.target.hp <= 0) {
-          projectile.target.removed = true;
-          cycles += projectile.target.reward;
-          const idx = enemies.indexOf(projectile.target);
-          if (idx !== -1) enemies.splice(idx, 1);
-
-          const deathPos = positionAlongPath(level1.waypoints, projectile.target.distance);
-          particles.push(...createGlitchBurst(deathPos.x, deathPos.y, spritePixels(projectile.target.kind as SpriteName)));
-
-          const splitKinds = getSplitKinds(projectile.target.kind);
-          if (splitKinds) {
-            splitKinds.forEach((kind, i) => {
-              const child = createEnemy(kind);
-              child.distance = Math.max(0, projectile.target.distance - i * 0.4);
-              enemies.push(child);
-            });
-          }
-        }
-        projectiles.splice(i, 1);
-      }
-
+      stepGame(state, dtMs, hooks);
       // A selected enemy can die or breach the core mid-tick; both paths set removed.
       if (selection?.kind === 'enemy' && selection.enemy.removed) selection = null;
-
-      if (spawner.state === 'done' && enemies.length === 0) gameState = 'won';
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        if (!stepParticle(particles[i], dtMs)) particles.splice(i, 1);
-      }
     },
     () => {
       const timeMs = performance.now();
       updateToolbar();
-      if (gameState === 'playing') {
+      if (state.status === 'playing') {
         panel.setRun(paused, speed);
-        panel.update(selection, selectedTowerKind, cycles);
+        panel.update(selection, selectedTowerKind, state.cycles);
       } else panel.hide();
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;
       worldCtx.drawImage(board, 0, 0);
-      drawTowers(worldCtx, towers, timeMs);
+      drawTowers(worldCtx, state.towers, timeMs);
       if (selection?.kind === 'tower') drawTowerSelection(worldCtx, selection.tower);
-      drawEnemies(worldCtx, enemies, level1.waypoints, timeMs);
+      drawEnemies(worldCtx, state.enemies, level1.waypoints, timeMs);
       if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, level1.waypoints);
-      drawProjectiles(worldCtx, projectiles);
-      drawGlitchParticles(worldCtx, particles);
-      if (hoverTile && gameState === 'playing') {
+      drawProjectiles(worldCtx, state.projectiles);
+      drawGlitchParticles(worldCtx, state.particles);
+      if (hoverTile && state.status === 'playing') {
         drawPlacementPreview(
           worldCtx,
           hoverTile,
-          isPlaceable(hoverTile),
+          isPlaceable(state, selectedTowerKind, hoverTile),
           towerStats(selectedTowerKind).range,
           selectedTowerKind,
         );
       }
 
       present(viewport);
-      drawHud(viewport.ctx, viewport, coreHealth, MAX_CORE_HEALTH, cycles, runLabel(), gameState);
+      drawHud(viewport.ctx, viewport, state.coreHealth, MAX_CORE_HEALTH, state.cycles, runLabel(), state.status);
     },
   );
 
