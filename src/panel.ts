@@ -17,6 +17,7 @@ export type PanelTarget = { kind: 'tower'; tower: Tower } | { kind: 'enemy'; ene
 
 export interface TowerPanel {
   update(target: PanelTarget, buildKind: TowerKind, cycles: number): void;
+  setCollapsed(value: boolean): void;
   hide(): void;
 }
 
@@ -272,6 +273,12 @@ export function createTowerPanel(handlers: TowerPanelHandlers, dock: HTMLElement
       if (target?.kind === 'tower') renderSelected(target.tower, cycles);
       else if (target?.kind === 'enemy') renderEnemy(target.enemy);
       else renderBuild(buildKind, cycles);
+    },
+
+    setCollapsed(value: boolean): void {
+      if (collapsed === value) return;
+      collapsed = value;
+      applyCollapsed();
     },
 
     hide(): void {

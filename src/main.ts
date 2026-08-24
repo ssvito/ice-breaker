@@ -97,7 +97,9 @@ function startGame(): void {
       selectedTowerKind = kind;
       return;
     }
-    if (event.key === 'Escape') selection = null;
+    // Same verb as tapping the selected thing again, so the keyboard out and the
+    // touch out leave the console in the same state.
+    if (event.key === 'Escape') select(null);
     // Kept as a desktop shortcut for the flow players already learned, but it now
     // acts on the selection instead of arming an invisible mode.
     if ((event.key === 'q' || event.key === 'Q') && selection?.kind === 'tower') {
@@ -155,6 +157,22 @@ function startGame(): void {
     },
     dock,
   );
+
+  /**
+   * Every selection made by tapping the board. Tapping a thing opens the console on
+   * it; tapping that same thing again dismisses the reading and folds the console to
+   * its header. The dock covers real board on a phone, and the readout you just
+   * finished is exactly the one you want out of the way - so the tap that dismisses
+   * it is the same tap that opened it, with no second control to find.
+   *
+   * A new selection always expands, because the console collapsed hides the stats
+   * and the SELL/UP/OC row both: tapping a tower to act on it and getting a folded
+   * header would be a dead end.
+   */
+  function select(target: PanelTarget): void {
+    selection = target;
+    panel.setCollapsed(target === null);
+  }
 
   function updateToolbar(): void {
     for (const { kind, button } of towerButtons) {
@@ -249,7 +267,8 @@ function startGame(): void {
     // which is where they always are.
     const hitTower = towers.find((t) => t.x === tile.x && t.y === tile.y);
     if (hitTower) {
-      selection = { kind: 'tower', tower: hitTower };
+      const same = selection?.kind === 'tower' && selection.tower === hitTower;
+      select(same ? null : { kind: 'tower', tower: hitTower });
       return;
     }
 
@@ -263,7 +282,12 @@ function startGame(): void {
 
     const world = clientToWorld(viewport, event.clientX, event.clientY);
     const hitEnemy = enemyAt(world.x, world.y);
-    selection = hitEnemy ? { kind: 'enemy', enemy: hitEnemy } : null;
+    if (hitEnemy) {
+      const same = selection?.kind === 'enemy' && selection.enemy === hitEnemy;
+      select(same ? null : { kind: 'enemy', enemy: hitEnemy });
+      return;
+    }
+    selection = null;
   });
 
   const loop = new GameLoop(
