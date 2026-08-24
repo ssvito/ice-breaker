@@ -77,21 +77,51 @@ canvas {
   );
 }
 
+/* A control bar, not just a title strip: the collapse target takes whatever the
+   run buttons leave, and the row is 44px because the buttons in it are real tap
+   targets. That costs ten more pixels of board than the old 34px title, and only
+   while the console is collapsed - the trade for pause and speed being reachable
+   without expanding it first. */
 .panel-head {
   display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--term-faint);
+}
+
+.panel-collapse {
+  display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  min-height: 34px;
+  min-height: 44px;
   padding: 4px 8px;
   background: none;
   border: 0;
-  border-bottom: 1px solid var(--term-faint);
   color: inherit;
   font: inherit;
   text-shadow: inherit;
   text-align: left;
   touch-action: manipulation;
+}
+
+/* Dim until they are the reason the run isn't behaving normally, then amber - the
+   same "something is being forced" colour Overclock and the upgrade preview use. */
+.panel-run {
+  min-width: 44px;
+  padding: 0 8px;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--term-faint);
+  color: var(--term-dim);
+  font: inherit;
+  text-shadow: inherit;
+  touch-action: manipulation;
+}
+
+.panel-run.armed {
+  color: #ffe27d;
+  text-shadow: 0 0 6px rgba(255, 226, 125, 0.45);
 }
 
 .panel-title {

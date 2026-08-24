@@ -17,6 +17,7 @@ export type PanelTarget = { kind: 'tower'; tower: Tower } | { kind: 'enemy'; ene
 
 export interface TowerPanel {
   update(target: PanelTarget, buildKind: TowerKind, cycles: number): void;
+  setRun(paused: boolean, speed: number): void;
   setCollapsed(value: boolean): void;
   hide(): void;
 }
@@ -25,6 +26,8 @@ export interface TowerPanelHandlers {
   onSell(tower: Tower): void;
   onUpgrade(tower: Tower): void;
   onOverclock(tower: Tower): void;
+  onTogglePause(): void;
+  onToggleSpeed(): void;
 }
 
 // Attack towers fill three (damage, range, rate) and build mode adds the placement rule.
@@ -43,24 +46,46 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   root.className = 'panel';
   root.hidden = true;
 
-  // The whole header bar is the collapse control: a 44px tap target costs nothing
-  // here, where a small [-] in the corner would be the one thing on screen that
-  // needs a precise tap.
-  const head = document.createElement('button');
-  head.type = 'button';
+  // The header is a bar of controls now: everything left of the run buttons is one
+  // collapse target, because a small [-] in the corner would be the one thing on
+  // screen needing a precise tap.
+  const head = document.createElement('div');
   head.className = 'panel-head';
+
+  const collapseButton = document.createElement('button');
+  collapseButton.type = 'button';
+  collapseButton.className = 'panel-collapse';
+  head.appendChild(collapseButton);
 
   const title = document.createElement('span');
   title.className = 'panel-title';
-  head.appendChild(title);
+  collapseButton.appendChild(title);
 
   const meta = document.createElement('span');
   meta.className = 'panel-meta';
-  head.appendChild(meta);
+  collapseButton.appendChild(meta);
 
   const caret = document.createElement('span');
   caret.className = 'panel-caret';
-  head.appendChild(caret);
+  collapseButton.appendChild(caret);
+
+  // Pause and speed live in the header, not the body, so they survive collapsing:
+  // a paused game whose only way back is to expand a console first would be a bug
+  // wearing a preference as a disguise. They belong to the console rather than the
+  // build menu because they say something about the run, and the run is what the
+  // console reads out.
+  const pauseButton = document.createElement('button');
+  pauseButton.type = 'button';
+  pauseButton.className = 'panel-run';
+  pauseButton.addEventListener('click', () => handlers.onTogglePause());
+  head.appendChild(pauseButton);
+
+  const speedButton = document.createElement('button');
+  speedButton.type = 'button';
+  speedButton.className = 'panel-run';
+  speedButton.addEventListener('click', () => handlers.onToggleSpeed());
+  head.appendChild(speedButton);
+
   root.appendChild(head);
 
   const body = document.createElement('div');
@@ -99,10 +124,10 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   function applyCollapsed(): void {
     body.hidden = collapsed;
     caret.textContent = collapsed ? '[+]' : '[-]';
-    head.setAttribute('aria-expanded', String(!collapsed));
+    collapseButton.setAttribute('aria-expanded', String(!collapsed));
   }
 
-  head.addEventListener('click', () => {
+  collapseButton.addEventListener('click', () => {
     collapsed = !collapsed;
     applyCollapsed();
   });
@@ -233,6 +258,10 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     clearStatsFrom(row);
   }
 
+  // Same argument as the stats signature below, on the two values that change least
+  // often in the whole console.
+  let runStamp = '';
+
   // update() runs every frame off the render loop. Everything it writes is derived
   // from these few values, so a signature check keeps a still panel from churning
   // a dozen text nodes 60 times a second on the low-end phones the renderer worries about.
@@ -273,6 +302,26 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       if (target?.kind === 'tower') renderSelected(target.tower, cycles);
       else if (target?.kind === 'enemy') renderEnemy(target.enemy);
       else renderBuild(buildKind, cycles);
+    },
+
+    /**
+     * The pause button shows the action, not the state - everyone reads a play
+     * glyph as "start this" - while the speed button shows the state, because
+     * "2x" is a reading and its alternative has no glyph. Both light amber when
+     * they are the reason the run isn't behaving normally.
+     */
+    setRun(paused: boolean, speed: number): void {
+      const stamp = `${paused}|${speed}`;
+      if (stamp === runStamp) return;
+      runStamp = stamp;
+
+      pauseButton.textContent = paused ? '>' : '||';
+      pauseButton.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
+      pauseButton.classList.toggle('armed', paused);
+
+      speedButton.textContent = `${speed}x`;
+      speedButton.setAttribute('aria-label', `Speed ${speed}x`);
+      speedButton.classList.toggle('armed', speed > 1);
     },
 
     setCollapsed(value: boolean): void {

@@ -72,6 +72,38 @@ function startGame(): void {
   let cycles = STARTING_CYCLES;
   let gameState: 'playing' | 'won' | 'lost' = 'playing';
 
+  // Pause and 2x scale the simulation, not the frame rate: the loop keeps drawing
+  // at whatever the display gives it, and pausing stops the sim while the board,
+  // the console and the selection stay on screen and readable. A paused game you
+  // can't read is just a stopped one.
+  //
+  // Building, upgrading and selling all still work while paused, deliberately -
+  // planning with the clock stopped is most of what a pause is for in this genre.
+  const FAST_SPEED = 2;
+  let paused = false;
+  let speed = 1;
+
+  function applyRunSpeed(): void {
+    loop.setTimeScale(paused ? 0 : speed);
+  }
+
+  function togglePause(): void {
+    paused = !paused;
+    applyRunSpeed();
+  }
+
+  function toggleSpeed(): void {
+    speed = speed === 1 ? FAST_SPEED : 1;
+    applyRunSpeed();
+  }
+
+  /** Wave line plus whatever is making the run behave unusually, if anything. */
+  function runLabel(): string {
+    const base = waveLabel(spawner);
+    if (paused) return `${base} - PAUSED`;
+    return speed === 1 ? base : `${base} - ${speed}x`;
+  }
+
   const buildable = buildableTileSet(level1);
   const pathTiles = new Set(rasterizePath(level1.waypoints).map((p) => `${p.x},${p.y}`));
   const spawnKey = `${level1.waypoints[0].x},${level1.waypoints[0].y}`;
@@ -93,6 +125,19 @@ function startGame(): void {
   let selection: PanelTarget = null;
 
   window.addEventListener('keydown', (event) => {
+    if (event.code === 'Space') {
+      // Space activates a focused button, so a press that just worked the console's
+      // own controls is not also a shortcut firing behind them.
+      if (event.target instanceof HTMLButtonElement) return;
+      event.preventDefault();
+      togglePause();
+      return;
+    }
+    if (event.key === 'f' || event.key === 'F') {
+      toggleSpeed();
+      return;
+    }
+
     const kind = TOWER_HOTKEYS[event.key];
     if (kind) {
       selectedTowerKind = kind;
@@ -176,6 +221,8 @@ function startGame(): void {
       onOverclock(tower) {
         triggerOverclock(tower);
       },
+      onTogglePause: togglePause,
+      onToggleSpeed: toggleSpeed,
     },
     document.body,
   );
@@ -235,6 +282,10 @@ function startGame(): void {
     cycles = STARTING_CYCLES;
     gameState = 'playing';
     selection = null;
+    // Speed is a preference and survives; pause is a state, and restarting into a
+    // frozen board would read as the tap-to-restart having failed.
+    paused = false;
+    applyRunSpeed();
   }
 
   function isPlaceable(tile: GridPos): boolean {
@@ -404,8 +455,10 @@ function startGame(): void {
     () => {
       const timeMs = performance.now();
       updateToolbar();
-      if (gameState === 'playing') panel.update(selection, selectedTowerKind, cycles);
-      else panel.hide();
+      if (gameState === 'playing') {
+        panel.setRun(paused, speed);
+        panel.update(selection, selectedTowerKind, cycles);
+      } else panel.hide();
 
       const { worldCtx } = viewport;
       worldCtx.imageSmoothingEnabled = false;
@@ -427,7 +480,7 @@ function startGame(): void {
       }
 
       present(viewport);
-      drawHud(viewport.ctx, viewport, coreHealth, MAX_CORE_HEALTH, cycles, waveLabel(spawner), gameState);
+      drawHud(viewport.ctx, viewport, coreHealth, MAX_CORE_HEALTH, cycles, runLabel(), gameState);
     },
   );
 
