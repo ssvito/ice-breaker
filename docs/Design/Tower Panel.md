@@ -22,6 +22,8 @@ DOM, not canvas - same reasoning as the toolbar in v1: real buttons get native t
 
 **Where it landed: build menu down the left edge, console along the bottom center.** Each takes an edge the other is not using and neither grows into the middle. The pairing that the dock was built to express survives, but it is carried by shared styling - same terminal palette, border, glow, and 44px targets - rather than by a shared container. The toolbar is vertical and centered on the left edge, which also keeps it clear of the HUD text in the top-left corner.
 
+**The menu hugs the board, not the window.** The world is blitted letterboxed at an integer scale, so on most screens a black band sits between the window edge and the board edge, and a build menu parked out in that band is further from the thing it builds on than it has to be. `boardRect()` in `canvas.ts` converts the blit's offset and scale into a CSS-pixel rect; `placeToolbar()` publishes one candidate position from it as `--toolbar-left` on every resize. The floors - window edge and safe-area inset - stay in CSS, and `max()` picks whichever sits furthest right. So the menu tucks into the letterbox band when the band is wide enough to hold it, and falls back to overlapping the board's left edge when it is not, which is what happens in portrait: a 16:9 board on a tall screen letterboxes vertically, leaving no side band to tuck into.
+
 Collapse stays, for the same reason it was added: even alone, the console covers board, and the fastest way to put it away is [the re-tap](#dismissal).
 
 ## Dismissal

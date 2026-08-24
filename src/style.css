@@ -195,11 +195,18 @@ canvas {
   flex: 1;
 }
 
-/* Vertical, hugging the left edge and centered on it: the build menu is a thumb
-   target, not a readout, so it wants the side the console isn't on. Vertically
-   centered clears the HUD text in the top-left corner. */
+/* Vertical, hugging the board's left edge and centered on it: the build menu is a
+   thumb target, not a readout, so it wants the side the console isn't on. Vertically
+   centered lands it on the board's own centre - the blit is centred too - and clears
+   the HUD text in the top-left corner.
+
+   --toolbar-left is the board-hugging candidate, republished by placeToolbar() on
+   every resize; the two floors here are the window edge and the safe area. max()
+   picking the largest is what makes the menu tuck into the letterbox band when it
+   fits and sit on the board's edge when it doesn't. The fallback keeps the rule
+   valid for the frame before the first measurement. */
 .toolbar {
-  left: max(8px, env(safe-area-inset-left));
+  left: max(8px, env(safe-area-inset-left), var(--toolbar-left, 0px));
   top: 50%;
   transform: translateY(-50%);
   display: flex;

@@ -70,6 +70,20 @@ export function fitViewport(vp: Viewport): void {
   vp.ctx.imageSmoothingEnabled = false;
 }
 
+/**
+ * The board's on-screen rect in CSS pixels - the letterboxed blit, not the full-window
+ * display canvas. DOM chrome that wants to sit against the board rather than against
+ * the window needs this, since the two only coincide when nothing is letterboxed.
+ */
+export function boardRect(vp: Viewport): { left: number; top: number; width: number; height: number } {
+  return {
+    left: vp.offsetX / vp.dpr,
+    top: vp.offsetY / vp.dpr,
+    width: (vp.virtualWidth * vp.scale) / vp.dpr,
+    height: (vp.virtualHeight * vp.scale) / vp.dpr,
+  };
+}
+
 /** Blits the world canvas onto the display, scaled and letterboxed on black. */
 export function present(vp: Viewport): void {
   const { ctx } = vp;

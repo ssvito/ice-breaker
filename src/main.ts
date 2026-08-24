@@ -2,7 +2,7 @@ import './style.css';
 import { GameLoop } from './game-loop.ts';
 import { level1, pathLength, buildableTileSet, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos } from './map.ts';
-import { createViewport, fitViewport, present, clientToGrid, clientToWorld } from './canvas.ts';
+import { boardRect, createViewport, fitViewport, present, clientToGrid, clientToWorld } from './canvas.ts';
 import {
   prerenderBoard,
   drawEnemies,
@@ -62,6 +62,7 @@ function startGame(): void {
 
   window.addEventListener('resize', () => {
     fitViewport(viewport);
+    placeToolbar();
   });
 
   const totalPathLength = pathLength(level1.waypoints);
@@ -107,6 +108,9 @@ function startGame(): void {
     }
   });
 
+  /** Breathing room between the build menu and the board's edge, CSS px. */
+  const BOARD_GAP = 6;
+
   const TOWER_BUTTON_LABELS: Record<TowerKind, string> = {
     firewallNode: 'FW',
     aesTurret: 'AES',
@@ -134,6 +138,24 @@ function startGame(): void {
     toolbar.appendChild(button);
     return { kind, button };
   });
+
+  /**
+   * Parks the build menu against the board's left edge instead of the window's.
+   * The world is blitted letterboxed at an integer scale, so on most screens there
+   * is a black band between the two - and a menu floating out in that band is
+   * further from the thing it builds on than it needs to be.
+   *
+   * Only the candidate position is published; the floor stays in CSS, where the
+   * safe-area inset lives, and CSS max() picks whichever sits further right. So the
+   * menu tucks into the letterbox when the band is wide enough to hold it and
+   * falls back to overlapping the board's edge when it isn't.
+   */
+  function placeToolbar(): void {
+    const rect = boardRect(viewport);
+    const outside = rect.left - toolbar.offsetWidth - BOARD_GAP;
+    document.documentElement.style.setProperty('--toolbar-left', `${Math.round(outside)}px`);
+  }
+  placeToolbar();
 
   const panel = createTowerPanel(
     {
