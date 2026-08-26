@@ -30,6 +30,9 @@ Cross-cutting observations: the **tap-tower info panel** (Mobile / UX) is the fo
 - Physical-device test pass - **done in v1.2's verify step** (2026-08-23), together with the QA owed from v1.1. It stopped being the highest-risk unknown here and became a habit: every milestone verifies on a phone.
 - Tap-tower info panel - **shipped in v1.2** (2026-08-23): see [Tower Panel](../Design/Tower%20Panel.md). Now the surface everything else reads through - v1.3's wave preview is its fourth mode.
 - Pause + 2x speed toggle - **promoted to v1.3** (2026-08-23): near-mandatory TD quality-of-life, and the tool the ten-wave curve gets tuned with.
+- Portrait layout - **promoted to v1.4** (2026-08-25): specced in [Portrait Layout](../Design/Portrait%20Layout.md), build order in [Roadmap](../Roadmap.md). Was the debt the 2026-08-23 log accepted when the build menu was moved to the left edge and portrait was left with no side band to tuck into.
+- Rotate the board 90 degrees in portrait - **promoted into v1.4** (2026-08-25), same note. Filed and promoted the same day: it started as the more interesting half of the problem and became the whole answer once the arithmetic was on the table. A 9x16 blit fits at scale 4 and gives back the *full landscape board area* (384x683, 42px tiles) on a phone held upright, where the unrotated board gets a quarter of it.
+- Portrait-shaped map (2026-08-25) - the 9x16 level the waypoint format would already take, which is the version of the above where nothing reads sideways. Held out of v1.4 for the reason v1.3 gave for refusing map 2: a second map inheriting a curve should inherit a finished one.
 - First-run tutorial hints - portfolio visitors give it ~30 seconds; a "place a tower here" nudge decides whether they see the game at all.
 
 ## Engineering / learning modules (the project's actual driver)
