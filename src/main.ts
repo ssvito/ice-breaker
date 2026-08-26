@@ -287,20 +287,27 @@ function startGame(): void {
    */
   function placePanel(): void {
     const rect = boardRect(viewport);
+    const style = document.documentElement.style;
+
     const height = panel.element.getBoundingClientRect().height;
-    if (height > 0) {
-      document.documentElement.style.setProperty('--panel-h', `${Math.round(height)}px`);
-    }
-    document.documentElement.style.setProperty(
-      '--panel-under-board',
-      `${Math.round(rect.top + rect.height + BOARD_GAP)}px`,
-    );
+    if (height > 0) style.setProperty('--panel-h', `${Math.round(height)}px`);
+
+    // The drawer only joins the stack when it is lying in it: in landscape the menu
+    // is a column on the board's side, and closed it has no height to contribute.
+    // Measured rather than assumed, because it is a row of wrapped buttons.
+    const drawer = viewport.rotated ? toolbar.getBoundingClientRect().height : 0;
+    style.setProperty('--dock-h', drawer > 0 ? `${Math.round(drawer + BOARD_GAP)}px` : '0px');
+
+    style.setProperty('--panel-under-board', `${Math.round(rect.top + rect.height + BOARD_GAP)}px`);
   }
 
-  // One hook for every way the console changes height: collapsing, switching between
-  // its four modes, a stats grid reflowing. Cheaper and more honest than calling
-  // placePanel() from each of the places that might have done it.
-  new ResizeObserver(placePanel).observe(panel.element);
+  // One hook for every way either box changes height: the console collapsing or
+  // switching between its four modes, the drawer opening, closing or lying down.
+  // Cheaper and more honest than calling placePanel() from each of the places that
+  // might have done it.
+  const dockObserver = new ResizeObserver(placePanel);
+  dockObserver.observe(panel.element);
+  dockObserver.observe(toolbar);
   placePanel();
 
   /**

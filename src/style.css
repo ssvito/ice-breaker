@@ -40,13 +40,22 @@ canvas {
   --dock-left: max(8px, env(safe-area-inset-left));
   --dock-gap: 6px;
 
-  /* The console's ceiling, and therefore the build drawer's floor - written once so
-     the two can't drift. The percentages resolve against the viewport wherever this
-     is used, because every box that uses it is position: fixed. See .panel. */
-  --panel-top: min(
+  /* The drawer and the console are placed as one stack, not two boxes: hugging the
+     board's underside with the console alone left unused band below it and pushed
+     the drawer up onto the board, which is backwards - the empty band is exactly
+     what the chrome should spend first.
+
+     So --dock-top is the whole stack's top, hugging the board but never letting the
+     stack's bottom fall past the floor, and the console sits one drawer below it.
+     --dock-h is 0 whenever the drawer isn't in the stack (landscape, or closed),
+     and then these two are the same number and the console lands where it always
+     did. The percentages resolve against the viewport wherever this is used,
+     because every box that uses it is position: fixed. */
+  --dock-top: min(
     var(--panel-under-board, 100%),
-    calc(100% - var(--panel-h, 0px) - var(--dock-floor))
+    calc(100% - var(--dock-h, 0px) - var(--panel-h, 0px) - var(--dock-floor))
   );
+  --panel-top: calc(var(--dock-top) + var(--dock-h, 0px));
 }
 
 /* The status bar: three glyphs at the top of the board. It shares the console's
@@ -459,14 +468,14 @@ body.turned .panel {
   width: min(320px, calc(100vw - var(--dock-left) * 2 - 44px - var(--dock-gap)));
 }
 
-/* The column lies down. It sits on the console's ceiling rather than on the
-   strip, because both want the space above the strip and both have to be legible
-   at once: picking a kind is what puts that kind's stats in the console, so a
-   drawer that covered the readout would hide the reason for opening it. */
+/* The column lies down, at the top of the dock's stack. It cannot share the strip
+   with the console, because both have to be legible at once: picking a kind is what
+   puts that kind's stats in the console, so a drawer that covered the readout would
+   hide the reason for opening it. Stacking them and placing the stack is what keeps
+   the pair off the board for as long as there is band left to stand in. */
 body.turned .toolbar {
   left: var(--dock-left);
-  top: auto;
-  bottom: calc(100% - var(--panel-top) + var(--dock-gap));
+  top: var(--dock-top);
   transform: none;
   flex-direction: row;
 }
