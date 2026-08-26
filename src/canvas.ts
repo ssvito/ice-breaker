@@ -15,6 +15,13 @@ export interface Viewport {
   virtualHeight: number;
   /** Device pixels per virtual pixel. Integer when the world fits; fractional only on tiny viewports. */
   scale: number;
+  /**
+   * True when the world is blitted rotated a quarter turn counterclockwise, so the
+   * board's long axis runs along the window's. Set by fitViewport when that wins a
+   * bigger scale; everything outside this module keeps working in world coords and
+   * never learns it happened.
+   */
+  rotated: boolean;
   /** Letterbox offset of the world within the display, device pixels. */
   offsetX: number;
   offsetY: number;
@@ -41,6 +48,7 @@ export function createViewport(display: HTMLCanvasElement, cols: number, rows: n
     virtualWidth: world.width,
     virtualHeight: world.height,
     scale: 1,
+    rotated: false,
     offsetX: 0,
     offsetY: 0,
     dpr: 1,
@@ -49,7 +57,16 @@ export function createViewport(display: HTMLCanvasElement, cols: number, rows: n
   return viewport;
 }
 
-/** Recomputes display size and the integer blit scale/offset. Call on resize. */
+/**
+ * Largest blit scale that fits a w x h footprint in the display, in device pixels.
+ * Integer keeps pixels crisp; only drop to fractional when the world can't fit even at 1x.
+ */
+function fitScale(vp: Viewport, w: number, h: number): number {
+  const fit = Math.min(vp.display.width / w, vp.display.height / h);
+  return fit >= 1 ? Math.floor(fit) : fit;
+}
+
+/** Recomputes display size and the integer blit scale/offset/rotation. Call on resize. */
 export function fitViewport(vp: Viewport): void {
   const dpr = window.devicePixelRatio || 1;
   const cssW = window.innerWidth;
@@ -60,14 +77,29 @@ export function fitViewport(vp: Viewport): void {
   vp.display.width = Math.round(cssW * dpr);
   vp.display.height = Math.round(cssH * dpr);
 
-  const fit = Math.min(vp.display.width / vp.virtualWidth, vp.display.height / vp.virtualHeight);
-  // Integer scale keeps pixels crisp; only drop to fractional when the world can't fit even at 1x.
-  const scale = fit >= 1 ? Math.floor(fit) : fit;
-  vp.scale = scale;
-  vp.offsetX = Math.round((vp.display.width - vp.virtualWidth * scale) / 2);
-  vp.offsetY = Math.round((vp.display.height - vp.virtualHeight * scale) / 2);
+  // Held upright, a 16x9 board fits at a quarter of the area it gets lying down.
+  // Turning it a quarter turn is worth doing exactly when it buys a bigger scale -
+  // asked that way rather than as "is the window portrait", a window that is taller
+  // than wide but roomy enough for the board as it stands keeps it as it stands,
+  // and a landscape window can never take the branch at all.
+  const upright = fitScale(vp, vp.virtualWidth, vp.virtualHeight);
+  const turned = fitScale(vp, vp.virtualHeight, vp.virtualWidth);
+  const rotated = turned > upright;
+
+  vp.rotated = rotated;
+  vp.scale = rotated ? turned : upright;
+  const { width, height } = displayedSize(vp);
+  vp.offsetX = Math.round((vp.display.width - width) / 2);
+  vp.offsetY = Math.round((vp.display.height - height) / 2);
   vp.dpr = dpr;
   vp.ctx.imageSmoothingEnabled = false;
+}
+
+/** On-screen footprint of the blitted world in device pixels, rotation included. */
+export function displayedSize(vp: Viewport): { width: number; height: number } {
+  const width = vp.virtualWidth * vp.scale;
+  const height = vp.virtualHeight * vp.scale;
+  return vp.rotated ? { width: height, height: width } : { width, height };
 }
 
 /**
@@ -76,20 +108,38 @@ export function fitViewport(vp: Viewport): void {
  * the window needs this, since the two only coincide when nothing is letterboxed.
  */
 export function boardRect(vp: Viewport): { left: number; top: number; width: number; height: number } {
+  const { width, height } = displayedSize(vp);
   return {
     left: vp.offsetX / vp.dpr,
     top: vp.offsetY / vp.dpr,
-    width: (vp.virtualWidth * vp.scale) / vp.dpr,
-    height: (vp.virtualHeight * vp.scale) / vp.dpr,
+    width: width / vp.dpr,
+    height: height / vp.dpr,
   };
 }
 
-/** Blits the world canvas onto the display, scaled and letterboxed on black. */
+/** Blits the world canvas onto the display, scaled, rotated if needed, letterboxed on black. */
 export function present(vp: Viewport): void {
   const { ctx } = vp;
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, vp.display.width, vp.display.height);
+
+  if (vp.rotated) {
+    // A quarter turn counterclockwise: the world's left edge lands at the bottom of
+    // the screen and its right edge at the top, so enemies spawn under the thumb and
+    // climb toward the core. Clockwise reads more naturally but parks the core in the
+    // bottom band, which is exactly where the console opens over it.
+    //
+    // Written as an explicit matrix rather than rotate(-Math.PI / 2) on purpose:
+    // cos(-PI/2) is 6e-17, not 0, and a hair of skew is enough to resample every
+    // pixel of a pixel-art blit.
+    ctx.save();
+    ctx.setTransform(0, -vp.scale, vp.scale, 0, vp.offsetX, vp.offsetY + vp.virtualWidth * vp.scale);
+    ctx.drawImage(vp.world, 0, 0);
+    ctx.restore();
+    return;
+  }
+
   ctx.drawImage(
     vp.world,
     0,
@@ -112,10 +162,13 @@ export function clientToWorld(vp: Viewport, clientX: number, clientY: number): {
   const rect = vp.display.getBoundingClientRect();
   const deviceX = (clientX - rect.left) * vp.dpr;
   const deviceY = (clientY - rect.top) * vp.dpr;
-  return {
-    x: (deviceX - vp.offsetX) / vp.scale / VIRTUAL_TILE,
-    y: (deviceY - vp.offsetY) / vp.scale / VIRTUAL_TILE,
-  };
+  const u = (deviceX - vp.offsetX) / vp.scale;
+  const v = (deviceY - vp.offsetY) / vp.scale;
+  // Inverse of present()'s matrix, so a tap resolves to the tile it visually landed on.
+  if (vp.rotated) {
+    return { x: (vp.virtualWidth - v) / VIRTUAL_TILE, y: u / VIRTUAL_TILE };
+  }
+  return { x: u / VIRTUAL_TILE, y: v / VIRTUAL_TILE };
 }
 
 /** Converts a pointer event's client coordinates to a grid tile. */

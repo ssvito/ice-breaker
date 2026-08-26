@@ -13,7 +13,9 @@ export default defineConfig({
         theme_color: '#0a0e14',
         background_color: '#0a0e14',
         display: 'standalone',
-        orientation: 'landscape',
+        // 'any', not 'landscape': the installed PWA otherwise never rotates, and
+        // portrait is a first-class layout as of v1.4.
+        orientation: 'any',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

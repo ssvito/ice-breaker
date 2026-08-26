@@ -5,7 +5,7 @@ import type { Tower, TowerKind } from './tower.ts';
 import type { Projectile } from './projectile.ts';
 import { particleAlpha } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
-import { VIRTUAL_TILE } from './canvas.ts';
+import { VIRTUAL_TILE, displayedSize } from './canvas.ts';
 import type { Viewport } from './canvas.ts';
 import { drawSprite, spriteSize } from './sprites.ts';
 import type { SpriteName } from './sprites.ts';
@@ -287,8 +287,9 @@ export function drawEndScreen(
 
   const ox = vp.offsetX;
   const oy = vp.offsetY;
-  const worldW = vp.virtualWidth * vp.scale;
-  const worldH = vp.virtualHeight * vp.scale;
+  // The blit's on-screen footprint, which is the virtual size with the axes swapped
+  // when the board is turned. The overlay covers the board; the text stays upright.
+  const { width: worldW, height: worldH } = displayedSize(vp);
   const unit = vp.scale * VIRTUAL_TILE; // device px per tile
   const fontSize = Math.max(12 * vp.dpr, unit * 0.42);
 
