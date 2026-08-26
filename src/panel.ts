@@ -21,7 +21,7 @@ export interface TowerPanel {
    *  anchored by a rule that needs its height, and that height changes with every
    *  collapse and every one of its four modes. */
   element: HTMLElement;
-  update(target: PanelTarget, buildKind: TowerKind, cycles: number, preview: WavePreview | null): void;
+  update(target: PanelTarget, buildKind: TowerKind | null, cycles: number, preview: WavePreview | null): void;
   setRun(paused: boolean, speed: number): void;
   setCollapsed(value: boolean): void;
   hide(): void;
@@ -316,10 +316,16 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   // a dozen text nodes 60 times a second on the low-end phones the renderer worries about.
   let signature = '';
 
+  /** Off. The signature is cleared so whatever comes back redraws from scratch. */
+  function hidePanel(): void {
+    root.hidden = true;
+    signature = '';
+  }
+
   return {
     element: root,
 
-    update(target: PanelTarget, buildKind: TowerKind, cycles: number, preview: WavePreview | null): void {
+    update(target: PanelTarget, buildKind: TowerKind | null, cycles: number, preview: WavePreview | null): void {
       const tower = target?.kind === 'tower' ? target.tower : null;
       current = tower;
 
@@ -347,8 +353,14 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
         // The countdown is the only thing here that moves, and it is read to the
         // second, so the panel redraws once a second instead of every frame.
         stamp = ['wave', preview.number, preview.callable ? Math.ceil(preview.countdownMs / 1000) : 'live'].join('|');
-      } else {
+      } else if (buildKind) {
         stamp = ['build', buildKind, cycles >= towerStats(buildKind).cost ? 1 : 0].join('|');
+      } else {
+        // Nothing selected, nothing being built and no wave to read: there is no
+        // console to show. In practice the wave always fills this, so it is a guard
+        // rather than a fifth mode.
+        hidePanel();
+        return;
       }
       if (stamp === signature) return;
       signature = stamp;
@@ -357,7 +369,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       if (target?.kind === 'tower') renderSelected(target.tower, cycles);
       else if (target?.kind === 'enemy') renderEnemy(target.enemy);
       else if (preview) renderWave(preview);
-      else renderBuild(buildKind, cycles);
+      else if (buildKind) renderBuild(buildKind, cycles);
     },
 
     /**
@@ -386,12 +398,8 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       applyCollapsed();
     },
 
-    hide(): void {
-      root.hidden = true;
-      // Force a redraw when the panel comes back: the signature it was last showing
-      // may no longer describe anything. Collapsed state survives on purpose - it is
-      // the player's preference, not part of what is being displayed.
-      signature = '';
-    },
+    // Collapsed state survives hiding on purpose - it is the player's preference,
+    // not part of what is being displayed.
+    hide: hidePanel,
   };
 }

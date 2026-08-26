@@ -45,19 +45,18 @@ canvas {
      placeHud(), floors in the safe area, same idiom as the build menu's. */
   --hud-row-top: max(8px, env(safe-area-inset-top), var(--hud-top, 0px));
 
-  /* Reading order down the screen: board, console, build menu. The menu's row is
-     pinned to the floor with the toggle that opens it, and the console hugs the
-     board's underside above it.
+  /* The build menu's column and the toggle it grows out of share one left edge:
+     tucked into the letterbox band when the band can hold it, on the board's edge
+     when it can't. --menu-w is the column's reserved width, held even while the
+     menu is shut so the console never moves when it is toggled. */
+  --menu-left: max(8px, env(safe-area-inset-left), var(--toolbar-left, 0px));
 
-     --dock-h is that row's reserved height - reserved whether the menu is open or
-     shut, which is what keeps the console still when it is toggled. It is 0 in
-     landscape, where the menu is a column on the board's side and this whole
-     paragraph does not apply, and then the console lands exactly where it always
-     did. The percentages resolve against the viewport wherever this is used,
+  /* The console hugs the board's underside, and never lets its own bottom fall past
+     the floor. The percentages resolve against the viewport wherever this is used,
      because every box that uses it is position: fixed. */
   --panel-top: min(
     var(--panel-under-board, 100%),
-    calc(100% - var(--panel-h, 0px) - var(--dock-h, 0px) - var(--dock-floor))
+    calc(100% - var(--panel-h, 0px) - var(--dock-floor))
   );
 }
 
@@ -367,10 +366,10 @@ canvas {
   flex: 1;
 }
 
-/* Vertical, hugging the board's left edge and centered on it: the build menu is a
-   thumb target, not a readout, so it wants the side the console isn't on. Vertically
-   centered lands it on the board's own centre - the blit is centred too - and clears
-   the HUD text in the top-left corner.
+/* Vertical, hugging the board's left edge: the build menu is a thumb target, not a
+   readout, so it wants the side the console isn't on. It grows upward out of its own
+   toggle in the bottom-left rather than sitting centred on the board's middle, so
+   the gesture that dismisses it is under the thumb in both orientations.
 
    --toolbar-left is the board-hugging candidate, republished by placeToolbar() on
    every resize; the two floors here are the window edge and the safe area. max()
@@ -382,9 +381,8 @@ canvas {
 }
 
 .toolbar {
-  left: max(8px, env(safe-area-inset-left), var(--toolbar-left, 0px));
-  top: 50%;
-  transform: translateY(-50%);
+  left: var(--menu-left);
+  bottom: calc(var(--dock-floor) + 44px + var(--dock-gap));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -431,16 +429,17 @@ canvas {
 }
 
 
-/* ---- Turned board: the chrome collapses into two 81px bands ----------------
+/* ---- The dock ------------------------------------------------------------
 
-   With the board rotated it is 384x683 inside a 390x844 phone, so the side band
-   is 3px and there is no column to tuck a build menu into any more. What is left
-   is one 44px row above the board and one below it, and the bottom row is shared:
-   the drawer's toggle at the left end, the console's collapsed header taking the
-   rest. Everything here is scoped to body.turned; landscape reads none of it.
+   The build menu is one shape in both orientations: a column of four buttons that
+   grows upward out of a 44px toggle in the bottom-left corner, over the board when
+   there is no band to stand in. It used to lie down into a row when the board was
+   turned, on the theory that a turned board leaves a 3px side band - true, but the
+   column overlaps the board's edge there either way, and one shape that collapses
+   beats two shapes that don't.
 
-   The bands are reserved for the collapsed state and stay reserved - opening a
-   drawer changes what is drawn over the board, never the scale it is drawn at. */
+   Which leaves the turned board needing exactly one override: the console is nearly
+   window-wide there, so it steps right of the column instead of taking the centre. */
 
 .dock-toggle,
 .phone-button {
@@ -461,12 +460,17 @@ canvas {
 
 .dock-toggle {
   position: fixed;
-  left: var(--dock-left);
+  left: var(--menu-left);
   bottom: var(--dock-floor);
 }
 
-.dock-toggle[hidden] {
-  display: none;
+/* The console steps right of the column when the board is turned. The width it
+   steps past is reserved whether the menu is open or shut, so toggling the menu
+   never moves the readout. */
+body.turned .panel {
+  left: calc(var(--menu-left) + var(--menu-w, 0px) + var(--dock-gap));
+  transform: none;
+  width: min(320px, calc(100vw - var(--menu-left) - var(--menu-w, 0px) - var(--dock-gap) - 8px));
 }
 
 /* The phone buttons, anchored right in the top band while the glyphs keep the
@@ -488,23 +492,4 @@ canvas {
   opacity: 0.35;
   border-color: #ff2fd1;
   color: #ff2fd1;
-}
-
-/* The column lies down into the strip, sharing that row with the toggle that opens
-   it rather than with the console's header. Menu and console have to be legible at
-   once - picking a kind is what puts that kind's stats in the console - so they take
-   a row each, in the order they are read: console under the board, menu under it. */
-body.turned .toolbar {
-  left: calc(var(--dock-left) + 44px + var(--dock-gap));
-  top: auto;
-  bottom: var(--dock-floor);
-  transform: none;
-  flex-direction: row;
-}
-
-/* One line, not two: the stacked label exists because a vertical column has width
-   to spare and no height, and a horizontal drawer has exactly the opposite. */
-body.turned .toolbar button {
-  flex-direction: row;
-  gap: 6px;
 }

@@ -56,7 +56,6 @@ function startGame(): void {
   window.addEventListener('resize', () => {
     fitViewport(viewport);
     applyLayout();
-    placeToolbar();
     placeHud();
     placePanel();
   });
@@ -104,7 +103,10 @@ function startGame(): void {
     '3': 'idsScanner',
     '4': 'honeypot',
   };
-  let selectedTowerKind: TowerKind = 'firewallNode';
+  // Nullable: tapping the kind the console is already reading clears it, which is
+  // the only way to put the console back on the wave without selecting something
+  // else - and the only way to tap an empty tile without spending Cycles.
+  let selectedTowerKind: TowerKind | null = 'firewallNode';
   // One selection for the whole board: a tower or an enemy, never both.
   let selection: PanelTarget = null;
 
@@ -127,6 +129,13 @@ function startGame(): void {
   let waveFocus = false;
 
   function pickTowerKind(kind: TowerKind): void {
+    // Second tap on the kind already being read clears it, the same verb the board
+    // uses: tapping the selected thing again dismisses its reading.
+    if (buildFocus && selectedTowerKind === kind) {
+      selectedTowerKind = null;
+      buildFocus = false;
+      return;
+    }
     selectedTowerKind = kind;
     buildFocus = true;
     waveFocus = false;
@@ -194,14 +203,14 @@ function startGame(): void {
   });
 
   /**
-   * The build menu is a column on the board's left edge in landscape and a
-   * horizontal drawer in the bottom strip when the board is turned - two layouts,
-   * one class, and CSS holds both. The predicate is the renderer's own: a turned
-   * board leaves a 3px side band, and no column stands in 3px.
+   * The build menu is one shape in both orientations - a column growing upward out
+   * of a toggle in the bottom-left - and collapses in both. It lay down into a row
+   * on a turned board for exactly one milestone, on the theory that a 3px side band
+   * has no room for a column; true, but the column overlaps the board's edge either
+   * way, and one shape that collapses beats two shapes that don't.
    *
    * Open by default, because building three towers should not cost three
    * reopenings, and because the game starts with 100 Cycles and nothing built.
-   * Landscape never hides it - there the toggle does not exist.
    */
   let menuOpen = true;
 
@@ -215,12 +224,14 @@ function startGame(): void {
   document.body.appendChild(dockToggle);
 
   function applyLayout(): void {
+    // The only thing left that the two orientations disagree about: a turned board
+    // leaves the console nearly window-wide, so there it steps right of the column.
     document.body.classList.toggle('turned', viewport.rotated);
-    dockToggle.hidden = !viewport.rotated;
-    toolbar.hidden = viewport.rotated && !menuOpen;
+    toolbar.hidden = !menuOpen;
     // Same two glyphs the console's own collapse uses, so the two drawers in the
     // strip say "open me" and "close me" in one vocabulary.
     dockToggle.innerHTML = `<span>BLD</span><span>${menuOpen ? '[-]' : '[+]'}</span>`;
+    placeToolbar();
     dockToggle.setAttribute('aria-expanded', String(menuOpen));
   }
 
@@ -235,13 +246,23 @@ function startGame(): void {
    * menu tucks into the letterbox when the band is wide enough to hold it and
    * falls back to overlapping the board's edge when it isn't.
    */
+  /**
+   * The column's width, reserved even while the menu is shut. Shut it measures 0,
+   * and a console that widened by 60px every time the menu closed would be the
+   * readout reflowing to fill a gap the player only meant to look past.
+   */
+  let menuWidth = 0;
+
   function placeToolbar(): void {
+    if (!toolbar.hidden && toolbar.offsetWidth > 0) menuWidth = toolbar.offsetWidth;
+    const style = document.documentElement.style;
     const rect = boardRect(viewport);
-    const outside = rect.left - toolbar.offsetWidth - BOARD_GAP;
-    document.documentElement.style.setProperty('--toolbar-left', `${Math.round(outside)}px`);
+    style.setProperty('--toolbar-left', `${Math.round(rect.left - menuWidth - BOARD_GAP)}px`);
+    style.setProperty('--menu-w', `${Math.round(menuWidth)}px`);
   }
+  // applyLayout() republishes the menu's measurements itself, so this is the only
+  // call either of them needs at start-up.
   applyLayout();
-  placeToolbar();
 
   /**
    * Same parking trick as the build menu, on the other axis: the status bar tucks
@@ -290,26 +311,12 @@ function startGame(): void {
    * means hidden, and publishing that would park the console at the window's floor
    * for the frame after it comes back.
    */
-  /** Reserved height of the build menu's strip, CSS px. See placePanel(). */
-  let drawerRow = 0;
-
   function placePanel(): void {
     const rect = boardRect(viewport);
     const style = document.documentElement.style;
 
     const height = panel.element.getBoundingClientRect().height;
     if (height > 0) style.setProperty('--panel-h', `${Math.round(height)}px`);
-
-    // The strip the menu lies in stays reserved whether the menu is open or shut,
-    // which is the whole point: a console that jumped 60px every time the build
-    // menu was toggled would be the readout moving to get out of a menu's way.
-    // Measured while it is open and remembered, because shut it reports nothing and
-    // in landscape it would report a column's height.
-    if (viewport.rotated && !toolbar.hidden) {
-      const row = toolbar.getBoundingClientRect().height;
-      if (row > 0) drawerRow = row + BOARD_GAP;
-    }
-    style.setProperty('--dock-h', viewport.rotated ? `${Math.round(drawerRow)}px` : '0px');
 
     style.setProperty('--panel-under-board', `${Math.round(rect.top + rect.height + BOARD_GAP)}px`);
   }
@@ -318,7 +325,10 @@ function startGame(): void {
   // switching between its four modes, the drawer opening, closing or lying down.
   // Cheaper and more honest than calling placePanel() from each of the places that
   // might have done it.
-  const dockObserver = new ResizeObserver(placePanel);
+  const dockObserver = new ResizeObserver(() => {
+    placeToolbar();
+    placePanel();
+  });
   dockObserver.observe(panel.element);
   dockObserver.observe(toolbar);
   placePanel();
@@ -421,7 +431,9 @@ function startGame(): void {
       return;
     }
 
-    if (placeTower(state, selectedTowerKind, tile)) {
+    // With no kind picked, an empty tile is just an empty tile - the tap falls
+    // through to inspecting whatever is standing on it.
+    if (selectedTowerKind && placeTower(state, selectedTowerKind, tile)) {
       selection = null;
       return;
     }
@@ -452,8 +464,14 @@ function startGame(): void {
           previewedWave = incoming.number;
           buildFocus = false;
         }
-        // Asked for explicitly, counting down on its own, or neither.
-        const reading = waveFocus ? currentWaveReading(state.spawner) : buildFocus ? null : incoming;
+        // Asked for explicitly; the tower being shopped for; the wave counting down;
+        // and, with the build menu cleared, the wave on the board - because then
+        // there is no tower for the console to read out instead.
+        const reading = waveFocus
+          ? currentWaveReading(state.spawner)
+          : buildFocus && selectedTowerKind
+            ? null
+            : (incoming ?? (selectedTowerKind ? null : currentWaveReading(state.spawner)));
 
         hud.setVisible(true);
         hud.update(state.coreHealth, state.cycles, waveNumber(state.spawner));
@@ -475,7 +493,7 @@ function startGame(): void {
       if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, level1.waypoints);
       drawProjectiles(worldCtx, state.projectiles);
       drawGlitchParticles(worldCtx, state.particles);
-      if (hoverTile && state.status === 'playing') {
+      if (hoverTile && selectedTowerKind && state.status === 'playing') {
         drawPlacementPreview(
           worldCtx,
           hoverTile,
