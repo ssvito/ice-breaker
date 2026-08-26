@@ -33,6 +33,20 @@ canvas {
   --term-faint: rgba(57, 255, 136, 0.28);
   --term-back: rgba(0, 10, 5, 0.94);
   --term-glow: 0 0 6px rgba(57, 255, 136, 0.4);
+
+  /* The bottom strip's floor and the left margin, named once because three boxes
+     now measure from them: the console, the build drawer's toggle, and the drawer. */
+  --dock-floor: max(8px, env(safe-area-inset-bottom));
+  --dock-left: max(8px, env(safe-area-inset-left));
+  --dock-gap: 6px;
+
+  /* The console's ceiling, and therefore the build drawer's floor - written once so
+     the two can't drift. The percentages resolve against the viewport wherever this
+     is used, because every box that uses it is position: fixed. See .panel. */
+  --panel-top: min(
+    var(--panel-under-board, 100%),
+    calc(100% - var(--panel-h, 0px) - var(--dock-floor))
+  );
 }
 
 /* The status bar: three glyphs at the top of the board. It shares the console's
@@ -167,10 +181,7 @@ canvas {
    there the board candidate wins and the console follows the thing it reports on. */
 .panel {
   left: 50%;
-  top: min(
-    var(--panel-under-board, 100%),
-    calc(100% - var(--panel-h, 0px) - max(8px, env(safe-area-inset-bottom)))
-  );
+  top: var(--panel-top);
   transform: translateX(-50%);
   /* Definite width, not max-content: an auto-sized panel lets the stats grid ask
      for all four columns on one line and stretches the console with it. */
@@ -354,6 +365,10 @@ canvas {
    picking the largest is what makes the menu tuck into the letterbox band when it
    fits and sit on the board's edge when it doesn't. The fallback keeps the rule
    valid for the frame before the first measurement. */
+.toolbar[hidden] {
+  display: none;
+}
+
 .toolbar {
   left: max(8px, env(safe-area-inset-left), var(--toolbar-left, 0px));
   top: 50%;
@@ -365,7 +380,8 @@ canvas {
 }
 
 .toolbar button,
-.panel-actions button {
+.panel-actions button,
+.dock-toggle {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -399,4 +415,65 @@ canvas {
 .toolbar button.short,
 .panel-actions button:disabled {
   opacity: 0.35;
+}
+
+
+/* ---- Turned board: the chrome collapses into two 81px bands ----------------
+
+   With the board rotated it is 384x683 inside a 390x844 phone, so the side band
+   is 3px and there is no column to tuck a build menu into any more. What is left
+   is one 44px row above the board and one below it, and the bottom row is shared:
+   the drawer's toggle at the left end, the console's collapsed header taking the
+   rest. Everything here is scoped to body.turned; landscape reads none of it.
+
+   The bands are reserved for the collapsed state and stay reserved - opening a
+   drawer changes what is drawn over the board, never the scale it is drawn at. */
+
+.dock-toggle {
+  position: fixed;
+  left: var(--dock-left);
+  bottom: var(--dock-floor);
+  /* Opaque in its own right: unlike the tower buttons it has no menu box behind
+     it, and a translucent button over a lit trace is unreadable. */
+  background: var(--term-back);
+  box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--term);
+  border: 1px solid var(--term-faint);
+  border-radius: 4px;
+  text-shadow: var(--term-glow);
+  min-width: 44px;
+  min-height: 44px;
+  gap: 2px;
+  touch-action: manipulation;
+}
+
+.dock-toggle[hidden] {
+  display: none;
+}
+
+/* The console shifts off centre to leave the strip's left end to the toggle. */
+body.turned .panel {
+  left: calc(var(--dock-left) + 44px + var(--dock-gap));
+  transform: none;
+  width: min(320px, calc(100vw - var(--dock-left) * 2 - 44px - var(--dock-gap)));
+}
+
+/* The column lies down. It sits on the console's ceiling rather than on the
+   strip, because both want the space above the strip and both have to be legible
+   at once: picking a kind is what puts that kind's stats in the console, so a
+   drawer that covered the readout would hide the reason for opening it. */
+body.turned .toolbar {
+  left: var(--dock-left);
+  top: auto;
+  bottom: calc(100% - var(--panel-top) + var(--dock-gap));
+  transform: none;
+  flex-direction: row;
+}
+
+/* One line, not two: the stacked label exists because a vertical column has width
+   to spare and no height, and a horizontal drawer has exactly the opposite. */
+body.turned .toolbar button {
+  flex-direction: row;
+  gap: 6px;
 }

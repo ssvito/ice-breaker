@@ -54,6 +54,7 @@ function startGame(): void {
 
   window.addEventListener('resize', () => {
     fitViewport(viewport);
+    applyLayout();
     placeToolbar();
     placeHud();
     placePanel();
@@ -192,6 +193,37 @@ function startGame(): void {
   });
 
   /**
+   * The build menu is a column on the board's left edge in landscape and a
+   * horizontal drawer in the bottom strip when the board is turned - two layouts,
+   * one class, and CSS holds both. The predicate is the renderer's own: a turned
+   * board leaves a 3px side band, and no column stands in 3px.
+   *
+   * Open by default, because building three towers should not cost three
+   * reopenings, and because the game starts with 100 Cycles and nothing built.
+   * Landscape never hides it - there the toggle does not exist.
+   */
+  let menuOpen = true;
+
+  const dockToggle = document.createElement('button');
+  dockToggle.type = 'button';
+  dockToggle.className = 'dock-toggle';
+  dockToggle.addEventListener('click', () => {
+    menuOpen = !menuOpen;
+    applyLayout();
+  });
+  document.body.appendChild(dockToggle);
+
+  function applyLayout(): void {
+    document.body.classList.toggle('turned', viewport.rotated);
+    dockToggle.hidden = !viewport.rotated;
+    toolbar.hidden = viewport.rotated && !menuOpen;
+    // Same two glyphs the console's own collapse uses, so the two drawers in the
+    // strip say "open me" and "close me" in one vocabulary.
+    dockToggle.innerHTML = `<span>BLD</span><span>${menuOpen ? '[-]' : '[+]'}</span>`;
+    dockToggle.setAttribute('aria-expanded', String(menuOpen));
+  }
+
+  /**
    * Parks the build menu against the board's left edge instead of the window's.
    * The world is blitted letterboxed at an integer scale, so on most screens there
    * is a black band between the two - and a menu floating out in that band is
@@ -207,6 +239,7 @@ function startGame(): void {
     const outside = rect.left - toolbar.offsetWidth - BOARD_GAP;
     document.documentElement.style.setProperty('--toolbar-left', `${Math.round(outside)}px`);
   }
+  applyLayout();
   placeToolbar();
 
   /**
