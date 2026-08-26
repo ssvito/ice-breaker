@@ -34,6 +34,7 @@ import {
 } from './game.ts';
 import type { GameHooks } from './game.ts';
 import { createHud } from './hud.ts';
+import { createPhoneControls } from './phone.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 
@@ -248,6 +249,10 @@ function startGame(): void {
    * and sits on the board's top edge when it isn't.
    */
   const hud = createHud({ onWave: () => showWave() }, document.body);
+
+  // Right-anchored in the same band. Adds nothing where neither API exists, so
+  // desktop and iOS keep the top band they have today.
+  createPhoneControls(document.body);
 
   function placeHud(): void {
     const rect = boardRect(viewport);

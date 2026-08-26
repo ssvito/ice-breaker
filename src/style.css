@@ -40,6 +40,11 @@ canvas {
   --dock-left: max(8px, env(safe-area-inset-left));
   --dock-gap: 6px;
 
+  /* The top band's row, named because two boxes sit in it: the status glyphs
+     centered, and the phone buttons anchored right. Candidate published by
+     placeHud(), floors in the safe area, same idiom as the build menu's. */
+  --hud-row-top: max(8px, env(safe-area-inset-top), var(--hud-top, 0px));
+
   /* Reading order down the screen: board, console, build menu. The menu's row is
      pinned to the floor with the toggle that opens it, and the console hugs the
      board's underside above it.
@@ -62,7 +67,7 @@ canvas {
 .hud {
   position: fixed;
   left: 50%;
-  top: max(8px, env(safe-area-inset-top), var(--hud-top, 0px));
+  top: var(--hud-row-top);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -388,7 +393,8 @@ canvas {
 
 .toolbar button,
 .panel-actions button,
-.dock-toggle {
+.dock-toggle,
+.phone-button {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -436,12 +442,10 @@ canvas {
    The bands are reserved for the collapsed state and stay reserved - opening a
    drawer changes what is drawn over the board, never the scale it is drawn at. */
 
-.dock-toggle {
-  position: fixed;
-  left: var(--dock-left);
-  bottom: var(--dock-floor);
-  /* Opaque in its own right: unlike the tower buttons it has no menu box behind
-     it, and a translucent button over a lit trace is unreadable. */
+.dock-toggle,
+.phone-button {
+  /* Opaque in their own right: unlike the tower buttons these have no menu box
+     behind them, and a translucent button over a lit trace is unreadable. */
   background: var(--term-back);
   box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
   font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -455,8 +459,35 @@ canvas {
   touch-action: manipulation;
 }
 
+.dock-toggle {
+  position: fixed;
+  left: var(--dock-left);
+  bottom: var(--dock-floor);
+}
+
 .dock-toggle[hidden] {
   display: none;
+}
+
+/* The phone buttons, anchored right in the top band while the glyphs keep the
+   centre. Bottom-aligned with the status bar so the band reads as one row: they are
+   44px targets against its 30px of text, and the clamp keeps them on screen on a
+   window with no band to speak of. */
+.top-tools {
+  position: fixed;
+  right: max(8px, env(safe-area-inset-right));
+  top: max(4px, calc(var(--hud-row-top) - 14px));
+  display: flex;
+  gap: var(--dock-gap);
+}
+
+/* Refused: Android rejects the lock outside fullscreen, iOS rejects it always.
+   Dimmed for a moment rather than disabled - pressing FS first is what makes the
+   next press work, and a disabled button hides that the door is there at all. */
+.phone-button.denied {
+  opacity: 0.35;
+  border-color: #ff2fd1;
+  color: #ff2fd1;
 }
 
 /* The column lies down into the strip, sharing that row with the toggle that opens
