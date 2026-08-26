@@ -462,11 +462,35 @@ canvas {
   position: fixed;
   left: var(--menu-left);
   bottom: var(--dock-floor);
+  /* As wide as the column it opens, so the two read as one strip rather than as a
+     button that happens to be under a menu. */
+  min-width: max(44px, var(--menu-w, 44px));
 }
 
-/* The console steps right of the column when the board is turned. The width it
-   steps past is reserved whether the menu is open or shut, so toggling the menu
-   never moves the readout. */
+/* Turned, the menu's box goes away and its buttons carry their own background, so
+   the column is exactly one 44px button wide - the same width as the toggle at its
+   foot, and the same width the console steps past. The box exists in landscape to
+   hold a column that sits in a letterbox band; here the column stands on the board,
+   where a second frame around four framed buttons is just a wider thing to dodge. */
+body.turned .toolbar {
+  padding: 0;
+  background: none;
+  /* none, not transparent: a transparent border still occupies its 2px, and the
+     point of this rule is that the column is exactly one button wide. */
+  border: none;
+  box-shadow: none;
+  gap: var(--dock-gap);
+}
+
+body.turned .toolbar button {
+  background: var(--term-back);
+  padding: 4px 2px;
+}
+
+/* The console steps right of the column when the board is turned - by the column's
+   width exactly, so the toggle sits flush against it rather than stranded in the
+   corner with a gap. Reserved whether the menu is open or shut, so toggling the
+   menu never moves the readout. */
 body.turned .panel {
   left: calc(var(--menu-left) + var(--menu-w, 0px) + var(--dock-gap));
   transform: none;
