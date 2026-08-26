@@ -285,6 +285,9 @@ function startGame(): void {
    * means hidden, and publishing that would park the console at the window's floor
    * for the frame after it comes back.
    */
+  /** Reserved height of the build menu's strip, CSS px. See placePanel(). */
+  let drawerRow = 0;
+
   function placePanel(): void {
     const rect = boardRect(viewport);
     const style = document.documentElement.style;
@@ -292,11 +295,16 @@ function startGame(): void {
     const height = panel.element.getBoundingClientRect().height;
     if (height > 0) style.setProperty('--panel-h', `${Math.round(height)}px`);
 
-    // The drawer only joins the stack when it is lying in it: in landscape the menu
-    // is a column on the board's side, and closed it has no height to contribute.
-    // Measured rather than assumed, because it is a row of wrapped buttons.
-    const drawer = viewport.rotated ? toolbar.getBoundingClientRect().height : 0;
-    style.setProperty('--dock-h', drawer > 0 ? `${Math.round(drawer + BOARD_GAP)}px` : '0px');
+    // The strip the menu lies in stays reserved whether the menu is open or shut,
+    // which is the whole point: a console that jumped 60px every time the build
+    // menu was toggled would be the readout moving to get out of a menu's way.
+    // Measured while it is open and remembered, because shut it reports nothing and
+    // in landscape it would report a column's height.
+    if (viewport.rotated && !toolbar.hidden) {
+      const row = toolbar.getBoundingClientRect().height;
+      if (row > 0) drawerRow = row + BOARD_GAP;
+    }
+    style.setProperty('--dock-h', viewport.rotated ? `${Math.round(drawerRow)}px` : '0px');
 
     style.setProperty('--panel-under-board', `${Math.round(rect.top + rect.height + BOARD_GAP)}px`);
   }
