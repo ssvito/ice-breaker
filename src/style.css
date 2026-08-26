@@ -152,10 +152,25 @@ canvas {
 }
 
 /* The console keeps the bottom center, where a readout belongs and where nothing
-   needs to be tapped through it once it is collapsed. */
+   needs to be tapped through it once it is collapsed.
+
+   It is the one box that can't publish a candidate and let max() pick a floor, the
+   way the status bar and the build menu do: those are anchored by the edge they hug,
+   and the console is anchored by its bottom and grows upward, so gluing its top under
+   the board needs the console's own height - which changes with every collapse and
+   every one of its four modes. So the rule inverts. JS measures and publishes both
+   --panel-h and --panel-under-board, CSS takes the min(), and the floor keeps the
+   safe-area inset where it already lived.
+
+   Landscape lands on the floor and sits exactly where it always did. A letterboxed
+   window where the board stops well short of the bottom is the case this exists for:
+   there the board candidate wins and the console follows the thing it reports on. */
 .panel {
   left: 50%;
-  bottom: max(8px, env(safe-area-inset-bottom));
+  top: min(
+    var(--panel-under-board, 100%),
+    calc(100% - var(--panel-h, 0px) - max(8px, env(safe-area-inset-bottom)))
+  );
   transform: translateX(-50%);
   /* Definite width, not max-content: an auto-sized panel lets the stats grid ask
      for all four columns on one line and stretches the console with it. */

@@ -56,6 +56,7 @@ function startGame(): void {
     fitViewport(viewport);
     placeToolbar();
     placeHud();
+    placePanel();
   });
 
   // The whole simulation, reassigned wholesale on restart rather than reset field by
@@ -240,6 +241,34 @@ function startGame(): void {
     },
     document.body,
   );
+
+  /**
+   * The console's turn at parking against the board instead of the window, and the
+   * one box that needs a measurement to do it: the status bar and the build menu
+   * hug the edge they are anchored by, while the console is anchored by its bottom
+   * and grows upward, so its top depends on how tall it currently is.
+   *
+   * So JS publishes both halves and CSS takes the min() (see .panel). A height of 0
+   * means hidden, and publishing that would park the console at the window's floor
+   * for the frame after it comes back.
+   */
+  function placePanel(): void {
+    const rect = boardRect(viewport);
+    const height = panel.element.getBoundingClientRect().height;
+    if (height > 0) {
+      document.documentElement.style.setProperty('--panel-h', `${Math.round(height)}px`);
+    }
+    document.documentElement.style.setProperty(
+      '--panel-under-board',
+      `${Math.round(rect.top + rect.height + BOARD_GAP)}px`,
+    );
+  }
+
+  // One hook for every way the console changes height: collapsing, switching between
+  // its four modes, a stats grid reflowing. Cheaper and more honest than calling
+  // placePanel() from each of the places that might have done it.
+  new ResizeObserver(placePanel).observe(panel.element);
+  placePanel();
 
   /**
    * Every selection made by tapping the board. Tapping a thing opens the console on

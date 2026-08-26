@@ -17,6 +17,10 @@ import type { WavePreview } from './wave.ts';
 export type PanelTarget = { kind: 'tower'; tower: Tower } | { kind: 'enemy'; enemy: Enemy } | null;
 
 export interface TowerPanel {
+  /** The console's root box. Exposed so its owner can measure it - the console is
+   *  anchored by a rule that needs its height, and that height changes with every
+   *  collapse and every one of its four modes. */
+  element: HTMLElement;
   update(target: PanelTarget, buildKind: TowerKind, cycles: number, preview: WavePreview | null): void;
   setRun(paused: boolean, speed: number): void;
   setCollapsed(value: boolean): void;
@@ -313,6 +317,8 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   let signature = '';
 
   return {
+    element: root,
+
     update(target: PanelTarget, buildKind: TowerKind, cycles: number, preview: WavePreview | null): void {
       const tower = target?.kind === 'tower' ? target.tower : null;
       current = tower;
