@@ -8,4 +8,5 @@ Hub for design notes. Part of [Tower Defense PWA](../Tower%20Defense%20PWA.md).
 - [Run Structure](./Run%20Structure.md) - wave curve, pacing controls, wave preview + early call, balance harness.
 - [Portrait Layout](./Portrait%20Layout.md) - the phone held upright: chrome anchored to the board, orientation unlock, fullscreen.
 - [Map Layout](./Map%20Layout.md) - v1 grid, serpentine trace, waypoint data model.
+- [Audio Brief](./Audio%20Brief.md) - delivery spec for the composed soundtrack: four cumulative layers, stem export rules, headroom and size budget.
 - [Architecture](./Architecture.md) - v1 engine architecture + risk areas.
