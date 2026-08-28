@@ -1,3 +1,5 @@
+import { pixelSvg } from './glyph.ts';
+
 /**
  * The run's three numbers, as three glyphs: a heart for the core, a coin for
  * Cycles, a level for the wave. It used to be three lines of `CORE 5/5` /
@@ -35,31 +37,13 @@ export interface Hud {
  */
 const HEART_ROWS = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
 
-function heartSvg(): string {
-  const rects: string[] = [];
-  HEART_ROWS.forEach((row, y) => {
-    let x = 0;
-    while (x < row.length) {
-      if (row[x] !== '#') {
-        x++;
-        continue;
-      }
-      let width = 0;
-      while (x + width < row.length && row[x + width] === '#') width++;
-      rects.push(`<rect x="${x}" y="${y}" width="${width}" height="1"/>`);
-      x += width;
-    }
-  });
-  return `<svg class="hud-heart" viewBox="0 0 7 6" aria-hidden="true">${rects.join('')}</svg>`;
-}
-
 export function createHud(handlers: HudHandlers, host: HTMLElement): Hud {
   const root = document.createElement('div');
   root.className = 'hud';
 
   const core = document.createElement('span');
   core.className = 'hud-item hud-core';
-  core.innerHTML = `${heartSvg()}<span class="hud-value"></span>`;
+  core.innerHTML = `${pixelSvg(HEART_ROWS, 'hud-heart')}<span class="hud-value"></span>`;
   const coreValue = core.lastElementChild as HTMLElement;
 
   const cycles = document.createElement('span');

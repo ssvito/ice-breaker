@@ -509,6 +509,25 @@ body.turned .panel {
   gap: var(--dock-gap);
 }
 
+/* Same treatment as the HUD's heart, which is the point: one way of drawing a glyph
+   for the whole chrome. Sized by height so it carries the weight of the 12px words
+   beside it rather than the pixel count of its own grid. */
+.tool-glyph {
+  /* Block, not inline: an inline SVG sits on a text baseline and reserves descender
+     space under itself, which pushed the button to 47px and - the row being a flex
+     box - took FS and LOCK up with it. */
+  display: block;
+  /* 16px and not an em, because 8 source rows into 16 device pixels is exactly 2x and
+     anything else is not. At the 1.25em this started as, 8 rows landed in 15px: the
+     one-pixel beam rasterised two pixels thick and the stems alternated full and
+     half coverage down their length, which is the mush the board's renderer refuses
+     by scaling in integers. crispEdges snaps the edges; it cannot invent a grid. */
+  height: 16px;
+  width: auto;
+  fill: currentColor;
+  shape-rendering: crispEdges;
+}
+
 /* Refused: Android rejects the lock outside fullscreen, iOS rejects it always.
    Dimmed for a moment rather than disabled - pressing FS first is what makes the
    next press work, and a disabled button hides that the door is there at all. */

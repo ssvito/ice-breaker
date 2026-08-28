@@ -33,8 +33,10 @@ import {
   upgradeTower,
 } from './game.ts';
 import type { GameHooks } from './game.ts';
+import { createAudio } from './audio.ts';
 import { createHud } from './hud.ts';
-import { createPhoneControls } from './phone.ts';
+import { startMusic } from './music.ts';
+import { createTopTools } from './top-tools.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 
@@ -271,9 +273,22 @@ function startGame(): void {
    */
   const hud = createHud({ onWave: () => showWave() }, document.body);
 
-  // Right-anchored in the same band. Adds nothing where neither API exists, so
-  // desktop and iOS keep the top band they have today.
-  createPhoneControls(document.body);
+  /**
+   * The mixing desk, and the soundtrack plugged into it. Built this early on purpose:
+   * the graph arms its gesture unlock the moment it exists, so the music is fetched on
+   * the player's first tap rather than waiting for a tap that already happened.
+   *
+   * Nothing about the run is wired to either of them. The music is deliberately not on
+   * the pause switch - pause here is for planning, and the brief's own bed layer is
+   * defined as the thing that plays between waves.
+   */
+  const audio = createAudio();
+  const music = audio ? startMusic(audio) : null;
+  if (import.meta.env.DEV) Object.assign(window, { audio, music });
+
+  // Right-anchored in the same band as the status glyphs. After the desk, because the
+  // sound button reads it.
+  createTopTools(document.body, audio);
 
   function placeHud(): void {
     const rect = boardRect(viewport);
