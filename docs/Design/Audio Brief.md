@@ -104,3 +104,44 @@ O repositório é público e o jogo está no ar como peça de portfólio. Antes 
 - [ ] soma picando ~-6 dBTP
 - [ ] BPM e número de compassos anotados
 - [ ] cada camada ouvida sozinha, e as quatro combinações cumulativas ouvidas
+
+---
+
+# Retorno da primeira entrega (2026-08-28)
+
+O que veio foi um draft: **um MP3 masterizado de 1:25**, e não os quatro stems WAV que a spec acima pede. Está no jogo assim mesmo, porque funcionou. O texto abaixo da segunda linha é a mensagem de retorno, guardada aqui com a spec que ela responde.
+
+O que ficou pendente daqui: **crédito e licença**, que a seção acima já tratava como bloqueante antes de entrar código e que entrou mesmo assim, para dar o jogo no ar para testar no celular. É a primeira coisa a fechar.
+
+O que saiu de escopo: a pergunta do sub-loop de ~40s, que a spec ia fazer. Ficou sem efeito antes de ser enviada - o corpo da faixa **é** o loop, tem 56 segundos e já estava na grade.
+
+Como a implementação usou tudo isso, e onde cada número foi medido: [Audio](./Audio.md).
+
+---
+
+Cara, teu draft já está tocando no jogo: **https://ssvito.github.io/ice-breaker/**
+
+Antes de mais nada, duas perguntas que eu preciso fechar - o repositório é **público** e o arquivo da música está dentro dele, então isso tem que estar combinado e não presumido:
+
+**1. Como você quer ser creditado?** Nome, nome artístico, e algum link se quiser (Instagram, SoundCloud, o que for). Vira uma linha no README e outra dentro do jogo.
+
+**2. Sob que licença a faixa vai junto?** O código é aberto, mas a música não precisa ser - dá para deixar "todos os direitos reservados, usada com permissão neste projeto", ou uma Creative Commons se você preferir, ou o que fizer sentido pra você. Só preciso que esteja escrito em algum lugar.
+
+Sobre a faixa em si, duas coisas:
+
+**Ela caiu na grade perfeita.** Medi aqui e está em **120,000 BPM exatos**, com frase de 8 segundos, e toda borda de seção cai no compasso sem arredondar - intro até 20s, corpo de 20s a 76s, e o final depois. Isso deixou o loop trivial: o jogo toca a intro uma vez e depois roda o corpo pra sempre, emendando com precisão de amostra, sem crossfade nem gambiarra. Não é sempre que dá pra fazer isso com material que não foi feito pra loopar.
+
+**E um pedido técnico, se der pra mandar o WAV.** O master está picando em -0,1 dBTP. Isso sozinho não é problema, mas codec com perda não preserva pico: o Opus que o jogo usa decodifica a **+2,52 dBFS**, acima de fundo de escala. Nada estoura, porque o jogo trabalha em float e abaixa antes da saída - só que por causa disso eu tive que tirar 7 dB, e aí a música fica em -24 LUFS onde o brief pedia -18. **Se você bouncear deixando uns 3 a 6 dB de teto**, eu recupero esse volume todo. O loudness você acertou em cheio, por sinal: -18,4 LUFS contra os -18 que eu tinha pedido.
+
+Ah, e o WAV também evita empilhar duas gerações de perda - hoje eu estou comprimindo a partir do MP3 que você mandou.
+
+Sem pressa nenhuma nisso. E quando/se rolar a versão definitiva, os **4 stems** do brief são o que destrava a trilha adaptativa de verdade - as camadas entrando e saindo conforme a pressão do jogo. Mas o que está no ar já funciona bem.
+
+---
+
+## Checklist do retorno
+
+- [ ] como ele quer ser creditado
+- [ ] sob que licença a faixa vai no repositório público
+- [ ] WAV do master, bounceado com 3 a 6 dB de teto
+- [ ] (sem pressa) os quatro stems, que são o que destrava a trilha adaptativa

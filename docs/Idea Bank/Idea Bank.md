@@ -20,7 +20,7 @@ Cross-cutting observations: the **tap-tower info panel** (Mobile / UX) is the fo
 
 ## Feel / juice
 
-- Web Audio - SFX (fire, impact, glitch-kill, wave klaxon) + low ambient synth loop. Big learning module; the game is currently silent.
+- Web Audio - SFX (fire, impact, glitch-kill, wave klaxon) + low ambient synth loop. Big learning module. **Split across three milestones** (2026-08-27): the desk and one composed track are v1.5 (see [Audio](../Design/Audio.md)); the four adaptive layers wait on stems that do not exist yet; the SFX are their own milestone after, because polyphony - voice cap, retrigger floor, pitch jitter - is a real subsystem and the note that argued for synthesis over samples still holds.
 - Path pulse animation - data packets flowing along the trace; sells the PCB theme for little cost.
 - Hit feedback - enemy flash on hit, health bars (or damage-state color shift), floating +Cycles on kill, subtle screen shake on core breach.
 - Entity sprite/art pass - **promoted to v1.1** (2026-07-12): specced in [Sprite Spec](../Design/Sprite%20Spec.md), build order in [Roadmap](../Roadmap.md).
@@ -34,6 +34,8 @@ Cross-cutting observations: the **tap-tower info panel** (Mobile / UX) is the fo
 - Rotate the board 90 degrees in portrait - **promoted into v1.4** (2026-08-25), same note. Filed and promoted the same day: it started as the more interesting half of the problem and became the whole answer once the arithmetic was on the table. A 9x16 blit fits at scale 4 and gives back the *full landscape board area* (384x683, 42px tiles) on a phone held upright, where the unrotated board gets a quarter of it.
 - Portrait-shaped map (2026-08-25) - the 9x16 level the waypoint format would already take, which is the version of the above where nothing reads sideways. Held out of v1.4 for the reason v1.3 gave for refusing map 2: a second map inheriting a curve should inherit a finished one.
 - First-run tutorial hints - portfolio visitors give it ~30 seconds; a "place a tower here" nudge decides whether they see the game at all.
+- **Tell the player a new build has arrived** (2026-08-28) - found while answering "how does the installed app update on my phone". Today it takes **two launches**: `sw.js` carries `skipWaiting()` and `clientsClaim()`, so a new service worker installs and takes control immediately, but the generated `registerSW.js` is the bare registration with no reload, and the page that is already open keeps running the JS it loaded. So launch one fetches the update and launch two shows it. (The `max-age=600` GitHub Pages puts on everything does not add to that: `updateViaCache` defaults to `imports`, so the top-level worker script skips the HTTP cache on every update check. The workaround meanwhile is to hard-refresh the same URL in a browser tab, which updates the worker for the installed app too, since it is one registration per origin and scope.)
+  **Auto-reloading is the wrong fix**, which is why this is a note and not a one-liner: a run is six to eight minutes, and reloading during wave 9 destroys it. The two candidates are reloading only when nothing is at stake (no run started, or the end screen is up) and a quiet "new build" marker the player taps when they choose. The second is more this project's idiom - the console already narrates state, and the decision belongs to whoever is holding the phone.
 
 ## Engineering / learning modules (the project's actual driver)
 
@@ -45,4 +47,4 @@ Cross-cutting observations: the **tap-tower info panel** (Mobile / UX) is the fo
 ## Meta / persistence
 
 - Local high scores (best wave / score) via localStorage.
-- Settings (sound toggle) once audio exists.
+- Settings (sound toggle) once audio exists - **shipped in v1.5** (2026-08-27), and it turned out to be a property of the graph rather than a screen: one gain on a bus, one button in the top band, one `localStorage` key. It is also the project's first `localStorage`, so it is the seam local high scores plug into.
