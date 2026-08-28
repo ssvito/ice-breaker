@@ -20,10 +20,19 @@ import { pixelSvg } from './glyph.ts';
  * and where a phone call drops the audio context into a state that needs a fresh
  * gesture to leave.
  *
- * Sound is last in the row, so the one control that renders everywhere sits in the
- * same place on every device. The two conditional ones fall away to its left, and it
- * is the one that carries a glyph rather than a word: it has a symbol everyone knows
- * and the other two do not.
+ * They live behind a gear, as a column growing down out of it - the mirror of the
+ * build menu, which is a column growing up out of a toggle in the opposite corner.
+ * That is not only symmetry. The row used to be laid out sideways, and a third button
+ * pushed it 52px further into the middle of a 390px band until it covered the wave
+ * indicator: the status glyphs are centered and the tools are anchored right, so
+ * every control added to the row walks toward the readings. Collapsed, the band's
+ * footprint is one 44px button on every device no matter which controls exist, and
+ * the collision cannot come back the next time something is added.
+ *
+ * Sound is last in the column, so the one control that renders everywhere sits in the
+ * same place on every device. The two conditional ones fall away above it, and it is
+ * the one that carries a glyph rather than a word: it has a symbol everyone knows and
+ * the other two do not.
  */
 
 interface ToolButton {
@@ -33,18 +42,25 @@ interface ToolButton {
 
 /**
  * `label` is either a word or a pixel-string glyph. Both are captions; the glyph path
- * exists because one of these three controls has a symbol everyone already knows and
- * the other two do not, and a word where a symbol would do is a word to read.
+ * exists because two of these controls have a symbol everyone already knows and the
+ * others do not, and a word where a symbol would do is a word to read.
+ *
+ * `kind` picks which of the two bracket vocabularies the button speaks. A `toggle`
+ * says `[x]` / `[ ]` and is a thing that is on or off; a `drawer` says `[-]` / `[+]`
+ * and is a thing that is open or shut. That distinction is not decoration - the build
+ * menu and the console's collapse already use the second pair, so a drawer borrowing
+ * the first would be claiming to be a setting.
  */
 function makeButton(
   label: string | readonly string[],
   name: string,
+  kind: 'toggle' | 'drawer',
   host: HTMLElement,
   onClick: () => void,
 ): ToolButton {
   const root = document.createElement('button');
   root.type = 'button';
-  root.className = 'phone-button';
+  root.className = kind === 'drawer' ? 'phone-button tools-toggle' : 'phone-button';
   root.addEventListener('click', onClick);
   host.appendChild(root);
 
@@ -57,15 +73,58 @@ function makeButton(
   return {
     root,
     setState(on: boolean): void {
-      // Same bracketed vocabulary the console's collapse and the build drawer use.
-      state.textContent = on ? '[x]' : '[ ]';
-      root.setAttribute('aria-pressed', String(on));
+      state.textContent = kind === 'drawer' ? (on ? '[-]' : '[+]') : on ? '[x]' : '[ ]';
+      // Expanded for a drawer, pressed for a setting: the two mean different things
+      // to a screen reader, and this button is one or the other, never both.
+      root.setAttribute(kind === 'drawer' ? 'aria-expanded' : 'aria-pressed', String(on));
       // The spoken name is the word, not the abbreviation: "LOCK off" is what the
       // button says, "Orientation lock off" is what it means.
-      root.setAttribute('aria-label', `${name} ${on ? 'on' : 'off'}`);
+      const said = kind === 'drawer' ? (on ? 'open' : 'closed') : on ? 'on' : 'off';
+      root.setAttribute('aria-label', `${name} ${said}`);
     },
   };
 }
+
+/**
+ * A gear, and the one glyph here that is generated rather than drawn.
+ *
+ * Eight by eight was the first attempt, to match the note's exact 2x, and eight by
+ * eight cannot hold a gear: hand-drawn candidates came out reading as a dumbbell, a
+ * flower and a spool, and the player's verdict was that none of them looked like one.
+ * A gear needs a ring, a hub and teeth, and three concentric features do not fit in
+ * four pixels of radius.
+ *
+ * So this is sixteen by sixteen at **1x** - still an integer scale, still sixteen
+ * device pixels tall, and four times the detail. The two glyphs in this row therefore
+ * have different internal resolutions and the same footprint, which is the right way
+ * round: the note is a silhouette and wants chunk, the gear is a ring and wants
+ * pixels.
+ *
+ * The shape is polar arithmetic rather than a drawing, because tuning a gear by hand
+ * means moving thirty pixels to change one radius. A point is filled when it sits
+ * between the hub radius and an outer radius that alternates between the body and the
+ * tooth tip every eighth of a turn. The three radii below were chosen by generating a
+ * spread and looking at them at sixteen pixels: deeper valleys make a more obvious
+ * gear right up until the ring breaks into arcs and starts reading as damage.
+ */
+const GEAR_ROWS = [
+  '......#..#......',
+  '....###..###....',
+  '....########....',
+  '....########....',
+  '.##############.',
+  '.#####....#####.',
+  '#####......#####',
+  '..###......###..',
+  '..###......###..',
+  '#####......#####',
+  '.#####....#####.',
+  '.##############.',
+  '....########....',
+  '....########....',
+  '....###..###....',
+  '......#..#......',
+];
 
 /** Adds whichever of the three this platform supports. Adds nothing if none. */
 export function createTopTools(host: HTMLElement, audio: AudioSystem | null): void {
@@ -82,12 +141,38 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null): vo
   root.className = 'top-tools';
   host.appendChild(root);
 
+  /**
+   * Shut by default, unlike the build menu, which opens with the game. These are set
+   * once a session or not at all, and the menu's reason for standing open - that
+   * building three towers should not cost three reopenings - has no equivalent here.
+   *
+   * It costs the sound button its second job. Shut, `SND` is no longer the visible
+   * `[ ]` that doubled as this game's only start affordance, and a player whose audio
+   * Safari interrupted has one more tap to find the repair. Both survive because any
+   * tap anywhere resumes the context: the affordance is weaker, not gone.
+   */
+  let open = false;
+
+  const drawer = document.createElement('div');
+  drawer.className = 'tools-drawer';
+
+  const toggle = makeButton(GEAR_ROWS, 'Settings', 'drawer', root, () => {
+    open = !open;
+    apply();
+  });
+  root.appendChild(drawer);
+
+  function apply(): void {
+    drawer.hidden = !open;
+    toggle.setState(open);
+  }
+
   let fullscreen: ToolButton | null = null;
   let lock: ToolButton | null = null;
   let locked = false;
 
   if (canFullscreen) {
-    fullscreen = makeButton('FS', 'Fullscreen', root, () => {
+    fullscreen = makeButton('FS', 'Fullscreen', 'toggle', drawer, () => {
       if (document.fullscreenElement) {
         void document.exitFullscreen();
       } else {
@@ -98,7 +183,7 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null): vo
   }
 
   if (canLock) {
-    lock = makeButton('LOCK', 'Orientation lock', root, () => {
+    lock = makeButton('LOCK', 'Orientation lock', 'toggle', drawer, () => {
       if (locked) {
         screen.orientation.unlock();
         locked = false;
@@ -128,7 +213,9 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null): vo
     lock.setState(false);
   }
 
-  if (audio) addSound(root, audio);
+  if (audio) addSound(drawer, audio);
+
+  apply();
 
   document.addEventListener('fullscreenchange', () => {
     const on = document.fullscreenElement !== null;
@@ -180,7 +267,7 @@ const NOTE_ROWS = ['..#####', '..#...#', '..#...#', '..#...#', '..#...#', '..#..
  * without being touched, since any first tap anywhere resumes the context.
  */
 function addSound(row: HTMLElement, audio: AudioSystem): void {
-  const button = makeButton(NOTE_ROWS, 'Sound', row, () => {
+  const button = makeButton(NOTE_ROWS, 'Sound', 'toggle', row, () => {
     if (audio.isRunning() && !audio.isMuted()) {
       audio.setMuted(true);
       return;

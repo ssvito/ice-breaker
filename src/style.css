@@ -501,12 +501,29 @@ body.turned .panel {
    centre. Bottom-aligned with the status bar so the band reads as one row: they are
    44px targets against its 30px of text, and the clamp keeps them on screen on a
    window with no band to speak of. */
+/* A column, not a row, and the gear is its first item - so the drawer grows straight
+   down out of the toggle with no arithmetic, the way the build menu grows up out of
+   its own. Sideways is what covered the wave indicator: the glyphs are centered and
+   this is anchored right, so every button added to a row walked toward them. */
 .top-tools {
   position: fixed;
   right: max(8px, env(safe-area-inset-right));
   top: max(4px, calc(var(--hud-row-top) - 14px));
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--dock-gap);
+}
+
+.tools-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dock-gap);
+}
+
+/* display:flex would otherwise win over the hidden attribute's display:none. */
+.tools-drawer[hidden] {
+  display: none;
 }
 
 /* Same treatment as the HUD's heart, which is the point: one way of drawing a glyph

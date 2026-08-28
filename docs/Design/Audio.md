@@ -251,10 +251,37 @@ question with a different answer.
 
 ## The control
 
-A third button in the top band beside `FS` and `LOCK`, in the same bracketed
-`[x]` / `[ ]` vocabulary as the console's collapse and the build drawer. It carries a
-**glyph rather than a word**, which is the one place in the row that can: sound has a
-symbol everyone already knows and fullscreen and the orientation lock do not.
+A third button beside `FS` and `LOCK`, in the same bracketed `[x]` / `[ ]` vocabulary
+as the console's collapse and the build drawer. It carries a **glyph rather than a
+word**: sound has a symbol everyone already knows and fullscreen and the orientation
+lock do not.
+
+### The row became a drawer, because a third button broke it
+
+Shipped as a row, the three buttons covered the wave indicator on a phone. The
+arithmetic says why, and says it was inevitable: the status glyphs are **centered** and
+the tools are **anchored right**, so every control added to the row walks toward the
+readings. On the 390px reference phone the glyphs run 112 to 278 with `Lv N` at
+230-265; two buttons put the row's left edge at 286 and cleared them, three put it at
+238 and covered 27 of the wave indicator's 35 pixels.
+
+Moving the row up - the first thing asked for - would not have fixed it. The band is
+81px and the portrait spec budgets it as **one 44px row**, so lifting the tools out of
+the glyphs' line means spending the band twice and leaves them under the notch in
+browser mode.
+
+So they collapse instead, behind a gear, as a column growing **down** out of it: the
+mirror of the build menu, which is a column growing up out of a toggle in the opposite
+corner. Shut, the band's footprint is one 44px button **on every device regardless of
+which controls exist**, and the collision cannot come back the next time something is
+added. Open, the column clears the core by 61px on the turned board.
+
+Shut by default, unlike the build menu, which opens with the game: these are set once
+a session or not at all, and the menu's reason for standing open - that building three
+towers should not cost three reopenings - has no equivalent. That costs the sound
+button its second job, though: shut, `SND` is no longer the visible `[ ]` that doubled
+as this game's only start affordance. It survives because any tap anywhere resumes the
+context, so the affordance is weaker rather than gone.
 
 A beamed pair of eighth notes, drawn as whole pixels for the reason the HUD's heart is
 - a glyph built that way belongs to the same art as the board, where one from an icon
@@ -267,7 +294,18 @@ this renders, like a staple. And the glyph is **eight rows because that is the s
 available** - a taller one pushes the button past the row's height, and the row is a
 flex box, so it would take `FS` and `LOCK` up with it.
 
-**It is sized in pixels, not ems, and that is the interesting part.** At the `1.25em`
+**The gear is generated, not drawn, and it is 16x16 where the note is 7x8.** Eight by
+eight was the first attempt, to match the note's exact 2x, and it cannot hold a gear:
+hand-drawn candidates read as a dumbbell, a flower and a spool, and the verdict from
+the person looking at it was that none of them looked like one. A gear needs a ring, a
+hub and teeth, and three concentric features do not fit in four pixels of radius. So
+the gear is sixteen rows at **1x** - still integer, still sixteen device pixels tall,
+four times the detail. Two glyphs, two internal resolutions, one footprint, which is
+the right way round: the note is a silhouette and wants chunk, the gear is a ring and
+wants pixels. Its shape is polar arithmetic rather than a drawing, because tuning a
+gear by hand means moving thirty pixels to change one radius.
+
+**The note is sized in pixels, not ems, and that is the interesting part.** At the `1.25em`
 it started as, eight rows landed in 15px - a scale of 1.875 - and rasterising it
 showed the damage: the one-pixel beam came out two pixels thick and the stems
 alternated full and half coverage down their length. `shape-rendering: crispEdges`
