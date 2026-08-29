@@ -4,19 +4,23 @@ Post-v1 ideas. Part of [Tower Defense PWA](../Tower%20Defense%20PWA.md). Brainst
 
 Cross-cutting observations: the **tap-tower info panel** (Mobile / UX) is the foundation that upgrades, sell, and touch-friendly Overclock all sit on; the **physical-device test pass** guards everything else. Both were the reasoning behind picking v1.2, and both are done. The next cross-cutting one is the **real wave design pass** (Content): the tier ladder v1.2 built needs a run long enough to reach it, which is why pacing, the harness and the curve all landed in v1.3 together.
 
+## Sub-notes
+
+- [Difficulty](./Difficulty.md) (2026-08-28) - how hard the run is, after players reported the ten-wave curve is too easy. First category to outgrow this page: several bullets below feed it, and it collects them under one reading of what the harness measures and what it misses.
+
 ## Gameplay depth
 
 - Tower upgrades - **promoted to v1.2** (2026-08-23): specced in [Tower Panel](../Design/Tower%20Panel.md), build order in [Roadmap](../Roadmap.md).
 - Sell/refund towers - **promoted to v1.2** (2026-08-23), same note.
 - Wave preview + early-call bonus - **promoted to v1.3** (2026-08-23): specced in [Run Structure](../Design/Run%20Structure.md), build order in [Roadmap](../Roadmap.md). Both shipped 2026-08-24, and the call left one thing behind, below.
-- Give the early call a mechanical cost (2026-08-24) - as shipped it is free money for anyone with a plan: Cycles come only from kills and the countdown only starts once the board is clear, so the skipped seconds were not producing anything, and the harness measures identical defense with +77 Cycles. Its intended cost is reaction time, which a scripted player has infinitely much of. Two candidates, both rejected as out of scope mid-milestone: start the countdown when a wave finishes *spawning* rather than when the board clears (retunes the whole curve), or allow the call during `waiting-clear` so an early wave overlaps the stragglers still walking - an opt-in risk, and the more interesting of the two.
-- New enemy behaviors - stealth (would re-justify IDS Scanner's dropped "reveals stealth" ability), healer/repair-bot, shielded enemy, EMP unit that briefly disables the nearest tower (mirrors Overclock's overheat).
-- Endless mode - after the scripted waves, procedurally scale further waves; gives high scores something to measure. Held out of v1.3 on purpose: it measures a run against a standard, and v1.3 is building the standard.
+- Give the early call a mechanical cost (2026-08-24) - as shipped it is free money for anyone with a plan: Cycles come only from kills and the countdown only starts once the board is clear, so the skipped seconds were not producing anything, and the harness measures identical defense with +77 Cycles. Its intended cost is reaction time, which a scripted player has infinitely much of. Two candidates, both rejected as out of scope mid-milestone: start the countdown when a wave finishes *spawning* rather than when the board clears (retunes the whole curve), or allow the call during `waiting-clear` so an early wave overlaps the stragglers still walking - an opt-in risk, and the more interesting of the two. **Carried into [Difficulty](./Difficulty.md)** (2026-08-28): the first candidate turns out to be the largest difficulty lever available, so what was filed here as the call's missing cost is read there as the curve's missing pressure.
+- New enemy behaviors - stealth (would re-justify IDS Scanner's dropped "reveals stealth" ability), healer/repair-bot, shielded enemy, EMP unit that briefly disables the nearest tower (mirrors Overclock's overheat). **Carried into [Difficulty](./Difficulty.md)** (2026-08-28), with a fifth added there: a kind immune to slow, which would punish the aura build the way the Zero-Day punishes the all-turret build.
+- Endless mode - after the scripted waves, procedurally scale further waves; gives high scores something to measure. Held out of v1.3 on purpose: it measures a run against a standard, and v1.3 is building the standard. **Carried into [Difficulty](./Difficulty.md)** (2026-08-28): the standard exists now, and endless is the answer to "I finished it and it was easy" that does not require the curve to change.
 
 ## Content
 
 - Map 2+ - the waypoint-only level format ([Map Layout](../Design/Map%20Layout.md)) was designed for this; add a map-select screen. Layout candidates: fork/merge path, spiral.
-- Real wave design pass - **promoted to v1.3** (2026-08-23), same note. 4 waves is a demo; a ~10-wave curve with deliberate difficulty pacing makes balancing a real (and instructive) discipline.
+- Real wave design pass - **promoted to v1.3** (2026-08-23), same note. 4 waves is a demo; a ~10-wave curve with deliberate difficulty pacing makes balancing a real (and instructive) discipline. Shipped, and the curve it produced is what [Difficulty](./Difficulty.md) is now reading player feedback against.
 
 ## Feel / juice
 
