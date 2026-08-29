@@ -141,10 +141,10 @@ Sem pressa nenhuma nisso. E quando/se rolar a versão definitiva, os **4 stems**
 
 ## Checklist do retorno
 
-- [ ] como ele quer ser creditado
-- [ ] sob que licença a faixa vai no repositório público
+- [ ] como ele quer ser creditado - **perguntado duas vezes, não respondido nenhuma**
+- [ ] sob que licença a faixa vai no repositório público - idem
 - [x] WAV do master, bounceado com 3 a 6 dB de teto - veio com 1,1 dB e foi o bastante, ver abaixo
-- [ ] (sem pressa) os quatro stems, que são o que destrava a trilha adaptativa
+- [ ] (sem pressa) os quatro stems - **ele topou**, e com uma condição justa: ver a resposta abaixo
 
 ---
 
@@ -156,7 +156,17 @@ Duas perguntas abertas nesta rodada, e a segunda é do jogador e não da mediç�
 
 **É outro render, não o mesmo bounce em WAV.** Correlação de envelope 0,73 entre as duas entregas, correlação amostra a amostra só 0,43. Mesma peça, mesmas bordas de seção, áudio diferente embaixo. Não é problema - por acaso melhorou a emenda do loop - mas precisa ser dito, porque significa que "o WAV do que você já mandou" não é o que veio.
 
-**Um buraco de grave em 40s que a entrega anterior não tem.** Ouvido primeiro, medido depois: a energia abaixo de 120 Hz cai de -17 para -25 dB entre 39,85s e 40,65s e volta em meio segundo. No MP3 a mesma janela não tem buraco nenhum. Como isso cai em cima da divisa de compasso dos 40,000s, pode ser arranjo. Pergunta em vez de correção.
+**Um buraco de grave em 40s que a entrega anterior não tem.** Ouvido primeiro, medido depois: a energia abaixo de 120 Hz cai de -17 para -25 dB entre 39,85s e 40,65s e volta em meio segundo. No MP3 a mesma janela não tem buraco nenhum. Como isso cai em cima da divisa de compasso dos 40,000s, pode ser arranjo. Pergunta em vez de correção - **e a resposta foi "é proposital, é uma pausa"**. Fechado: é composição, não defeito de render, e a única coisa a fazer com ela é não passar nada por cima. Fica anotado para o milestone das camadas, onde um crossfade de 1 a 2 segundos caindo em cima dessa pausa a apaga.
+
+### O que ele respondeu (2026-08-28, mesma noite)
+
+Duas das quatro. A pausa dos 40s é proposital. E sobre os stems: **"posso mandar stem separado sim"**, seguido de **"mas acho que fica massa se for fazer algo dinâmico e adaptativo / pra essa proposta acho que linear tá rolando bem"**.
+
+Isso não é recusa, é uma condição justa, e ela mira num buraco real: [Roadmap](../Roadmap.md) diz que as camadas são o próximo milestone e **não tem milestone escrito para elas**. v1.5 lista as quatro camadas como fora de escopo "porque precisam de stems que ainda não existem", e a resposta dele inverte isso - os stems existem quando o milestone existir. Pedir stems agora é pedir trabalho contra um plano que não está escrito.
+
+Então o pedido sai da fila até v1.6 ser escolhido de verdade. O argumento para escolher, quando chegar a hora, é um número: **uma partida dura 6 a 8 minutos e o corpo do loop tem 56 segundos**, então o jogador ouve a mesma volta uma dúzia de vezes e a onda 1 soa idêntica ao chefe da onda 10.
+
+**Crédito e licença ele não respondeu**, e essas atravessaram duas mensagens. São as únicas bloqueantes: o repositório é público e a faixa está dentro dele.
 
 **E a resposta sobre mixar é não.** Com um bounce só, o jogo tem um botão: o ganho da faixa inteira. Toda decisão de textura está assada no arquivo, inclusive a dos 40s - não dá para suavizar, mover nem cruzar do lado de cá. É exatamente isso que os quatro stems destravam, e é por isso que eles seguem no checklist.
 
@@ -173,3 +183,15 @@ Nos 40s o grave some por meio segundo e volta meio seco - é proposital? Foi o �
 E a ideia que eu queria te propor: **não rola me mandar os stems separados?** Aí eu faço a música se adaptar conforme o jogo vai apertando - as camadas entrando e saindo sozinhas conforme a pressão sobe, em vez de tocar sempre igual do começo ao fim. Do jeito que está eu só consigo mexer no volume da faixa inteira. É de longe o que eu mais queria fazer com ela.
 
 Ah, e me fala **como você quer ser creditado e sob que licença** a faixa vai - o repositório é público e isso eu preciso deixar escrito.
+
+---
+
+E a resposta à resposta:
+
+Boa, pausa é pausa então - deixo quieto.
+
+Sobre os stems, você tem razão de perguntar: **é dinâmico de verdade sim**, e já está especificado. São 4 camadas cumulativas - a base tocando sozinha entre as ondas, e as outras entrando conforme a pressão sobe. O que me incomoda no linear é bem específico: uma partida dura 6 a 8 minutos e o loop tem 56 segundos, então a onda 1 soa exatamente igual ao chefe da onda 10.
+
+**Mas você tem razão de não fazer agora.** Só faz sentido quando eu for construir isso de fato, e ainda tenho coisa pra fechar antes. Te chamo quando começar e te mando o spec das camadas certinho - aí você bounceia sabendo pra que serve, em vez de fatiar no escuro.
+
+E as duas que ficaram de fora: **crédito e licença** 🙏 São as únicas que me travam, porque o repositório é público.

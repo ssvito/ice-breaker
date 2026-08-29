@@ -97,6 +97,13 @@ never both, and the level section below is a long paragraph about which one wins
 WAV carries 12.6, which is the ratio the brief actually described. The two targets stop
 fighting, and one trim now hits both.
 
+One thing in this render is worth carrying forward to the layers milestone rather than
+filed as trivia: **the sub-120 Hz energy drops 8 dB from 39.85s to 40.65s** and returns
+over half a second, where the MP3 has no such hole. Heard first and measured after, and
+the composer confirmed it is **a written rest**, not a render accident. Which makes it a
+thing the layer crossfades have to respect - a 1 to 2 second fade landing on top of that
+bar erases the pause the piece was written with.
+
 What the brief asked for and did not get is the ceiling: -1.10 dBFS where -6 was the
 ask. That turns out to cost nothing, for a reason worth its own paragraph under the
 level below - the 3 dB of "overshoot" this note spent a section on was never the
