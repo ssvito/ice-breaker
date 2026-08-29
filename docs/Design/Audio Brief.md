@@ -143,5 +143,33 @@ Sem pressa nenhuma nisso. E quando/se rolar a versão definitiva, os **4 stems**
 
 - [ ] como ele quer ser creditado
 - [ ] sob que licença a faixa vai no repositório público
-- [ ] WAV do master, bounceado com 3 a 6 dB de teto
+- [x] WAV do master, bounceado com 3 a 6 dB de teto - veio com 1,1 dB e foi o bastante, ver abaixo
 - [ ] (sem pressa) os quatro stems, que são o que destrava a trilha adaptativa
+
+---
+
+# Retorno da segunda entrega, o WAV (2026-08-28, mesmo dia)
+
+O WAV chegou no mesmo dia e está no ar. Ele resolveu a briga entre os dois números do brief, e não pelo motivo que a mensagem anterior deu - **o pedido de teto estava certo e a justificativa estava errada em 3 dB**, que eram do downmix mono do `ffmpeg` e não do codec. A correção vai na mensagem, porque pedir a alguém que mude o jeito de bouncear com um número inflado é o tipo de coisa que se conserta na hora.
+
+Duas perguntas abertas nesta rodada, e a segunda é do jogador e não da medição:
+
+**É outro render, não o mesmo bounce em WAV.** Correlação de envelope 0,73 entre as duas entregas, correlação amostra a amostra só 0,43. Mesma peça, mesmas bordas de seção, áudio diferente embaixo. Não é problema - por acaso melhorou a emenda do loop - mas precisa ser dito, porque significa que "o WAV do que você já mandou" não é o que veio.
+
+**Um buraco de grave em 40s que a entrega anterior não tem.** Ouvido primeiro, medido depois: a energia abaixo de 120 Hz cai de -17 para -25 dB entre 39,85s e 40,65s e volta em meio segundo. No MP3 a mesma janela não tem buraco nenhum. Como isso cai em cima da divisa de compasso dos 40,000s, pode ser arranjo. Pergunta em vez de correção.
+
+**E a resposta sobre mixar é não.** Com um bounce só, o jogo tem um botão: o ganho da faixa inteira. Toda decisão de textura está assada no arquivo, inclusive a dos 40s - não dá para suavizar, mover nem cruzar do lado de cá. É exatamente isso que os quatro stems destravam, e é por isso que eles seguem no checklist.
+
+**A mensagem enviada é a curta abaixo, e o corte foi deliberado.** O primeiro rascunho levava tudo que está nesta seção: a correção dos 3 dB, o LUFS, a medição da emenda, o render diferente. Cinco assuntos numa mensagem para uma pessoa é uma resposta de nenhum. **O único pedido que importa é o dos stems**, então ele é que vira o corpo da mensagem, com a pergunta dos 40s antes por ser a pergunta do ouvido e não da medição. O resto fica escrito aqui e vai por cima se ele perguntar - inclusive a correção dos 3 dB, que é dívida a pagar e não notícia a dar.
+
+---
+
+Cara, ficou muito bom. Já está no ar: **https://ssvito.github.io/ice-breaker/**
+
+Duas coisas.
+
+Nos 40s o grave some por meio segundo e volta meio seco - é proposital? Foi o único ponto que me chamou atenção ouvindo.
+
+E a ideia que eu queria te propor: **não rola me mandar os stems separados?** Aí eu faço a música se adaptar conforme o jogo vai apertando - as camadas entrando e saindo sozinhas conforme a pressão sobe, em vez de tocar sempre igual do começo ao fim. Do jeito que está eu só consigo mexer no volume da faixa inteira. É de longe o que eu mais queria fazer com ela.
+
+Ah, e me fala **como você quer ser creditado e sob que licença** a faixa vai - o repositório é público e isso eu preciso deixar escrito.

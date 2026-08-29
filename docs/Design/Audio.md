@@ -69,6 +69,39 @@ of 2.000s each. The section boundaries fall on that grid with no rounding:
 
 That is what makes the whole loop problem disappear rather than get solved.
 
+### The WAV master arrived, and it is a different master
+
+`RatTrap - TowerDefense.wav` came on 2026-08-28: 84.58s, 48kHz/24-bit stereo, 23.3 MB.
+The first thing worth saying about it is that it is **not the source the MP3 came
+from**. Same piece, same edit points, different render.
+
+| | MP3 | WAV |
+|---|---|---|
+| body loudness | -17.45 LUFS | **-13.59 LUFS** |
+| true peak | -0.06 dBTP | **-1.03 dBTP** |
+| sample peak | - | -1.10 dBFS, flat on both channels |
+| body crest | 17.4 dB | **12.6 dB** |
+| body LRA | 1.0 LU | 1.1 LU |
+
+The structure survived intact, which is what made the swap cheap: the body still starts
+at 19.99s and still decays from 76.03s, so `loopStart` and `loopEnd` did not move. The
+audio underneath did. Correlating the two renders' amplitude envelopes gives **0.73** -
+same arrangement, same rhythm - while correlating them sample by sample over the body
+peaks at **0.43**, at a lag that will not hold still from one window to the next. That
+is a re-render, not a re-export, so every number measured on the MP3 had to be measured
+again rather than carried across.
+
+**The crest is the news.** The brief asked for -18 LUFS at about -6 dBTP, a pair that
+implies 12 dB of crest. The MP3 carried 17.4, so it could honour one or the other and
+never both, and the level section below is a long paragraph about which one wins. The
+WAV carries 12.6, which is the ratio the brief actually described. The two targets stop
+fighting, and one trim now hits both.
+
+What the brief asked for and did not get is the ceiling: -1.10 dBFS where -6 was the
+ask. That turns out to cost nothing, for a reason worth its own paragraph under the
+level below - the 3 dB of "overshoot" this note spent a section on was never the
+codec's.
+
 ## The graph is the deliverable, not the track
 
 With a single file, `<audio loop>` and three lines would make sound today. That is
@@ -145,6 +178,9 @@ ceiling is absolute rather than merely likely.
 | -1 dBFS | -1.21 | -0.21 |
 | +2.52 dBFS | -0.62 | -3.14 |
 
+The last row is history rather than a case that occurs: it is what the MP3-era buffer
+decoded to. Nothing reaches the shaper above full scale any more.
+
 ## The track
 
 **The file.** Trimmed to `[0, 76.000s)` and shipped in two encodes, no normalisation
@@ -153,8 +189,8 @@ gain, so retuning the level is a constant and not a re-encode.
 
 | | | |
 |---|---|---|
-| `public/soundtrack.webm` | Opus mono 80k | **799 KB** |
-| `public/soundtrack.m4a` | AAC mono 128k | 1203 KB, fallback |
+| `public/soundtrack.webm` | Opus mono 80k | **824 KB** |
+| `public/soundtrack.m4a` | AAC mono 128k | 1269 KB, fallback |
 
 80k is the knee of the curve: measured against the source, 48k to 64k buys 2.3 dB and
 64k to 80k buys 2.0, while 80k to 96k buys 0.6 for another 160 KB.
@@ -163,9 +199,18 @@ gain, so retuning the level is a constant and not a re-encode.
 for the track, and it was written assuming the track streams. Once the loop structure
 forces a decoded buffer, the note's other rule takes over - the one that says RAM is
 what limits, not the network - and stereo doubles it: **13.9 MB mono against 27.8**.
-The material makes that cheap: L/R correlate at 0.90 and the side channel sits 12.7 dB
-under the mid, so there is width but not much of it, and most phones play through one
+The material makes that cheap: on the WAV master the side channel sits **12.4 dB under
+the mid**, so there is width but not much of it, and most phones play through one
 speaker anyway. Revisit when the stems arrive and the pad wants its width back.
+
+**And the downmix has to be spelled out, which is the bug this note carried for a
+day.** `ffmpeg -ac 1` does not average a stereo pair. Its rematrix preserves **energy**,
+summing at 0.707 per channel rather than 0.5, so correlated material comes out **3 dB
+hot** with no codec involved at all. That is where the mysterious "lossy decoding
+overshoots by 2.5 dB" came from: the same MP3 downmixed with an explicit
+`pan=mono|c0=0.5*c0+0.5*c1` peaks at -0.42 dBFS, and through `-ac 1` at +2.59. Both
+encodes are now built with the explicit pan, and the real codec overshoot is what is
+left: **0.2 dB.**
 
 **The outro is cut, not lost.** `[76s, 83.9s)` is a composed ending, which a loop can
 never reach. Keeping it in the loop buffer would cost RAM forever for something played
@@ -173,7 +218,9 @@ once. If an end-screen sting is wanted later, it gets cut from the master as its
 short file - which is the right shape for it anyway.
 
 **Verified round trip.** Both encodes decode to **exactly 3,648,000 samples** - 76.000000s,
-delta zero - in Chrome as well as in ffmpeg. That is the check the vault note demands,
+delta zero - in Chrome as well as in ffmpeg, on the WAV master as on the MP3 before it.
+Chrome and ffmpeg also agree on the peak to a hundredth of a decibel: **-0.903 dBFS**
+through Opus and **-0.843** through AAC, from a master at -1.10. That is the check the vault note demands,
 because it is precisely what MP3 cannot promise: with no standard place to record
 encoder delay, each browser trims a different amount and `loopStart` stops being
 portable. WebM and MP4 both record it, and both survived. Safari is still unverified
@@ -181,39 +228,63 @@ and is the reason the AAC fallback is load-bearing rather than decorative: Safar
 `decodeAudioData` has historically accepted a narrower set of formats than its
 `<audio>` element, and the buffer path has no element to fall back on.
 
-**Source.** Encoding proceeds from the delivered MP3 rather than waiting for the WAV,
-because the graph does not know where the file came from: a re-encode later is a
-build-script change and zero code. The lossy generation stacked in the meantime is a
-known, temporary cost, taken with eyes open.
+**Source.** The WAV master, since 2026-08-28. Encoding originally proceeded from the
+delivered MP3 rather than waiting, on the argument that the graph does not know where
+the file came from and a re-encode later is a build-script change and zero code - which
+held exactly: swapping the master touched two constants, two files in `public/`, and no
+code at all. The stacked lossy generation is gone.
 
-**Level, and the peak that is not where the file says it is.** `MUSIC_DB` was wrong
-three times, and each wrong value was wrong for a different reason worth keeping.
+**The loop seam got better, and it is measurable.** Spectral flux across the join,
+against the same measure taken at all 27 bar lines inside the body: the MP3 encode read
+**3.33 where the worst ordinary bar line read 2.47** - the seam was the single largest
+spectral event in the loop. The WAV encode reads **1.54 against a bar-line median of
+1.84**, quieter than 25 of the 27. The join is now less of an event than an average bar.
 
-*-12, by ear.* No measurement at all. Off by 5 dB.
+**Level, and the four values of `MUSIC_DB`.** Each wrong one was wrong for a different
+reason, and that is the whole of what this paragraph has to teach.
 
-*-4, from the source file's peak.* The brief asked for -18 LUFS and ~-6 dBTP; the body
-reads -17.4 LUFS at -0.1 dBTP, so loudness was on target and only the peak was hot.
-Since only 0.013% of samples pass -3 dBFS - eleven milliseconds across the track -
-honoring loudness looked obviously right, with the trim derived from the limiter.
+*-12, by ear.* No measurement at all. Off by 8 dB.
 
-*-7, from the **decode**.* The step that was missing: the graph never sees the file,
-it sees what `decodeAudioData` returns, and a lossy codec does not preserve peaks. The
-delivered Opus decodes to a buffer peaking at **+2.52 dBFS** - above full scale - from
-a source that measured -0.1. Material mastered with no headroom overshoots coming out
-the other side, and the trim has to be derived from the number the graph will actually
-handle. Nothing was ever going to clip, because Web Audio is float end to end and the
-trim comes first; but the reasoning was calibrated against the wrong artifact.
+*-4, from the source file's peak.* The brief asked for -18 LUFS and ~-6 dBTP; the MP3's
+body read -17.4 LUFS at -0.1 dBTP, so loudness was on target and only the peak was hot.
+Since only 0.013% of samples passed -3 dBFS - eleven milliseconds across the track -
+honouring loudness looked obviously right, with the trim derived from the limiter.
 
-So `MUSIC_DB` is **-7**: the ceiling bends at -3 dBFS, and -7 puts the music's loudest
-sample at **-4.48 dBFS**, measured, with zero samples reaching the knee. The ceiling
-stays inert until the SFX give it something to do, which is what a net is for.
+*-7, from the decode.* The step that was missing: the graph never sees the file, it sees
+what `decodeAudioData` returns. The shipped Opus decoded to a buffer peaking at **+2.52
+dBFS**, above full scale, from a source measured at -0.1, and the trim has to be derived
+from the number the graph actually handles. Nothing was ever going to clip, because Web
+Audio is float end to end and the trim comes first; the reasoning was calibrated against
+the wrong artifact.
 
-The cost is loudness: the body lands near -24.4 LUFS where the brief asked for -18.
-Those cannot both be had, because the delivery carries ~20 dB of crest against the 12
-its pair of numbers implied. Not clipping wins, -24 LUFS is an ordinary bed level under
-game audio, and this is the first knob to revisit if it reads quiet on a phone. **When
-the WAV master arrives, encode it with a few dB of headroom** and the overshoot stops
-being a thing to work around.
+The conclusion drawn from that was right and its explanation was wrong. **Three of those
+2.6 decibels were `ffmpeg -ac 1`**, not the codec - see the mono paragraph above. Lossy
+decoding does overshoot, by about 0.2 dB.
+
+*-4 again, and this time from both constraints at once.* The WAV master downmixed with
+an explicit 0.5 pan decodes at **-0.90 dBFS** through Opus and **-0.84** through AAC.
+Against those:
+
+| | | |
+|---|---|---|
+| peak | -0.84 + (-4) = **-4.90 dBFS** | 1.9 dB of margin under the ceiling's -3 knee |
+| loudness | body at **-17.96 LUFS** | the brief asked for -18 |
+
+The second row needs one piece of arithmetic spelled out, because the file and the
+destination disagree by 3 dB and it is easy to quote the wrong one. The buffer is mono;
+a mono buffer feeding a stereo destination is **copied to both channels**, and BS.1770
+sums channel powers, so it gains 3.01 LU on the way. The file measures -16.97 and what
+comes out of the destination measures -13.96 before the trim.
+
+So one number satisfies both, for the first time in this milestone - and it is -4, which
+was one of the wrong answers. Same value, different derivation, and the difference is
+the master rather than the reasoning: 12.6 dB of crest instead of 17.4 is what lets the
+brief's two numbers be met together instead of traded off. The old trade-off cost 6 dB
+of loudness and landed the body near -24.4 LUFS; that is gone.
+
+Headroom now belongs to the master rather than to the bus gain, which is the more
+durable place for it. A master that needs `MUSIC_DB` to stay under full scale is one
+where the volume slider this milestone deliberately did not build could put it back over.
 
 Gains are set in dB and applied with `setTargetAtTime`, never by writing `gain.value`,
 which steps the amplitude and clicks.
@@ -351,14 +422,14 @@ Its state persists in `localStorage`, which is the **first** in the project. Tha
 worth noting rather than sliding in: it is the seam where "Settings (sound toggle)
 once audio exists" from the Idea Bank actually lands, and where local high scores
 would later plug in. It also does real work beyond remembering a preference - a run
-that starts muted never fetches the track at all, so **799 KB of someone's data is not
+that starts muted never fetches the track at all, so **824 KB of someone's data is not
 spent on audio they have said they do not want**. Unmuting later is a state change like
 any other, so a player who changes their mind gets the download then.
 
 ## PWA delivery
 
 - **Not in the precache, and already not.** The worry was that Workbox precaches the
-  whole `dist`, so a 1.66 MB file would stall the install and, on a failed fetch,
+  whole `dist`, so an 824 KB file would stall the install and, on a failed fetch,
   reject the `addAll` and take the whole service worker down. Checked rather than
   assumed: `vite-plugin-pwa`'s default `globPatterns` covers `js,css,html,ico,png,svg`,
   so `.webm` and `.m4a` were never matched. The build confirms it - 7 precache entries,
@@ -379,10 +450,18 @@ any other, so a player who changes their mind gets the download then.
 ## Master files, and where they live
 
 The vault note's rule is lossless master in the repo, deliveries generated from it at
-build time. A 1:25 stereo WAV at 48kHz/24-bit is ~24 MB, which does not belong in git
+build time. `RatTrap - TowerDefense.wav` is 23.3 MB, which does not belong in git
 without LFS for a project whose entire `dist` is 81 KB. So the rule bends here: the
-repo carries the encoded deliveries, and the masters live outside it with a pointer.
+repo carries the encoded deliveries, and the master lives outside it with a pointer.
 Recorded as a deviation, not as the plan.
+
+The deviation has a cost and it has now been paid once: the two encodes are the only
+copies of any of this inside the repo, so **rebuilding them is a manual ffmpeg run
+against a file on one machine**, and the commands live in the log rather than in a
+script. That was tolerable while the source was a placeholder MP3. With a real master
+and stems still to come, the honest next step is a `scripts/` entry that takes a path
+and produces both files - which is also where the mono pan stops being a thing anyone
+can forget.
 
 ## Credit and licence
 

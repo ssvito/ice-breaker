@@ -44,7 +44,7 @@ export interface Music {
 
 /**
  * Arms the soundtrack. Nothing is fetched until the context is actually running and
- * the player has not muted - a muted run should not spend 799 KB of someone's data on
+ * the player has not muted - a muted run should not spend 824 KB of someone's data on
  * audio it will never hear, and a fetch before the first gesture would sit in front of
  * the first frame for a context that cannot play it yet.
  *

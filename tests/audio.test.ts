@@ -58,9 +58,11 @@ test('the music alone never reaches the ceiling', () => {
    * constants instead of numbers: first as "the bus sits at least 6 dB down" (a
    * restatement of a by-ear guess, which the measured value would have failed), and
    * then against the source file's peak rather than the decode's - the graph never
-   * sees the file, only what the decoder returns, and lossy decoding overshoots.
+   * sees the file, only what the decoder returns.
    *
-   * The invariant underneath both mistakes is the engineering one: the ceiling is
+   * Both constants have since moved again, on the WAV master, and this test did not.
+   * That is the argument for writing it this way: the invariant underneath is the
+   * engineering one, not any of the numbers. The ceiling is
    * meant to be a net for what the SFX will do later, so the music by itself has to
    * stay under its knee. A relation between three constants holds when any of them is
    * retuned, which a bound on one of them does not.
@@ -78,10 +80,16 @@ test('the music alone never reaches the ceiling', () => {
   assert.ok(MUSIC_DB > -20, 'a trim past -20 dB is a mute with extra steps');
 });
 
-test('the decoded soundtrack overshoots full scale, and the trim is what saves it', () => {
-  // Recorded as an assertion because it is the surprising half of the level story: a
-  // buffer whose samples exceed 1.0 is fine in float and ruinous at the destination,
-  // and the only thing between the two is MUSIC_DB.
-  assert.ok(SOUNDTRACK_PEAK_DBFS > 0, 'this file is known to decode above full scale');
-  assert.ok(SOUNDTRACK_PEAK_DBFS + MUSIC_DB < 0, 'the trim must bring it back under');
+test('the decoded soundtrack stays under full scale on its own', () => {
+  /*
+   * This test used to assert the opposite - that the decode overshoots to +2.52 dBFS
+   * and only MUSIC_DB saves it. That was true of the file and false about the cause:
+   * 3 of those decibels were `ffmpeg -ac 1` summing a stereo pair at 0.707 per channel
+   * instead of 0.5, and the WAV master is downmixed with an explicit 0.5 pan.
+   *
+   * Which turns the assertion the right way round. Headroom belongs to the master, not
+   * to the bus gain, and a master that needs the trim to stay under full scale is one
+   * where a later change to MUSIC_DB - a volume slider, say - could put it back over.
+   */
+  assert.ok(SOUNDTRACK_PEAK_DBFS < 0, 'the master should have headroom of its own');
 });

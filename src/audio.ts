@@ -25,40 +25,47 @@
  * Peak of the soundtrack **as decoded**, in dBFS - measured on the AudioBuffer the
  * browser actually hands back, not on the file that was encoded.
  *
- * The distinction is the whole point, and it cost a wrong number to learn. The source
- * MP3 reads -0.1 dBTP, and deriving the trim from that put it 7 dB too high: a lossy
- * codec does not preserve peaks, and material mastered with no headroom overshoots
- * coming out the other side. This decode lands **above full scale**. Nothing clips,
- * because Web Audio works in float and the trim below is applied long before the
- * destination - but the number to reason from is this one.
+ * The distinction still matters, but it is worth a decibel and not the three it was
+ * blamed for. This number read **+2.52** while the MP3 was the source, and the note
+ * around it said lossy decoding overshoots. It does, by about 0.2 dB. The other 3 came
+ * from `ffmpeg -ac 1`, whose stereo-to-mono rematrix preserves **energy** rather than
+ * amplitude - it sums at 0.707 per channel, not 0.5, so correlated material comes out
+ * 3 dB hot before a codec is involved at all. Downmixing with an explicit
+ * `pan=mono|c0=0.5*c0+0.5*c1` is the whole fix.
  *
- * A note for when the WAV master arrives: encode it with a few dB of headroom, and
- * this stops being a thing to work around.
+ * So the WAV master's -1.10 dBFS survives as -0.90 through Opus and -0.84 through AAC,
+ * and this is the worse of the two. Nothing decodes above full scale any more, which
+ * is what the brief asked for in the first place.
  */
-export const SOUNDTRACK_PEAK_DBFS = 2.52;
+export const SOUNDTRACK_PEAK_DBFS = -0.84;
 
 /** Where the ceiling starts bending. Below this it is mathematically transparent. */
 export const CEILING_KNEE_DB = -3;
 
 /**
- * Where the music bus sits. This number was wrong twice before it was measured
- * correctly, which is most of what it has to teach: -12 by ear, then -4 derived from
- * the source file's peak, and finally -7 derived from the peak of the **decode**,
- * which is the only one the graph ever sees.
+ * Where the music bus sits. Four values now, and the useful part is that they were
+ * wrong for four different reasons: -12 by ear, -4 from the source file's peak, -7
+ * from a decode that was 3 dB hot for a reason that had nothing to do with decoding,
+ * and now -4 again - the same number, arrived at correctly.
  *
- * Derived, not chosen: the ceiling bends at -3 dBFS, and a trim of -7 puts the
- * music's loudest sample at -4.5 - a decibel and a half of margin, so the music by
- * itself never touches the nonlinearity. The ceiling stays inert until the SFX give
- * it something to do, which is what a net is supposed to be.
+ * Two constraints, and for the first time one value satisfies both.
  *
- * The cost is loudness. The body reads -17.4 LUFS in the file and lands at about
- * -24.4 after the trim, where the brief had asked for -18. Those two cannot both be
- * had: the delivery carries ~20 dB of crest against the 12 the brief's pair of
- * numbers implied, so honoring its loudness would mean peaking above full scale. Not
- * clipping wins. -24 LUFS is an ordinary level for a music bed under game audio, and
- * this is the knob to revisit first if the track reads as too quiet on a phone.
+ * *Peak.* The ceiling bends at -3 dBFS, and -4 puts the music's loudest sample at
+ * **-4.90**, measured - 1.9 dB of margin, so the music by itself never touches the
+ * nonlinearity and the ceiling stays inert until the SFX give it something to do.
+ *
+ * *Loudness.* The brief asked for -18 LUFS, and the body lands at **-17.96** at the
+ * destination. Note that "at the destination" is doing work: the buffer is mono, and
+ * a mono buffer feeding a stereo destination is copied to both channels, which is
+ * +3.01 LU by BS.1770. The file measures -16.97.
+ *
+ * That both fall out of one number is the WAV master's doing rather than this file's.
+ * The MP3 carried ~17.4 dB of crest against the 12 the brief's pair implied, so its
+ * loudness and its peak could not both be honoured and not clipping won, at -24 LUFS.
+ * The WAV comes in at 12.6 dB of crest, which is the ratio the brief described, and
+ * the two targets stop fighting.
  */
-export const MUSIC_DB = -7;
+export const MUSIC_DB = -4;
 
 /** Below this, a gain is just zero - and an exponential approach to zero never arrives. */
 const SILENCE_DB = -60;
