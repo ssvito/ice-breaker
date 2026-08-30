@@ -260,6 +260,15 @@ canvas {
   touch-action: manipulation;
 }
 
+.panel-call-head {
+  /* Green rather than the run buttons' dim: pause and speed are toggles that describe
+     the run, and this one acts on it. Same colour the spawn port lights up in, because
+     it is the same decision reached from the other end of the screen. */
+  color: var(--term);
+  text-shadow: var(--term-glow);
+  letter-spacing: -1px;
+}
+
 .panel-run.armed {
   color: #ffe27d;
   text-shadow: 0 0 6px rgba(255, 226, 125, 0.45);

@@ -283,6 +283,11 @@ export function drawSpawnPort(
   }
 
   if (armed && Math.floor(timeMs / CALL_BLINK_MS) % 2 === 0) {
+    // Replaces the port rather than decorating it: `spawnPortCall` is opaque wherever
+    // `spawnPort` is, so the armed frame covers the prerendered port completely and the
+    // blink alternates between two whole readings of the same object instead of making
+    // a small symbol flash on top of one. `tests/sprites.test.ts` gates the covering.
+    //
     // Always screen-right, never downstream. The first cut pointed the chevrons along
     // the trace and let the viewport rotation carry them, which is correct as a compass
     // and wrong as a button: `>>` is read as "go", a direction the player knows from
@@ -290,7 +295,7 @@ export function drawSpawnPort(
     // the phone is upright is a symbol asking to be re-parsed. The board's rotation maps
     // world +y to screen +x, so a quarter turn here cancels it exactly - and it is a
     // quarter turn, so the pixels stay on their integer grid.
-    drawSprite(ctx, 'spawnArrows', 0, cx, cy, rotated ? Math.PI / 2 : 0);
+    drawSprite(ctx, 'spawnPortCall', 0, cx, cy, rotated ? Math.PI / 2 : 0);
   }
 }
 

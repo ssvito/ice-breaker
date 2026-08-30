@@ -125,6 +125,27 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   speedButton.addEventListener('click', () => handlers.onToggleSpeed());
   head.appendChild(speedButton);
 
+  /**
+   * The call, in the header, and only while the console is collapsed. Collapsed is the
+   * state the run is actually played in - the board is what you are watching - and in it
+   * the `CALL +8` row is behind a tap that opens a panel over the board you would be
+   * calling the wave onto. This is the same reason pause and speed live up here.
+   *
+   * No confirm, unlike the spawn port's two taps. The rule that separates them is where
+   * they are: a button in the chrome is a thing you went to press, and a tile on the
+   * board is a thing your finger was already over. It shows no bonus for the same reason
+   * the port shows none - there is one surface where that number fits, and expanding the
+   * console is how you get to it.
+   */
+  const callHeadButton = document.createElement('button');
+  callHeadButton.type = 'button';
+  callHeadButton.className = 'panel-run panel-call-head';
+  callHeadButton.textContent = '>>';
+  callHeadButton.setAttribute('aria-label', 'Call the next wave');
+  callHeadButton.hidden = true;
+  callHeadButton.addEventListener('click', () => handlers.onCallWave());
+  head.appendChild(callHeadButton);
+
   root.appendChild(head);
 
   const body = document.createElement('div');
@@ -159,9 +180,16 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   // the selection moved can't operate on a stale tower.
   let current: Tower | null = null;
   let collapsed = false;
+  /** Last reading's answer to "is there a wave to call", so collapsing can re-ask it. */
+  let callable = false;
+
+  function syncHeadCall(): void {
+    callHeadButton.hidden = !collapsed || !callable;
+  }
 
   function applyCollapsed(): void {
     body.hidden = collapsed;
+    syncHeadCall();
     caret.textContent = collapsed ? '[+]' : '[-]';
     collapseButton.setAttribute('aria-expanded', String(!collapsed));
   }
@@ -370,6 +398,12 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     update(target: PanelTarget, buildKind: TowerKind | null, cycles: number, preview: WavePreview | null): void {
       const tower = target?.kind === 'tower' ? target.tower : null;
       current = tower;
+
+      // Outside the stamp on purpose: the stamp exists to keep an unchanged panel from
+      // redrawing, and the header's call button is not part of the panel it guards - it
+      // has to keep up with the countdown ending whatever the body happens to be showing.
+      callable = preview?.callable === true;
+      syncHeadCall();
 
       // Cycles enter the stamp as a yes/no against the price, not as a number: all
       // a balance decides is whether one thing is affordable, so every balance on

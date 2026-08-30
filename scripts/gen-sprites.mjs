@@ -362,24 +362,34 @@ function rootkit(frame) {
 }
 
 /**
- * The call affordance, drawn over the spawn port rather than into it. Two chevrons and
- * nothing else: the port underneath is already on screen from the prerendered board, so
- * this only ever **adds** pixels - which is the constraint that lets the animated half
- * of the port live in the dynamic layer while the static half stays prerendered.
- * White over the port's green, with a one-pixel black shadow so it reads over the rings.
+ * The spawn port with the call armed. **Replaces the port rather than sitting on it**:
+ * the two outer rings stay so it is still recognisably the same object in the same
+ * place, and everything inside them becomes the arrow. A `>>` laid over the rings was
+ * legible and quiet, and this is the state that has something to say.
+ *
+ * Palette is the port's own - the bright end of the same green, on the dark ring the
+ * rings already use - so the armed port reads as the port lighting up rather than as a
+ * different sprite arriving on top of it.
+ *
+ * It must be opaque everywhere `spawnPort` is opaque, because the plain port is painted
+ * into the prerendered board and this is drawn over it: a transparent pixel here is the
+ * old port showing through the new one. `tests/enemy.test.ts` gates exactly that.
  */
-function spawnArrows() {
-  const g = grid(13, 9);
-  const chevron = (x0, c, dx) => {
-    for (let i = 0; i < 5; i++) {
-      // Vertex on the right. Authored pointing +x like everything else, but unlike the
-      // enemies this one is drawn screen-locked: `>>` means "go", not "that way".
-      px(g, x0 + 4 - i + dx, 4 - i, c);
-      px(g, x0 + 4 - i + dx, 4 + i, c);
+function spawnPortCall() {
+  const g = grid(24, 24);
+  const inner = concentricSquares(20, 20, ['k', 'e', 'g', 'G']);
+  for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) g[y + 2][x + 2] = inner[y][x];
+  fillRect(g, 4, 4, 19, 19, 'k'); // hollow out everything inside the two outer rings
+
+  // Two chevrons, each 7 wide and 2 thick, filling the hollow.
+  for (const x0 of [5, 12]) {
+    for (let i = 0; i < 7; i++) {
+      for (const t of [0, 1]) {
+        px(g, x0 + 6 - i + t, 11 - i, 'G');
+        px(g, x0 + 6 - i + t, 12 + i, 'G');
+      }
     }
-  };
-  for (const x0 of [0, 7]) chevron(x0, 'k', 1);
-  for (const x0 of [0, 7]) chevron(x0, 'W', 0);
+  }
   return toStrings(g);
 }
 
@@ -402,7 +412,7 @@ const SPRITES = {
   projectile: { w: 3, h: 3, frames: [projectile()] },
   projectileAes: { w: 5, h: 5, frames: [projectileAes()] },
   spawnPort: { w: 24, h: 24, frames: [spawnPort()] },
-  spawnArrows: { w: 13, h: 9, frames: [spawnArrows()] },
+  spawnPortCall: { w: 24, h: 24, frames: [spawnPortCall()] },
   core: { w: 48, h: 48, frames: [core()] },
 };
 
