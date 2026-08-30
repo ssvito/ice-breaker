@@ -1,11 +1,50 @@
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/**
+ * What build this is, stamped in at compile time so a player can read it back. A bug
+ * reported from a phone is a bug nobody can place without one - "it broke" and "it broke
+ * on 0ea9a9a" are different reports, and only the second one can be chased through a
+ * repo. The short SHA rather than a semver: `package.json` says 0.0.0 and has never said
+ * anything else, while the commit is the thing the log and the roadmap are indexed by.
+ *
+ * Falls back rather than failing. A build from a tarball with no git history is a real
+ * situation and it should produce a game, not a broken build step.
+ */
+function gitVersion(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 export default defineConfig({
   base: '/ice-breaker/',
+  define: {
+    __APP_VERSION__: JSON.stringify(gitVersion()),
+    __APP_BUILT__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+  },
   plugins: [
     VitePWA({
-      registerType: 'autoUpdate',
+      /*
+       * `prompt`, not `autoUpdate`, and the reason is correctness before it is manners.
+       * Under `autoUpdate` the generated worker calls `skipWaiting` and `clientsClaim`,
+       * so a new deploy takes over a page that is *already running the old build* and
+       * `cleanupOutdatedCaches` deletes the precache underneath it. Today the app is one
+       * bundle and that is survivable; the day anything is imported dynamically it is a
+       * 404 in the middle of a run. Under `prompt` the new worker waits, and the page
+       * keeps the exact build it started with until somebody says otherwise.
+       *
+       * The other half of what `autoUpdate` was not doing: the injected registration
+       * script only ever registered. Nothing reloaded, and nothing re-checked, so an
+       * installed app that is resumed rather than relaunched could sit on a stale build
+       * indefinitely. `src/update.ts` owns registration now - hence `injectRegister:
+       * null` - and re-checks when the app comes back to the foreground.
+       */
+      registerType: 'prompt',
+      injectRegister: null,
       workbox: {
         /*
          * The soundtrack is the one asset the service worker has to be told about by

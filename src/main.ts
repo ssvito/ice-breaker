@@ -38,6 +38,7 @@ import { createAudio } from './audio.ts';
 import { createHud } from './hud.ts';
 import { startMusic } from './music.ts';
 import { createTopTools } from './top-tools.ts';
+import { watchForUpdates } from './update.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 
@@ -301,7 +302,7 @@ function startGame(): void {
 
   // Right-anchored in the same band as the status glyphs. After the desk, because the
   // sound button reads it.
-  createTopTools(document.body, audio);
+  let aboutOpen = false;
 
   function placeHud(): void {
     const rect = boardRect(viewport);
@@ -325,9 +326,24 @@ function startGame(): void {
       onCallWave: () => {
         callWaveEarly(state);
       },
+      onReload: () => updates.apply(),
     },
     document.body,
   );
+
+  /**
+   * Registration and the update check, and the console is where the answer surfaces.
+   * `syncAbout` is called from three places - the toggle, the reload readiness callback,
+   * and here to set the opening state - because the reading is a pair and either half
+   * can move without the other.
+   */
+  const syncAbout = (): void => panel.setAbout(aboutOpen, updates.isReady());
+  const updates = watchForUpdates(syncAbout);
+
+  createTopTools(document.body, audio, (open) => {
+    aboutOpen = open;
+    syncAbout();
+  });
 
   /**
    * The console's turn at parking against the board instead of the window, and the

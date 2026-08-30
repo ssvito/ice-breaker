@@ -49,13 +49,17 @@ The honest reading is that login is the only item on this page that is a differe
 
 ## The update prompt, which is what started this
 
-Today `registerType: 'autoUpdate'` ships a service worker that calls `skipWaiting` and `clientsClaim`, while the injected registration script does nothing but register. So the new worker takes over the running page in silence and the running page keeps executing the old build - the player sees the new version at the next cold start, and an installed app that is resumed rather than relaunched may not get one for weeks. `cleanupOutdatedCaches` also deletes the previous precache under a page that is still running, which is harmless while the app is a single bundle and is a 404 mid-run the day anything is dynamically imported.
+**Two thirds of this shipped on 2026-08-30**, ahead of the shell and deliberately: the first two parts are a correctness fix that does not need a screen, and only the third one does. What follows is the diagnosis as written, with what landed marked.
+
+As found, `registerType: 'autoUpdate'` ships a service worker that calls `skipWaiting` and `clientsClaim`, while the injected registration script does nothing but register. So the new worker takes over the running page in silence and the running page keeps executing the old build - the player sees the new version at the next cold start, and an installed app that is resumed rather than relaunched may not get one for weeks. `cleanupOutdatedCaches` also deletes the previous precache under a page that is still running, which is harmless while the app is a single bundle and is a 404 mid-run the day anything is dynamically imported.
 
 The fix has three parts and the shell is where the third one lands:
 
-- **`registerType: 'prompt'`**, and own the registration in `main.ts`. The new worker waits, and the running page keeps the exact build it started with. This is a correctness fix, not a UX one.
-- **Check on resume**, not only on load: `registration.update()` on `visibilitychange`, with a slow interval behind it. An installed PWA is resumed far more often than it is launched.
-- **Apply at a seam.** Reloading before a run costs nothing; reloading during one destroys it. With overlapping waves there is barely a "between waves" left, so the seams are the shell and the end of a run.
+- **Done - `registerType: 'prompt'`**, with registration owned by `src/update.ts`. The new worker waits, and the running page keeps the exact build it started with. A correctness fix, not a UX one.
+- **Done - check on resume**, not only on load: `registration.update()` on `visibilitychange`, with a half-hour interval behind it as the backstop. An installed PWA is resumed far more often than it is launched.
+- **Waiting on this note - apply at a seam.** Reloading before a run costs nothing; reloading during one destroys it. With overlapping waves there is barely a "between waves" left, so the seams are the shell and the end of a run. What shipped instead is a `RELOAD` offered in the console's ABOUT reading and never taken on the player's behalf, plus the thing that makes that enough for most people: **a waiting worker activates on its own once the last client closes**, so an app that is genuinely restarted updates without anybody pressing anything. The button is for the installed app that is resumed for weeks and never restarted, which is the case that had no answer at all.
+
+**ABOUT shipped with it**, in the gear column and rendered as a fifth console mode rather than a new box - the console already owns collapse, anchoring and dot leaders, and a second panel would rebuild all of it to say three lines. It reads the build's short git SHA, the build date and the update state. The SHA rather than a semver because `package.json` has said 0.0.0 since the first commit while the commit is what the log and the roadmap are indexed by. When the shell exists, ABOUT is one of the things that moves into it - along with the soundtrack credit, which still has nowhere to be.
 
 ## Not decided
 

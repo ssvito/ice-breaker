@@ -1,3 +1,4 @@
+import { APP_BUILT, APP_VERSION } from './version.ts';
 import { canUpgrade, MAX_TIER, revealingTowerKinds, sellValue, towerStats, upgradeCost } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
 import { enemyStats, enemyTraits } from './enemy.ts';
@@ -55,6 +56,13 @@ export interface TowerPanel {
   element: HTMLElement;
   update(target: PanelTarget, buildKind: TowerKind | null, cycles: number, preview: WavePreview | null): void;
   setRun(paused: boolean, speed: number): void;
+  /**
+   * Open the ABOUT reading, and tell it whether a newer build is waiting. A fifth mode
+   * rather than a fifth box: the console is already the surface this game reads things
+   * out on, and a second panel would be a second set of everything - collapse, anchoring,
+   * dot leaders - to say three lines.
+   */
+  setAbout(open: boolean, updateReady: boolean): void;
   setCollapsed(value: boolean): void;
   hide(): void;
 }
@@ -66,6 +74,8 @@ export interface TowerPanelHandlers {
   onTogglePause(): void;
   onToggleSpeed(): void;
   onCallWave(): void;
+  /** Let the waiting service worker through and reload onto it. Costs the current run. */
+  onReload(): void;
 }
 
 // Four for a tower in build mode (damage, range, rate, placement); five because a
@@ -225,6 +235,14 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   callButton.addEventListener('click', () => handlers.onCallWave());
   actions.appendChild(callButton);
 
+  // Only ever visible in the ABOUT reading, and only while a build is actually waiting.
+  const reloadButton = document.createElement('button');
+  reloadButton.type = 'button';
+  reloadButton.innerHTML = '<span>RELOAD</span><span></span>';
+  reloadButton.hidden = true;
+  reloadButton.addEventListener('click', () => handlers.onReload());
+  actions.appendChild(reloadButton);
+
   const sellButton = document.createElement('button');
   sellButton.type = 'button';
   sellButton.innerHTML = '<span>SELL</span><span></span>';
@@ -381,6 +399,39 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     clearStatsFrom(row);
   }
 
+  /**
+   * What the game is, rather than what is happening in it - and the only reading here
+   * that is not about the board. It carries the build, because a bug reported from a
+   * phone that cannot name a commit is a bug nobody can chase, and it carries the update
+   * state, because with `registerType: 'prompt'` a downloaded build waits rather than
+   * seizing the page.
+   *
+   * **The reload is offered and never taken.** Reloading costs the run in progress, and
+   * with overlapping waves there is no longer a gap between waves to slip one into. A
+   * player who never presses it still gets the new build the next time the app is fully
+   * closed and reopened, because a waiting worker activates once the last client is
+   * gone - so the button is for the installed app that is resumed for weeks and never
+   * restarted, which is the case that had no answer at all before.
+   */
+  function renderAbout(updateReady: boolean): void {
+    title.textContent = 'ICE BREAKER';
+    meta.textContent = updateReady ? 'UPDATE READY' : APP_VERSION;
+    meta.classList.remove('panel-short');
+
+    actions.hidden = !updateReady;
+    reloadButton.hidden = !updateReady;
+    upgradeButton.hidden = true;
+    overclockButton.hidden = true;
+    sellButton.hidden = true;
+    callButton.hidden = true;
+
+    let row = 0;
+    setStat(row++, 'VERSION', APP_VERSION);
+    setStat(row++, 'BUILT', APP_BUILT);
+    setStat(row++, 'UPDATE', updateReady ? 'READY' : 'UP TO DATE');
+    clearStatsFrom(row);
+  }
+
   // Same argument as the stats signature below, on the two values that change least
   // often in the whole console.
   let runStamp = '';
@@ -389,6 +440,9 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
   // from these few values, so a signature check keeps a still panel from churning
   // a dozen text nodes 60 times a second on the low-end phones the renderer worries about.
   let signature = '';
+
+  let aboutOpen = false;
+  let aboutUpdateReady = false;
 
   /** Off. The signature is cleared so whatever comes back redraws from scratch. */
   function hidePanel(): void {
@@ -413,7 +467,11 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       // a balance decides is whether one thing is affordable, so every balance on
       // the same side of that price is the same panel and shouldn't redraw it.
       let stamp: string;
-      if (target?.kind === 'tower') {
+      // First, and above the selection on purpose: ABOUT is a thing the player went and
+      // opened, so it outranks whatever the board happened to have selected underneath.
+      if (aboutOpen) {
+        stamp = ['about', aboutUpdateReady ? 1 : 0].join('|');
+      } else if (target?.kind === 'tower') {
         const cost = upgradeCost(target.tower);
         stamp = [
           'tower',
@@ -446,7 +504,12 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       signature = stamp;
 
       root.hidden = false;
-      if (target?.kind === 'tower') renderSelected(target.tower, cycles);
+      // Cleared here rather than in each of the four renderers that never show it: only
+      // ABOUT ever turns it back on, so one line before the dispatch cannot be forgotten
+      // by whoever writes the fifth reading.
+      reloadButton.hidden = true;
+      if (aboutOpen) renderAbout(aboutUpdateReady);
+      else if (target?.kind === 'tower') renderSelected(target.tower, cycles);
       else if (target?.kind === 'enemy') renderEnemy(target.enemy);
       else if (preview) renderWave(preview);
       else if (buildKind) renderBuild(buildKind, cycles);
@@ -458,6 +521,15 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
      * "2x" is a reading and its alternative has no glyph. Both light amber when
      * they are the reason the run isn't behaving normally.
      */
+    setAbout(open: boolean, updateReady: boolean): void {
+      if (open === aboutOpen && updateReady === aboutUpdateReady) return;
+      aboutOpen = open;
+      aboutUpdateReady = updateReady;
+      // The stamp guards a still panel from redrawing, and the mode changing underneath
+      // it is exactly the case it cannot see: clearing it forces the next update through.
+      signature = '';
+    },
+
     setRun(paused: boolean, speed: number): void {
       const stamp = `${paused}|${speed}`;
       if (stamp === runStamp) return;

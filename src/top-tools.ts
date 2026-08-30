@@ -127,7 +127,14 @@ const GEAR_ROWS = [
 ];
 
 /** Adds whichever of the three this platform supports. Adds nothing if none. */
-export function createTopTools(host: HTMLElement, audio: AudioSystem | null): void {
+/**
+ * `onAbout` is the ABOUT reading's toggle. It lives in this column and not in the
+ * console's own header for the same reason the other three do: it is about the session
+ * rather than about the run, and the console's header could not hold another 44px
+ * target. It is also the only control here that is not a setting, which is why it speaks
+ * the drawer vocabulary - it opens a thing rather than turning one on.
+ */
+export function createTopTools(host: HTMLElement, audio: AudioSystem | null, onAbout: (open: boolean) => void): void {
   const canFullscreen = typeof document.documentElement.requestFullscreen === 'function';
   // The lock's API check is not enough on its own: desktop Chrome defines lock()
   // and rejects every call, so a button gated on the method alone would render on
@@ -135,7 +142,8 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null): vo
   // of the question - this control is for a phone turning in a hand.
   const canLock =
     typeof screen.orientation?.lock === 'function' && window.matchMedia('(pointer: coarse)').matches;
-  if (!canFullscreen && !canLock && !audio) return;
+  // No early return any more: ABOUT renders on every device, so the column is never
+  // empty. It was guarding against a gear that opened onto nothing, and that case is gone.
 
   const root = document.createElement('div');
   root.className = 'top-tools';
@@ -212,6 +220,14 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null): vo
     });
     lock.setState(false);
   }
+
+  let aboutOpen = false;
+  const about = makeButton('ABOUT', 'About this build', 'drawer', drawer, () => {
+    aboutOpen = !aboutOpen;
+    about.setState(aboutOpen);
+    onAbout(aboutOpen);
+  });
+  about.setState(false);
 
   if (audio) addSound(drawer, audio);
 
