@@ -1,7 +1,7 @@
 import { buildableTileSet, pathLength, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos, LevelData } from './map.ts';
 import { createEnemy, damageTaken, enemyTraits, isHidden, isImmuneTo, stepEnemy } from './enemy.ts';
-import type { Enemy, EnemyKind } from './enemy.ts';
+import type { Enemy, EnemyKind, WaveScale } from './enemy.ts';
 import {
   applyUpgrade,
   canFire,
@@ -69,6 +69,17 @@ export interface GameState {
   coreHealth: number;
   cycles: number;
   status: GameStatus;
+  /**
+   * A run-wide multiplier over every wave's own `hpScale`. 1 in the game and never
+   * touched there; the harness moves it to ask *how much harder* a curve would have to
+   * be before a board breaks, which is the question "won or lost" cannot answer.
+   *
+   * It is state on the run rather than an argument to the spawner because there is no
+   * curve to inject: `stepSpawner` and `waveScale` read the module-level `waves` and
+   * always will, since the curve is the game's content and not a parameter of it. So the
+   * scalar rides the one thing a caller does own - the state it created.
+   */
+  readonly hpScale: number;
 }
 
 /**
@@ -86,7 +97,15 @@ function tileKey(tile: GridPos): string {
   return `${tile.x},${tile.y}`;
 }
 
-export function createGameState(level: LevelData): GameState {
+/**
+ * `hpScale` is the run-wide toughness scalar, and the only reason `createGameState`
+ * takes options at all. Defaulted so every caller in the game reads exactly as it did.
+ */
+export interface GameOptions {
+  hpScale?: number;
+}
+
+export function createGameState(level: LevelData, options: GameOptions = {}): GameState {
   const waypoints = level.waypoints;
   return {
     level,
@@ -106,6 +125,7 @@ export function createGameState(level: LevelData): GameState {
     coreHealth: MAX_CORE_HEALTH,
     cycles: STARTING_CYCLES,
     status: 'playing',
+    hpScale: options.hpScale ?? 1,
   };
 }
 
@@ -205,6 +225,17 @@ export function findTarget(state: GameState, tower: Tower): Enemy | null {
 }
 
 /**
+ * The wave's own scaling, times whatever the run was created with. Returns the wave's
+ * record untouched at the default of 1, so the game allocates nothing per spawn and the
+ * scalar costs the simulation a comparison it was already making.
+ */
+function runScale(state: GameState): WaveScale {
+  const scale = waveScale(state.spawner);
+  if (state.hpScale === 1) return scale;
+  return { hp: scale.hp * state.hpScale, speed: scale.speed };
+}
+
+/**
  * One fixed simulation tick. `dtMs` is always the loop's TICK_MS - speed changes the
  * number of ticks per frame, never the size of one, so a run produces the same
  * numbers whether it is watched at 1x, at 2x, or not watched at all.
@@ -218,7 +249,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
   if (spawnKinds.length > 0) {
     // Read after stepping, never before: the tick a wave opens is a tick that both
     // advances the wave index and spawns, and the enemies belong to the new wave.
-    const scale = waveScale(state.spawner);
+    const scale = runScale(state);
     for (const kind of spawnKinds) state.enemies.push(createEnemy(kind, scale));
   }
 

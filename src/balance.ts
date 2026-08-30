@@ -107,6 +107,8 @@ export interface BalanceOptions {
   level?: LevelData;
   /** Safety net for a layout that can neither clear a wave nor lose - default 20 simulated minutes. */
   maxTicks?: number;
+  /** Run-wide multiplier over every wave's own `hpScale`. 1 is the shipped curve. */
+  hpScale?: number;
 }
 
 /** A build plus the tower it became, once it exists. */
@@ -173,9 +175,9 @@ export function buildCost(build: Build): number {
 }
 
 export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunReport {
-  const { level = level1, maxTicks = 60 * 60 * 20 } = options;
+  const { level = level1, maxTicks = 60 * 60 * 20, hpScale = 1 } = options;
 
-  const state = createGameState(level);
+  const state = createGameState(level, { hpScale });
   const pending: PendingBuild[] = loadout.builds.map((build) => ({
     build,
     targetTier: Math.min(build.tier ?? 1, MAX_TIER),
@@ -259,6 +261,128 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
       .filter((entry) => entry.tower === null || entry.tower.tier < entry.targetTier)
       .map((entry) => entry.build),
   };
+}
+
+/**
+ * The search range for the margin bisect, as a multiplier over the shipped curve. The
+ * floor is not zero because the curve stops getting easier below it - `createEnemy`
+ * floors every enemy at 1 HP, so somewhere under a quarter scale most of the roster is
+ * already a one-shot and the reading would be measuring the floor rather than the board.
+ */
+export const MARGIN_MIN = 0.25;
+export const MARGIN_MAX = 8;
+
+/** Nine halvings of a five-octave range: the answer is good to under a percent. */
+const MARGIN_STEPS = 9;
+
+export interface MarginReport {
+  loadout: string;
+  note: string;
+  /** The verdict at 1x, so a margin has something to be a margin *from*. */
+  status: RunReport['status'];
+  coreHealth: number;
+  /**
+   * Multiplier at which this layout takes its first leak, and the one at which it loses
+   * the core. `null` means it survives the whole search range - a board the curve cannot
+   * threaten inside 8x. A value equal to `MARGIN_MIN` means the opposite: it already
+   * breaks at the floor, and the true number is somewhere below where measuring stops.
+   */
+  firstLeak: number | null;
+  loss: number | null;
+  /**
+   * **Which wave broke, at each of those multipliers**, and the half of the reading the
+   * first draft of this instrument did not print. A run-wide multiplier scales the whole
+   * curve, so the threshold it finds is the *weakest link* in the run - and without a
+   * wave number beside it there is no way to tell a board that dies to the finale from
+   * one that dies in the opening, which are opposite problems reported as one number.
+   * The first reading off this instrument was exactly that case, and it would have been
+   * misread as a statement about the late curve.
+   */
+  firstLeakWave: number | null;
+  lossWave: number | null;
+}
+
+/**
+ * Smallest multiplier in the range at which `breaks` is true, by bisection **in log
+ * space** - the answer is a multiplier, so a percent matters equally at 0.5x and at 4x,
+ * and a linear bisect would spend most of its steps resolving the top octave nobody
+ * reads.
+ *
+ * The bisect assumes `breaks` is monotone in the multiplier, which is a real assumption
+ * and not a certainty: this is a deterministic simulation with targeting in it, so a
+ * tougher enemy occasionally changes *which* enemy a tower shoots and a board can, in
+ * principle, do better against a harder curve. It is the right assumption anyway - the
+ * alternative is a linear sweep at a hundred times the cost to catch a case that would
+ * be a finding in itself - and the way it would show up is a margin that moves the wrong
+ * way when the curve is softened, which is worth watching for rather than guarding.
+ */
+function bisect(breaks: (multiplier: number) => boolean, lo: number, hi: number): number | null {
+  if (!breaks(hi)) return null;
+  if (breaks(lo)) return lo;
+
+  let low = Math.log2(lo);
+  let high = Math.log2(hi);
+  for (let step = 0; step < MARGIN_STEPS; step++) {
+    const mid = (low + high) / 2;
+    if (breaks(2 ** mid)) high = mid;
+    else low = mid;
+  }
+  return 2 ** high;
+}
+
+/**
+ * How much harder the curve would have to be before this layout bleeds, and before it
+ * dies. The reading the harness could not give: `runBalance` reports won or lost, and a
+ * curve that every good board survives and every bad board loses to reports exactly the
+ * same table whether the good boards are surviving by a hair or by a mile. That is the
+ * complaint the players made and the instrument could not express.
+ *
+ * Two numbers rather than one because they say different things. The first leak is where
+ * a run stops being clean, which is where a player *feels* the curve; the loss is where
+ * it stops being winnable. The gap between them is how much room a run has to be played
+ * badly, and a curve where they are the same number is a curve with no forgiveness in it.
+ *
+ * Every number here is **conservative by however much Overclock is worth**, and that is
+ * not a small caveat in exactly the moments it matters: `triggerOverclock` is called from
+ * `main.ts` and from nowhere else, so no row the harness prints has ever used the ability
+ * a player leans on when a wave is going wrong. Cut from this step deliberately; the
+ * consequence is that a real board's margin is wider than the one printed here, by an
+ * unknown amount that is largest where the curve is hardest.
+ */
+export function runMargin(loadout: Loadout, options: BalanceOptions = {}): MarginReport {
+  const baseline = runBalance(loadout, options);
+  const at = (hpScale: number) => runBalance(loadout, { ...options, hpScale });
+
+  const firstLeak = bisect((m) => at(m).totalLeaks > 0, MARGIN_MIN, MARGIN_MAX);
+  // Losing is leaking five times, so the loss threshold cannot be below the leak one.
+  // Starting the second search there is free and keeps the two answers consistent.
+  const loss = bisect((m) => at(m).status === 'lost', firstLeak ?? MARGIN_MIN, MARGIN_MAX);
+
+  return {
+    loadout: loadout.name,
+    note: loadout.note,
+    status: baseline.status,
+    coreHealth: baseline.coreHealth,
+    firstLeak,
+    loss,
+    firstLeakWave: firstLeak === null ? null : bledOn(at(firstLeak)),
+    lossWave: loss === null ? null : diedOn(at(loss)),
+  };
+}
+
+/** First wave that leaked - at the first-leak threshold, the wave that drew blood. */
+function bledOn(report: RunReport): number | null {
+  return report.waves.find((wave) => wave.leaks > 0)?.wave ?? null;
+}
+
+/**
+ * The wave the run ended on, which at the loss threshold is the wave that took the last
+ * core HP. Deliberately not the first wave that leaked: a board that starts bleeding at
+ * 10 and dies at 15 is being killed by the finale, and reporting 10 for both columns
+ * would hide the run's whole second half behind its first mistake.
+ */
+function diedOn(report: RunReport): number | null {
+  return report.waves[report.waves.length - 1]?.wave ?? null;
 }
 
 /**

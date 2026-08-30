@@ -75,6 +75,19 @@ export interface WaveDefinition {
  * teach the rule and not the curve. Act one's are not, and the two that scale say why
  * where they stand.
  *
+ * **Act two's scale numbers are the retune, and they were picked against an instrument
+ * rather than against a feeling.** `runMargin` in `balance.ts` bisects a run-wide HP
+ * multiplier and reports two things per layout: how much harder the curve would have to
+ * be before a board bleeds, and before it dies - and, since the reading is useless
+ * without it, **which wave broke**. The first pass at this curve read "the best board
+ * loses at 1.17x", which sounds like a curve with no headroom and was nothing of the
+ * kind: it died at *wave 2*, because a run-wide multiplier finds the weakest link and
+ * the weakest link was the opening, where the board is whatever 100 Cycles buys and a
+ * 3 HP Worm rounds straight to 4. Act two was scaled up until the run is decided in act
+ * two, which is the whole target: at the shipped 1x the best declared line wins at 2/5
+ * having bled at 10 and at 14, it starts bleeding at 0.65x, and it dies at 1.14x on the
+ * finale. `tests/balance.test.ts` gates the band, not the numbers.
+ *
  * **Act two is small and hard rather than big and hard, and the economy is why.** Payout
  * is sized against the tier ladder - topping out some towers is reachable, topping out
  * all four is not - and the ladder did not get longer when the run did. Counts are also
@@ -137,8 +150,8 @@ export const waves: WaveDefinition[] = [
   // 10 - and the same question with the board busy. The sniffers are what the slows are
   // for; the Beacons walk through them at a speed no aura on the map can touch.
   {
-    hpScale: 2,
-    speedScale: 1.1,
+    hpScale: 2.5,
+    speedScale: 1.2,
     groups: [
       { enemyKind: 'beacon', count: 4, spawnIntervalMs: 1000 },
       { enemyKind: 'packetSniffer', count: 8, spawnIntervalMs: 300, startMs: 800 },
@@ -152,8 +165,8 @@ export const waves: WaveDefinition[] = [
   // 12 - armor with a stream around it. Worms are cheap to kill and expensive to
   // ignore, which is what stops the whole board being pointed at the Packers.
   {
-    hpScale: 1.5,
-    speedScale: 1.2,
+    hpScale: 2.25,
+    speedScale: 1.3,
     groups: [
       { enemyKind: 'packer', count: 3, spawnIntervalMs: 1400 },
       { enemyKind: 'worm', count: 6, spawnIntervalMs: 550, startMs: 800 },
@@ -168,8 +181,8 @@ export const waves: WaveDefinition[] = [
   // questions at once, at the fastest the curve ever runs. Rootkits need the Scanner,
   // Beacons ignore it, and the sniffers arrive while both are still walking.
   {
-    hpScale: 2,
-    speedScale: 1.3,
+    hpScale: 2.75,
+    speedScale: 1.35,
     groups: [
       { enemyKind: 'rootkit', count: 4, spawnIntervalMs: 1000 },
       { enemyKind: 'beacon', count: 3, spawnIntervalMs: 1200, startMs: 800 },
@@ -181,8 +194,8 @@ export const waves: WaveDefinition[] = [
   // one weapon meets the wave that ignores it, escorted by the two kinds that punish
   // the other two answers. The scale is what makes the boss a 100 HP boss.
   {
-    hpScale: 2.5,
-    speedScale: 1.15,
+    hpScale: 3.25,
+    speedScale: 1.2,
     groups: [
       { enemyKind: 'zeroDay', count: 1, spawnIntervalMs: 0 },
       { enemyKind: 'packer', count: 2, spawnIntervalMs: 2000, startMs: 1500 },

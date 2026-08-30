@@ -1,5 +1,5 @@
-import { findLoadout, loadoutCost, loadouts, runBalance } from '../src/balance.ts';
-import type { RunReport } from '../src/balance.ts';
+import { findLoadout, loadoutCost, loadouts, MARGIN_MAX, MARGIN_MIN, runBalance, runMargin } from '../src/balance.ts';
+import type { MarginReport, RunReport } from '../src/balance.ts';
 import { MAX_CORE_HEALTH, STARTING_CYCLES } from '../src/game.ts';
 import { waves } from '../src/wave.ts';
 
@@ -11,16 +11,19 @@ import { waves } from '../src/wave.ts';
  *
  *   npm run balance                # every declared loadout
  *   npm run balance -- focused     # one of them
+ *   npm run balance -- --margin    # how much harder the curve would have to be
  *   npm run balance -- --json      # the same reports as JSON
  */
 
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
+const asMargin = args.includes('--margin');
 const names = args.filter((arg) => !arg.startsWith('--'));
 
 if (args.includes('--help')) {
-  console.log('usage: npm run balance -- [loadout...] [--json]');
+  console.log('usage: npm run balance -- [loadout...] [--margin] [--json]');
   console.log(`loadouts: ${loadouts.map((loadout) => loadout.name).join(', ')}`);
+  console.log('--margin: bisect the run-wide HP multiplier for the first leak and the loss');
   process.exit(0);
 }
 
@@ -90,15 +93,43 @@ function printSummary(all: RunReport[]): void {
   }
 }
 
-const reports = selected.map((loadout) => runBalance(loadout));
+/** A margin, as a multiplier - or which end of the search range it fell off. */
+function margin(value: number | null): string {
+  if (value === null) return `>${MARGIN_MAX.toFixed(2)}`;
+  if (value === MARGIN_MIN) return `<${MARGIN_MIN.toFixed(2)}`;
+  return `${value.toFixed(2)}x`;
+}
 
-if (asJson) {
-  console.log(JSON.stringify(reports, null, 2));
+function printMargins(all: MarginReport[]): void {
+  console.log('');
+  console.log(`  ${waves.length} waves, run-wide HP multiplier bisected over ${MARGIN_MIN}x to ${MARGIN_MAX}x`);
+  console.log('  LOADOUT   AT 1x                FIRST LEAK  ON WAVE   LOSES AT  ON WAVE');
+  for (const report of all) {
+    console.log(
+      `  ${report.loadout.padEnd(9)} ${(OUTCOME[report.status] + ` ${report.coreHealth}/${MAX_CORE_HEALTH}`).padEnd(20)} ` +
+        `${pad(margin(report.firstLeak), 10)}  ${pad(report.firstLeakWave ?? '-', 7)}   ` +
+        `${pad(margin(report.loss), 8)}  ${pad(report.lossWave ?? '-', 7)}`,
+    );
+  }
+  console.log('');
+  console.log('  Every row is a floor, not a measurement: the harness never fires Overclock.');
+}
+
+if (asMargin) {
+  const margins = selected.map((loadout) => runMargin(loadout));
+  if (asJson) console.log(JSON.stringify(margins, null, 2));
+  else printMargins(margins);
 } else {
-  reports.forEach((report, index) => {
-    if (index > 0) console.log('');
-    printReport(report);
-  });
-  // One report is its own summary; the table only earns its place as a comparison.
-  if (reports.length > 1) printSummary(reports);
+  const reports = selected.map((loadout) => runBalance(loadout));
+
+  if (asJson) {
+    console.log(JSON.stringify(reports, null, 2));
+  } else {
+    reports.forEach((report, index) => {
+      if (index > 0) console.log('');
+      printReport(report);
+    });
+    // One report is its own summary; the table only earns its place as a comparison.
+    if (reports.length > 1) printSummary(reports);
+  }
 }
