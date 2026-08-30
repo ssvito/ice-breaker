@@ -34,6 +34,10 @@ const TRAIT_ROWS: ((traits: EnemyTraits) => [label: string, value: string] | nul
     traits.splitsInto
       ? ['SPLITS', `${traits.splitsInto.length}x ${enemyStats(traits.splitsInto[0]).name}`]
       : null,
+  // Reads as what the enemy is rather than as what it resists, same as the trait
+  // itself: a player who has just watched their Scanner do nothing needs the word
+  // for the rule, not a list of the towers it beats.
+  (traits) => (traits.fixedMovement ? ['MOVEMENT', 'FIXED'] : null),
 ];
 
 export interface TowerPanel {

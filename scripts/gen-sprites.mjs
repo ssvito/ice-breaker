@@ -289,11 +289,41 @@ function core() {
   return toStrings(g);
 }
 
+/**
+ * BEACON - a transmitter that keeps its own clock. Its whole rule is that the slow
+ * auras do nothing to it, so the sprite says that: everything else in the roster is
+ * drawn as a body, and this one is drawn as a body plus a pulse that never breaks
+ * rhythm. Red, because every other kind is already green, cyan, amber or magenta and
+ * the one that ignores your Scanner should not be readable as a cousin of anything.
+ */
+function beacon(frame) {
+  const g = grid(14, 14);
+
+  // Arc first; the chassis paints over any overlap. Only the forward half survives -
+  // ring() is a full annulus and there is no clip primitive, so the tail is erased.
+  const r = frame === 0 ? 4 : 6;
+  ring(g, 7, 9, r, r - 1, frame === 0 ? 'R' : 'r');
+  for (let y = 0; y < 14; y++) for (let x = 0; x <= 8; x++) g[y][x] = T;
+
+  // Mast and lamp.
+  fillRect(g, 3, 0, 4, 5, 'k');
+  fillRect(g, 3, 2, 3, 4, 'r');
+  px(g, 3, 1, 'W');
+  px(g, 4, 1, 'R');
+
+  // Chassis.
+  roundRect(g, 0, 6, 8, 13, 'r', 'k');
+  fillRect(g, 1, 8, 7, 9, 'R');
+  fillRect(g, 1, 11, 7, 12, 's');
+  return toStrings(g);
+}
+
 // --- Assemble ----------------------------------------------------------------
 
 const SPRITES = {
   packetSniffer: { w: 10, h: 6, frames: [packetSniffer(0), packetSniffer(1)] },
   worm: { w: 16, h: 8, frames: [worm(0), worm(1)] },
+  beacon: { w: 14, h: 14, frames: [beacon(0), beacon(1)] },
   encryptor: { w: 12, h: 12, frames: [encryptor(0), encryptor(1)] },
   ransomware: { w: 20, h: 20, frames: [ransomware(0), ransomware(1)] },
   trojan: { w: 24, h: 24, frames: [trojan(0), trojan(1)] },

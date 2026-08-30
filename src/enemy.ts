@@ -1,6 +1,13 @@
 import type { TowerKind } from './tower.ts';
 
-export type EnemyKind = 'worm' | 'trojan' | 'packetSniffer' | 'ransomware' | 'encryptor' | 'zeroDay';
+export type EnemyKind =
+  | 'worm'
+  | 'trojan'
+  | 'packetSniffer'
+  | 'ransomware'
+  | 'encryptor'
+  | 'beacon'
+  | 'zeroDay';
 
 export interface Enemy {
   kind: EnemyKind;
@@ -42,12 +49,16 @@ const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
   packetSniffer: { name: 'PACKET SNIFFER', speed: 4, maxHp: 1, reward: 2, coreDamage: 1 },
   ransomware: { name: 'RANSOMWARE', speed: 1.5, maxHp: 4, reward: 5, coreDamage: 1 },
   encryptor: { name: 'ENCRYPTOR', speed: 2, maxHp: 2, reward: 2, coreDamage: 1 },
+  beacon: { name: 'BEACON', speed: 2.5, maxHp: 4, reward: 5, coreDamage: 1 },
   zeroDay: { name: 'ZERO-DAY', speed: 0.8, maxHp: 40, reward: 50, coreDamage: 3 },
 };
 
 export function enemyStats(kind: EnemyKind): EnemyStats {
   return ENEMY_STATS[kind];
 }
+
+/** Every kind there is, in declaration order. The roster, for anything that has to walk it. */
+export const ENEMY_KINDS = Object.keys(ENEMY_STATS) as EnemyKind[];
 
 /**
  * Everything a kind does beyond walking, dying and being worth Cycles. One optional
@@ -64,10 +75,17 @@ export interface EnemyTraits {
   immuneTo?: TowerKind;
   /** Spawns these at the same path position when a tower kills it. */
   splitsInto?: EnemyKind[];
+  /**
+   * Moves at its own speed and nothing changes it - the slow auras included. Stated
+   * as what it *is* rather than as a list of effects it resists, which is what lets
+   * `stepEnemy` enforce it in one place. See `stepEnemy` for why that matters.
+   */
+  fixedMovement?: true;
 }
 
 const TRAITS: Partial<Record<EnemyKind, EnemyTraits>> = {
   ransomware: { splitsInto: ['encryptor', 'encryptor'] },
+  beacon: { fixedMovement: true },
   zeroDay: { immuneTo: 'aesTurret' },
 };
 
@@ -96,9 +114,26 @@ export function createEnemy(kind: EnemyKind, hpScale = 1): Enemy {
   };
 }
 
-/** Advances the enemy (speedMultiplier < 1 applies an aura slow for this tick); returns true if it reached the end of the path. */
+/**
+ * Advances the enemy (speedMultiplier < 1 applies an aura slow for this tick); returns
+ * true if it reached the end of the path.
+ *
+ * `fixedMovement` is enforced **here, where speed is consumed**, and not back where
+ * each slow is produced. Slow is produced in `stepGame`, in a pass over every aura
+ * tower and every enemy; immunity checked there would be a check inside a nested loop,
+ * and worse, it would have to be repeated by hand in whatever produces the next speed
+ * effect. Enforced at the point of consumption it is one line and it covers everything
+ * ever done to an enemy's speed, including effects nobody has written yet.
+ *
+ * What this deliberately does not cover is `enemy.speed` itself. A wave that scales
+ * speed sets what the enemy *is*, at birth in `createEnemy` alongside `hpScale`, while
+ * `speedMultiplier` is what is being *done to it* while it walks. A BEACON therefore
+ * ignores every aura and still obeys the curve, which is only true because the two
+ * live on opposite sides of that line. See [Roster](../docs/Design/Roster.md).
+ */
 export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number, speedMultiplier = 1): boolean {
-  enemy.distance += enemy.speed * speedMultiplier * (dtMs / 1000);
+  const applied = enemyTraits(enemy.kind).fixedMovement ? 1 : speedMultiplier;
+  enemy.distance += enemy.speed * applied * (dtMs / 1000);
   return enemy.distance >= pathLength;
 }
 
