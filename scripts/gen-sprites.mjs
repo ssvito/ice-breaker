@@ -372,8 +372,8 @@ function spawnArrows() {
   const g = grid(13, 9);
   const chevron = (x0, c, dx) => {
     for (let i = 0; i < 5; i++) {
-      // Vertex on the right: the chevrons point the way the trace runs, so a rotated
-      // board turns them with it and they still point downstream.
+      // Vertex on the right. Authored pointing +x like everything else, but unlike the
+      // enemies this one is drawn screen-locked: `>>` means "go", not "that way".
       px(g, x0 + 4 - i + dx, 4 - i, c);
       px(g, x0 + 4 - i + dx, 4 + i, c);
     }

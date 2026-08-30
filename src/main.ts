@@ -534,7 +534,14 @@ function startGame(): void {
       if (selection?.kind === 'tower') drawTowerSelection(worldCtx, selection.tower);
       const portCountdown = nextWavePreview(state.spawner);
       if (portCountdown) {
-        drawSpawnPort(worldCtx, spawnTile, countdownSeconds(portCountdown.countdownMs), spawnArmed, timeMs);
+        drawSpawnPort(
+          worldCtx,
+          spawnTile,
+          countdownSeconds(portCountdown.countdownMs),
+          spawnArmed,
+          timeMs,
+          viewport.rotated,
+        );
       }
       drawEnemies(worldCtx, state.enemies, level1.waypoints, timeMs);
       if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, level1.waypoints);

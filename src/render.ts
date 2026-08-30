@@ -269,6 +269,7 @@ export function drawSpawnPort(
   secondsLeft: number,
   armed: boolean,
   timeMs: number,
+  rotated: boolean,
 ): void {
   const cx = Math.round((spawn.x + 0.5) * VIRTUAL_TILE);
   const cy = Math.round((spawn.y + 0.5) * VIRTUAL_TILE);
@@ -282,7 +283,14 @@ export function drawSpawnPort(
   }
 
   if (armed && Math.floor(timeMs / CALL_BLINK_MS) % 2 === 0) {
-    drawSprite(ctx, 'spawnArrows', 0, cx, cy);
+    // Always screen-right, never downstream. The first cut pointed the chevrons along
+    // the trace and let the viewport rotation carry them, which is correct as a compass
+    // and wrong as a button: `>>` is read as "go", a direction the player knows from
+    // every media control they have ever used, and a `>>` pointing up the screen because
+    // the phone is upright is a symbol asking to be re-parsed. The board's rotation maps
+    // world +y to screen +x, so a quarter turn here cancels it exactly - and it is a
+    // quarter turn, so the pixels stay on their integer grid.
+    drawSprite(ctx, 'spawnArrows', 0, cx, cy, rotated ? Math.PI / 2 : 0);
   }
 }
 
