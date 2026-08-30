@@ -214,7 +214,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
 
   const waypoints = state.level.waypoints;
 
-  const spawnKinds = stepSpawner(state.spawner, dtMs, state.enemies.length);
+  const spawnKinds = stepSpawner(state.spawner, dtMs);
   if (spawnKinds.length > 0) {
     // Read after stepping, never before: the tick a wave opens is a tick that both
     // advances the wave index and spawns, and the enemies belong to the new wave.

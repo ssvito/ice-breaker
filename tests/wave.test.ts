@@ -24,7 +24,7 @@ function spawnWave(waveNumber: number): { kind: EnemyKind; atMs: number }[] {
   // the whole curve's spawning fits inside two.
   for (let tick = 0; tick < 60 * 60 * 3; tick++) {
     // liveEnemyCount 0 keeps the spawner rolling from wave to wave without a sim.
-    for (const kind of stepSpawner(spawner, TICK_MS, 0)) {
+    for (const kind of stepSpawner(spawner, TICK_MS)) {
       if (spawner.waveIndex === waveNumber - 1) spawned.push({ kind, atMs: elapsedMs });
     }
     elapsedMs += TICK_MS;
@@ -163,7 +163,7 @@ test('a flawless run can top out some towers and not all of them', () => {
   );
 });
 
-test('the preview reads the wave that is coming, and only while one is coming', () => {
+test('the preview reads the wave that is coming, from the moment the last one stops spawning', () => {
   const spawner = createSpawner();
 
   const opening = nextWavePreview(spawner);
@@ -175,11 +175,17 @@ test('the preview reads the wave that is coming, and only while one is coming', 
   let sawSpawningWithoutPreview = false;
 
   for (let tick = 0; tick < 60 * 60 * 5; tick++) {
-    stepSpawner(spawner, TICK_MS, 0);
+    stepSpawner(spawner, TICK_MS);
     const preview = nextWavePreview(spawner);
 
-    if (spawner.state === 'spawning' || spawner.state === 'waiting-clear') {
-      assert.equal(preview, null, `wave ${spawner.waveIndex + 1} is running; there is nothing to preview`);
+    // Inverted by overlapping waves, and deliberately kept as an assertion rather than
+    // deleted: while a wave is still *spawning* there is nothing to decide about the
+    // next one, and the moment it stops, there is - which is the window the port and
+    // the console are both reading. What went away is the long dead stretch after it,
+    // where a wave was on the board, a countdown was not running, and the console had
+    // nothing to say about a decision the player was already able to make.
+    if (spawner.state === 'spawning') {
+      assert.equal(preview, null, `wave ${spawner.waveIndex + 1} is still spawning; nothing to preview yet`);
       sawSpawningWithoutPreview = true;
       continue;
     }

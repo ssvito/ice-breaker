@@ -130,7 +130,13 @@ export const waves: WaveDefinition[] = [
 export const INITIAL_WAVE_DELAY_MS = 5000;
 export const BETWEEN_WAVE_DELAY_MS = 8000;
 
-export type SpawnState = 'countdown' | 'spawning' | 'waiting-clear' | 'done';
+/**
+ * There is no state for "waiting for the board to clear" any more. There was, and
+ * removing it is the whole of the overlapping-waves change: the countdown used to
+ * start when the last enemy of a wave left play, so every wave opened on a clean board
+ * with nothing owed, and there was no such thing as falling behind - only losing.
+ */
+export type SpawnState = 'countdown' | 'spawning' | 'done';
 
 export interface Spawner {
   waveIndex: number; // -1 before the first wave starts
@@ -154,12 +160,20 @@ export function createSpawner(): Spawner {
 const NO_SPAWNS: readonly EnemyKind[] = [];
 
 /**
- * Advances the spawner and returns the kinds due to spawn this tick - usually
- * none, sometimes several, since concurrent groups can come due together. The
- * caller creates the enemies and reports the live count, so a wave can wait to
- * clear before the next countdown starts.
+ * Advances the spawner and returns the kinds due to spawn this tick - usually none,
+ * sometimes several, since concurrent groups can come due together.
+ *
+ * **The countdown starts when a wave finishes spawning, not when the board clears.**
+ * What that buys is the thing the curve did not have: pressure that accumulates. The
+ * enemies you failed to kill are still walking when the next wave opens, so a bad wave
+ * costs core HP *and* leaves you a wave behind, and calling early finally costs
+ * something a scripted player cannot shrug off - it stacks a wave onto one already in
+ * front of you rather than buying out an empty lull.
+ *
+ * It also takes an argument away. The spawner used to need the live enemy count to know
+ * when the board was clear; it no longer asks the caller anything about the world.
  */
-export function stepSpawner(spawner: Spawner, dtMs: number, liveEnemyCount: number): readonly EnemyKind[] {
+export function stepSpawner(spawner: Spawner, dtMs: number): readonly EnemyKind[] {
   if (spawner.state === 'countdown') {
     spawner.waveTimerMs -= dtMs;
     if (spawner.waveTimerMs > 0) return NO_SPAWNS;
@@ -197,13 +211,12 @@ export function stepSpawner(spawner: Spawner, dtMs: number, liveEnemyCount: numb
       if (spawner.spawnedInGroup[i] < group.count) pending = true;
     }
 
-    if (!pending) spawner.state = 'waiting-clear';
+    // The tick that spawns the last enemy of a wave is the tick the next lull starts.
+    if (!pending) {
+      spawner.state = 'countdown';
+      spawner.waveTimerMs = BETWEEN_WAVE_DELAY_MS;
+    }
     return spawns ?? NO_SPAWNS;
-  }
-
-  if (spawner.state === 'waiting-clear' && liveEnemyCount === 0) {
-    spawner.state = 'countdown';
-    spawner.waveTimerMs = BETWEEN_WAVE_DELAY_MS;
   }
 
   return NO_SPAWNS;
