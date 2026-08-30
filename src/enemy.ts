@@ -8,6 +8,7 @@ export type EnemyKind =
   | 'encryptor'
   | 'beacon'
   | 'packer'
+  | 'rootkit'
   | 'zeroDay';
 
 export interface Enemy {
@@ -19,6 +20,14 @@ export interface Enemy {
   reward: number; // Cycles earned on kill
   coreDamage: number; // core HP lost if it arrives
   hpScale: number; // the wave's HP multiplier it was born under; split children inherit it
+  /**
+   * Whether a revealing aura is covering it *right now*. Recomputed from scratch every
+   * tick rather than carried, because an aura is a place and not a status effect: walk
+   * out of the radius and it is dark again on the next tick, with nothing to expire.
+   * Meaningless on a kind without `stealth`, which is why `isHidden` is the thing to
+   * ask rather than this field.
+   */
+  revealed: boolean;
   removed: boolean; // left play, either killed or reached the core
 }
 
@@ -52,6 +61,7 @@ const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
   encryptor: { name: 'ENCRYPTOR', speed: 2, maxHp: 2, reward: 2, coreDamage: 1 },
   beacon: { name: 'BEACON', speed: 2.5, maxHp: 4, reward: 5, coreDamage: 1 },
   packer: { name: 'PACKER', speed: 1.5, maxHp: 6, reward: 8, coreDamage: 1 },
+  rootkit: { name: 'ROOTKIT', speed: 2, maxHp: 3, reward: 6, coreDamage: 1 },
   zeroDay: { name: 'ZERO-DAY', speed: 0.8, maxHp: 40, reward: 50, coreDamage: 3 },
 };
 
@@ -90,12 +100,20 @@ export interface EnemyTraits {
    * with two answers - upgrade, or bring a bigger gun. See `damageTaken`.
    */
   armor?: number;
+  /**
+   * Cannot be targeted at all unless a revealing tower is covering it. The one trait
+   * whose answer is a specific tower, which is why the reveal is a tower ability rather
+   * than something the enemy carries - the kind justifies the ability, and the ability
+   * is what keeps the kind from being a wall.
+   */
+  stealth?: true;
 }
 
 const TRAITS: Partial<Record<EnemyKind, EnemyTraits>> = {
   ransomware: { splitsInto: ['encryptor', 'encryptor'] },
   beacon: { fixedMovement: true },
   packer: { armor: 1 },
+  rootkit: { stealth: true },
   zeroDay: { immuneTo: 'aesTurret' },
 };
 
@@ -120,6 +138,7 @@ export function createEnemy(kind: EnemyKind, hpScale = 1): Enemy {
     reward: stats.reward,
     coreDamage: stats.coreDamage,
     hpScale,
+    revealed: false,
     removed: false,
   };
 }
@@ -159,6 +178,16 @@ export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number, speedM
  * or to buy the tower whose shots are big enough to notice, which prices the tier
  * ladder in the late run. See [Roster](../docs/Design/Roster.md).
  */
+/**
+ * Invisible to the towers right now. Not to the player, who sees it drawn ghosted and
+ * can still tap it into the console - selection is the player's eye and has never been
+ * the towers'. An enemy nobody can see is a surprise bill; one the player can see and
+ * the guns cannot is a question about what they built.
+ */
+export function isHidden(enemy: Enemy): boolean {
+  return enemyTraits(enemy.kind).stealth === true && !enemy.revealed;
+}
+
 export function damageTaken(kind: EnemyKind, amount: number): number {
   return Math.max(0, amount - (enemyTraits(kind).armor ?? 0));
 }

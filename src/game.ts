@@ -1,6 +1,6 @@
 import { buildableTileSet, pathLength, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos, LevelData } from './map.ts';
-import { createEnemy, damageTaken, enemyTraits, isImmuneTo, stepEnemy } from './enemy.ts';
+import { createEnemy, damageTaken, enemyTraits, isHidden, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy, EnemyKind } from './enemy.ts';
 import {
   applyUpgrade,
@@ -189,6 +189,9 @@ export function findTarget(state: GameState, tower: Tower): Enemy | null {
   let nearestDist = Infinity;
 
   for (const enemy of state.enemies) {
+    // Two ways a tower can be unable to hurt something in its radius, and they are not
+    // the same shape: immunity is about this tower, and hiding is about every tower.
+    if (isHidden(enemy)) continue;
     if (isImmuneTo(enemy.kind, tower.kind)) continue;
     const pos = positionAlongPath(state.level.waypoints, enemy.distance);
     const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
@@ -219,15 +222,26 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
     for (const kind of spawnKinds) state.enemies.push(createEnemy(kind, hpScale));
   }
 
+  // One pass for both aura effects, because they answer the same question - which
+  // enemies is this tower covering - and asking it twice would be two traversals of the
+  // same pairs. Reveal is cleared first and rebuilt from scratch rather than expiring,
+  // because an aura is a place and not a status: step out of the radius and the next
+  // tick has already forgotten you were in it.
+  for (const enemy of state.enemies) enemy.revealed = false;
+
   const slowFactor = new Map<Enemy, number>();
   for (const tower of state.towers) {
-    if (tower.slowMultiplier === undefined) continue;
+    const reveals = towerStats(tower.kind).reveals === true;
+    if (tower.slowMultiplier === undefined && !reveals) continue;
     const center = towerCenter(tower);
     for (const enemy of state.enemies) {
       const pos = positionAlongPath(waypoints, enemy.distance);
       const dist = Math.hypot(pos.x - center.x, pos.y - center.y);
       if (dist > tower.range) continue;
-      slowFactor.set(enemy, Math.min(slowFactor.get(enemy) ?? 1, tower.slowMultiplier));
+      if (tower.slowMultiplier !== undefined) {
+        slowFactor.set(enemy, Math.min(slowFactor.get(enemy) ?? 1, tower.slowMultiplier));
+      }
+      if (reveals) enemy.revealed = true;
     }
   }
 

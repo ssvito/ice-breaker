@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { callWaveEarly, createGameState, placeTower, stepGame, TICK_MS as SIM_TICK_MS } from '../src/game.ts';
+import {
+  callWaveEarly,
+  createGameState,
+  findTarget,
+  placeTower,
+  stepGame,
+  TICK_MS as SIM_TICK_MS,
+} from '../src/game.ts';
 import type { GameHooks } from '../src/game.ts';
 import { earlyCallBonus, nextWavePreview } from '../src/wave.ts';
 import { createEnemy, enemyStats } from '../src/enemy.ts';
+import { revealingTowerKinds, towerStats } from '../src/tower.ts';
 import { level1 } from '../src/map.ts';
 
 /**
@@ -137,4 +145,57 @@ test('the bonus is the countdown the console prints, rounded the same way', () =
   assert.equal(earlyCallBonus(1), 1);
   assert.equal(earlyCallBonus(0), 0);
   assert.equal(earlyCallBonus(-500), 0, 'an overshot countdown is worth nothing, not a refund');
+});
+
+/**
+ * Stealth, which is the one trait that needed a tower to change as well as an enemy.
+ * The reveal is the IDS Scanner's ability restored, so what these gate is the pair:
+ * without the Scanner the kind cannot be shot at all, and the reveal is a place rather
+ * than a status that sticks.
+ */
+
+test('a hidden ROOTKIT cannot be targeted, and a revealed one can', () => {
+  const state = createGameState(level1);
+  const tower = placeTower(state, 'firewallNode', { x: 1, y: 3 });
+  assert.ok(tower);
+
+  const rootkit = createEnemy('rootkit');
+  state.enemies.push(rootkit);
+  assert.equal(findTarget(state, tower), null, 'a gun cannot shoot what it cannot see');
+
+  rootkit.revealed = true;
+  assert.equal(findTarget(state, tower), rootkit, 'and can the moment something is looking');
+});
+
+test('an IDS Scanner reveals, and the reveal is a place rather than a status', () => {
+  const state = createGameState(level1);
+  assert.ok(placeTower(state, 'idsScanner', { x: 1, y: 3 }));
+
+  const rootkit = createEnemy('rootkit');
+  state.enemies.push(rootkit);
+
+  let sawRevealed = false;
+  let wentDarkAgain = false;
+  for (let i = 0; i < TICK_CAP && !rootkit.removed; i++) {
+    stepGame(state, TICK_MS);
+    if (rootkit.revealed) sawRevealed = true;
+    else if (sawRevealed) wentDarkAgain = true;
+  }
+
+  assert.ok(sawRevealed, 'walking through a Scanner should light it up');
+  assert.ok(wentDarkAgain, 'and walking out of one should put it back in the dark');
+});
+
+test('the Honeypot slows but does not reveal', () => {
+  // Both are aura towers, and giving reveal to both would erase the only difference
+  // between them. Detection is what the letters in IDS stand for.
+  assert.deepEqual(revealingTowerKinds(), ['idsScanner']);
+  assert.equal(towerStats('honeypot').reveals, undefined);
+  assert.ok(towerStats('honeypot').slowMultiplier !== undefined, 'it is still an aura tower');
+});
+
+test('reveal is not sold by the tier', () => {
+  // A capability the tower has or does not, so "did you buy a Scanner" cannot degrade
+  // into "did you buy enough Scanner".
+  for (let tier = 1; tier <= 3; tier++) assert.equal(towerStats('idsScanner', tier).reveals, true);
 });

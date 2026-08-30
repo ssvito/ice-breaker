@@ -341,6 +341,26 @@ function packer(frame) {
   return toStrings(g);
 }
 
+/**
+ * ROOTKIT - runs below the layer that is watching. Drawn as the kind you have to look
+ * for: a low, near-black hull with no colour of its own, so that ghosting it while it
+ * is unrevealed reads as more of what it already is rather than as a different sprite.
+ * The one thing that moves is a scanning light sweeping the hull, which is the only
+ * thing that gives it away before a Scanner does.
+ */
+function rootkit(frame) {
+  const g = grid(16, 10);
+  roundRect(g, 0, 2, 15, 9, 'd', 'k'); // hull
+  fillRect(g, 1, 3, 14, 3, 's'); // upper deck
+  strokeRect(g, 3, 5, 12, 8, 'S'); // plating seam
+  fillRect(g, 13, 0, 15, 1, 'k'); // forward probe
+  px(g, 14, 1, 'S');
+  const light = frame === 0 ? 5 : 10;
+  px(g, light, 6, 'w');
+  px(g, light, 7, 'S');
+  return toStrings(g);
+}
+
 // --- Assemble ----------------------------------------------------------------
 
 const SPRITES = {
@@ -348,6 +368,7 @@ const SPRITES = {
   worm: { w: 16, h: 8, frames: [worm(0), worm(1)] },
   beacon: { w: 14, h: 14, frames: [beacon(0), beacon(1)] },
   packer: { w: 18, h: 18, frames: [packer(0), packer(1)] },
+  rootkit: { w: 16, h: 10, frames: [rootkit(0), rootkit(1)] },
   encryptor: { w: 12, h: 12, frames: [encryptor(0), encryptor(1)] },
   ransomware: { w: 20, h: 20, frames: [ransomware(0), ransomware(1)] },
   trojan: { w: 24, h: 24, frames: [trojan(0), trojan(1)] },

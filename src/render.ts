@@ -1,3 +1,4 @@
+import { isHidden } from './enemy.ts';
 import type { Enemy } from './enemy.ts';
 import type { GridPos, LevelData } from './map.ts';
 import { positionAlongPath, directionAlongPath, rasterizePath } from './map.ts';
@@ -28,6 +29,8 @@ const TOWER_RING: Record<TowerKind, string> = {
 };
 
 const ANIM_FRAME_MS = 220;
+/** How much of a stealthed enemy is left on screen while no Scanner is covering it. */
+const HIDDEN_ALPHA = 0.3;
 
 /** Grid cell -> center point in virtual pixels. */
 function tileCenter(gx: number, gy: number): { x: number; y: number } {
@@ -228,7 +231,14 @@ export function drawEnemies(
     const pos = positionAlongPath(waypoints, enemy.distance);
     const dir = directionAlongPath(waypoints, enemy.distance);
     const orientation = Math.atan2(dir.y, dir.x);
+    // Ghosted, not hidden. The player has to be able to see what their towers cannot,
+    // or the rule is learned by losing core HP to something that was never on screen.
+    // Alpha rather than a second sprite: it dims what is drawn without moving a pixel
+    // off its integer position, so the art stays as crisp as everything around it.
+    const ghost = isHidden(enemy);
+    if (ghost) ctx.globalAlpha = HIDDEN_ALPHA;
     drawSprite(ctx, enemy.kind as SpriteName, frame, pos.x * VIRTUAL_TILE, pos.y * VIRTUAL_TILE, orientation);
+    if (ghost) ctx.globalAlpha = 1;
   }
 }
 

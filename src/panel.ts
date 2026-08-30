@@ -1,4 +1,4 @@
-import { canUpgrade, MAX_TIER, sellValue, towerStats, upgradeCost } from './tower.ts';
+import { canUpgrade, MAX_TIER, revealingTowerKinds, sellValue, towerStats, upgradeCost } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
 import { enemyStats, enemyTraits } from './enemy.ts';
 import type { Enemy, EnemyTraits } from './enemy.ts';
@@ -39,6 +39,12 @@ const TRAIT_ROWS: ((traits: EnemyTraits) => [label: string, value: string] | nul
   // for the rule, not a list of the towers it beats.
   (traits) => (traits.fixedMovement ? ['MOVEMENT', 'FIXED'] : null),
   (traits) => (traits.armor ? ['ARMOR', `-${traits.armor} PER HIT`] : null),
+  // Labelled by what finds it rather than by what it beats, so it cannot be misread as
+  // the IMMUNE row above, which names a tower for the opposite reason.
+  (traits) =>
+    traits.stealth
+      ? ['SEEN BY', revealingTowerKinds().map((kind) => towerStats(kind).name).join(' / ')]
+      : null,
 ];
 
 export interface TowerPanel {
@@ -240,7 +246,10 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       // Auras have no damage or fire rate; show the slow as the cut it applies.
       setStat(0, 'SLOW', slowText(tower.slowMultiplier), next ? slowText(next.slowMultiplier!) : '');
       setStat(1, 'RANGE', tower.range.toFixed(1), next ? next.range.toFixed(1) : '');
-      clearStatsFrom(2);
+      // No `next` column: the ability does not scale with the tier, and a blank column
+      // beside a row that never changes reads as a stat you have not bought yet.
+      if (towerStats(tower.kind).reveals) setStat(2, 'REVEALS', 'STEALTH');
+      clearStatsFrom(towerStats(tower.kind).reveals ? 3 : 2);
       return;
     }
 
@@ -268,8 +277,14 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     if (base.slowMultiplier !== undefined) {
       setStat(0, 'SLOW', slowText(base.slowMultiplier));
       setStat(1, 'RANGE', base.range.toFixed(1));
-      if (onPathOnly) setStat(2, 'PLACE', 'ON PATH');
-      clearStatsFrom(onPathOnly ? 3 : 2);
+      let auraRow = 2;
+      // The console exists so a piece says what it does before it is paid for, and this
+      // is the one ability in the game that is worthless until the run needs it and
+      // decisive the moment it does. Hiding it until purchase is the exact failure the
+      // build preview was added to end.
+      if (base.reveals) setStat(auraRow++, 'REVEALS', 'STEALTH');
+      if (onPathOnly) setStat(auraRow++, 'PLACE', 'ON PATH');
+      clearStatsFrom(auraRow);
       return;
     }
 

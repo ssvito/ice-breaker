@@ -32,6 +32,14 @@ interface TowerTier {
 interface TowerStats extends TowerTier {
   name: string;
   placement: TowerPlacement;
+  /**
+   * Makes stealthed enemies targetable while they are inside this tower's radius.
+   * Tier-independent on purpose: detection is a capability the tower either has or does
+   * not, and selling upgrades on it would turn "did you buy a Scanner" into "did you buy
+   * enough Scanner", which is a worse question. Cut on 2026-07-12 for having nothing to
+   * detect, and restored by the kind that gives it something.
+   */
+  reveals?: true;
 }
 
 export const MAX_TIER = 3;
@@ -42,7 +50,10 @@ export const MAX_TIER = 3;
  * radius, which stays tight on purpose: a wide Honeypot is just an IDS Scanner.
  * Upgrade cost climbs faster than the effect so the last tier stays a real choice.
  */
-const TOWER_DEFS: Record<TowerKind, { name: string; placement: TowerPlacement; tiers: TowerTier[] }> = {
+const TOWER_DEFS: Record<
+  TowerKind,
+  { name: string; placement: TowerPlacement; reveals?: true; tiers: TowerTier[] }
+> = {
   firewallNode: {
     name: 'FIREWALL NODE',
     placement: 'offPath',
@@ -64,6 +75,7 @@ const TOWER_DEFS: Record<TowerKind, { name: string; placement: TowerPlacement; t
   idsScanner: {
     name: 'IDS SCANNER',
     placement: 'offPath',
+    reveals: true,
     tiers: [
       { range: 2.0, damage: 0, fireIntervalMs: 0, cost: 30, slowMultiplier: 0.5 },
       { range: 2.3, damage: 0, fireIntervalMs: 0, cost: 45, slowMultiplier: 0.4 },
@@ -86,12 +98,26 @@ const TOWER_DEFS: Record<TowerKind, { name: string; placement: TowerPlacement; t
 const TOWER_STATS = Object.fromEntries(
   (Object.keys(TOWER_DEFS) as TowerKind[]).map((kind) => {
     const def = TOWER_DEFS[kind];
-    return [kind, def.tiers.map((tier) => ({ name: def.name, placement: def.placement, ...tier }))];
+    return [
+      kind,
+      def.tiers.map((tier) => ({ name: def.name, placement: def.placement, reveals: def.reveals, ...tier })),
+    ];
   }),
 ) as Record<TowerKind, TowerStats[]>;
 
 export function towerStats(kind: TowerKind, tier = 1): TowerStats {
   return TOWER_STATS[kind][tier - 1];
+}
+
+/** Every kind there is, in declaration order. */
+export const TOWER_KINDS = Object.keys(TOWER_DEFS) as TowerKind[];
+
+/**
+ * The towers that reveal stealth. Derived rather than named, so the console prints the
+ * answer the simulation is actually enforcing instead of a copy of it that can drift.
+ */
+export function revealingTowerKinds(): TowerKind[] {
+  return TOWER_KINDS.filter((kind) => towerStats(kind).reveals === true);
 }
 
 export function createTower(kind: TowerKind, x: number, y: number): Tower {
