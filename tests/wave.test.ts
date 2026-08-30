@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSpawner, nextWavePreview, stepSpawner, waves } from '../src/wave.ts';
+import {
+  countdownSeconds,
+  createSpawner,
+  earlyCallBonus,
+  EARLY_CALL_RATE,
+  nextWavePreview,
+  stepSpawner,
+  waves,
+} from '../src/wave.ts';
 import { createEnemy, enemyStats, enemyTraits } from '../src/enemy.ts';
 import type { EnemyKind } from '../src/enemy.ts';
 import { STARTING_CYCLES, TICK_MS } from '../src/game.ts';
@@ -212,4 +220,17 @@ test('the preview reads the wave that is coming, from the moment the last one st
 
   assert.ok(sawSpawningWithoutPreview, 'the walk should have passed through a wave actually spawning');
   assert.equal(seen.size, waves.length, 'every wave in the curve should get previewed on the way past');
+});
+
+test('every surface that shows the countdown reads the same number', () => {
+  // The console prints it, the spawn port lights one pip per second of it, and the early
+  // call pays for it. They agree because they call one function, and this is the gate on
+  // that staying true - a port showing 8 beside a button offering 7 is a small lie, and
+  // a small lie about a number is what makes a player stop believing the rest of them.
+  for (const ms of [-500, 0, 1, 999, 1000, 1001, 4500, 8000]) {
+    assert.equal(earlyCallBonus(ms), countdownSeconds(ms) * EARLY_CALL_RATE);
+    assert.ok(countdownSeconds(ms) >= 0, 'a countdown never reads negative');
+  }
+  assert.equal(countdownSeconds(-500), 0, 'a countdown past zero reads zero, not minus one');
+  assert.equal(countdownSeconds(7001), 8, 'a part-second still owes the player a whole pip');
 });

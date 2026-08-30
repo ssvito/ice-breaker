@@ -361,6 +361,28 @@ function rootkit(frame) {
   return toStrings(g);
 }
 
+/**
+ * The call affordance, drawn over the spawn port rather than into it. Two chevrons and
+ * nothing else: the port underneath is already on screen from the prerendered board, so
+ * this only ever **adds** pixels - which is the constraint that lets the animated half
+ * of the port live in the dynamic layer while the static half stays prerendered.
+ * White over the port's green, with a one-pixel black shadow so it reads over the rings.
+ */
+function spawnArrows() {
+  const g = grid(13, 9);
+  const chevron = (x0, c, dx) => {
+    for (let i = 0; i < 5; i++) {
+      // Vertex on the right: the chevrons point the way the trace runs, so a rotated
+      // board turns them with it and they still point downstream.
+      px(g, x0 + 4 - i + dx, 4 - i, c);
+      px(g, x0 + 4 - i + dx, 4 + i, c);
+    }
+  };
+  for (const x0 of [0, 7]) chevron(x0, 'k', 1);
+  for (const x0 of [0, 7]) chevron(x0, 'W', 0);
+  return toStrings(g);
+}
+
 // --- Assemble ----------------------------------------------------------------
 
 const SPRITES = {
@@ -380,6 +402,7 @@ const SPRITES = {
   projectile: { w: 3, h: 3, frames: [projectile()] },
   projectileAes: { w: 5, h: 5, frames: [projectileAes()] },
   spawnPort: { w: 24, h: 24, frames: [spawnPort()] },
+  spawnArrows: { w: 13, h: 9, frames: [spawnArrows()] },
   core: { w: 48, h: 48, frames: [core()] },
 };
 

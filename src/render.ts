@@ -242,6 +242,50 @@ export function drawEnemies(
   }
 }
 
+/** How long a full on/off cycle of the armed chevrons takes. Slower than the sprite
+ *  animation clock: a blink is a request for attention, and at 220ms it reads as a fault. */
+const CALL_BLINK_MS = 700;
+/** Distance from the port's center to the ring of countdown pips, in virtual pixels. */
+const PIP_RADIUS = 14;
+const PIP_SLOTS = 12;
+
+/**
+ * The spawn port as a control. The port itself is painted once into the prerendered
+ * board and never moves; everything here is drawn over it, and everything here only ever
+ * **adds** pixels, which is what lets the two halves live in different layers.
+ *
+ * Two things are drawn. **The clock**: one pip per whole second left before the wave
+ * arrives, which is the same number the console prints as `IN 8s` and the same number
+ * the early call pays out, because all three are `Math.ceil(ms / 1000)`. Three readings
+ * of one countdown that cannot disagree, which is the rule `earlyCallBonus` set when it
+ * chose to round up. **The chevrons**, blinking, once the player has armed the port with
+ * a first tap - a second tap calls the wave. The clock is the resting state on purpose:
+ * a port that blinked whenever a call was available would blink for most of a run now
+ * that the countdown no longer waits for the board to clear.
+ */
+export function drawSpawnPort(
+  ctx: CanvasRenderingContext2D,
+  spawn: GridPos,
+  secondsLeft: number,
+  armed: boolean,
+  timeMs: number,
+): void {
+  const cx = Math.round((spawn.x + 0.5) * VIRTUAL_TILE);
+  const cy = Math.round((spawn.y + 0.5) * VIRTUAL_TILE);
+
+  ctx.fillStyle = armed ? palette.selection : palette.traceInactive;
+  for (let i = 0; i < Math.min(secondsLeft, PIP_SLOTS); i++) {
+    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / PIP_SLOTS;
+    const px = Math.round(cx + Math.cos(angle) * PIP_RADIUS);
+    const py = Math.round(cy + Math.sin(angle) * PIP_RADIUS);
+    ctx.fillRect(px - 1, py - 1, 2, 2);
+  }
+
+  if (armed && Math.floor(timeMs / CALL_BLINK_MS) % 2 === 0) {
+    drawSprite(ctx, 'spawnArrows', 0, cx, cy);
+  }
+}
+
 export function drawProjectiles(ctx: CanvasRenderingContext2D, projectiles: Projectile[]): void {
   for (const projectile of projectiles) {
     const name: SpriteName = projectile.heavy ? 'projectileAes' : 'projectile';

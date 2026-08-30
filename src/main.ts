@@ -6,6 +6,7 @@ import { boardRect, createViewport, fitViewport, present, clientToGrid, clientTo
 import {
   prerenderBoard,
   drawEnemies,
+  drawSpawnPort,
   drawGlitchParticles,
   drawEndScreen,
   drawPlacementPreview,
@@ -21,7 +22,7 @@ import { renderGallery } from './gallery.ts';
 import type { Enemy } from './enemy.ts';
 import { towerStats, triggerOverclock } from './tower.ts';
 import type { TowerKind } from './tower.ts';
-import { currentWaveReading, nextWavePreview, waveNumber } from './wave.ts';
+import { countdownSeconds, currentWaveReading, nextWavePreview, waveNumber } from './wave.ts';
 import {
   callWaveEarly,
   createGameState,
@@ -111,6 +112,18 @@ function startGame(): void {
   let selectedTowerKind: TowerKind | null = 'firewallNode';
   // One selection for the whole board: a tower or an enemy, never both.
   let selection: PanelTarget = null;
+  /**
+   * Whether the spawn port is showing its chevrons, waiting for the tap that calls the
+   * wave. UI state and not simulation state: the run is identical whether the player
+   * armed the port and thought better of it or never touched it.
+   *
+   * A confirm, and it earns one - the port sits on the board where the finger is
+   * already pointing, so without it a stray tap spends a decision that cannot be taken
+   * back. v1.2 deleted an arm-then-act mode for being a keyboard idiom on a phone; that
+   * one lived off-target, over the whole board, and this one lives on the control.
+   */
+  let spawnArmed = false;
+  const spawnTile = level1.waypoints[0];
 
   /**
    * Which of the two unselected readings the console shows: the wave being counted
@@ -439,6 +452,19 @@ function startGame(): void {
     // sprite overhangs the trace onto buildable tiles, and losing a placement to a
     // boss walking past would be maddening. Enemies stay tappable over the trace,
     // which is where they always are.
+    // The port is a control only while there is a wave to call. The rest of the time
+    // the tap falls through to whatever happens to be standing on the tile, which is
+    // what keeps a stray enemy from making the port unreachable and vice versa.
+    const callable = nextWavePreview(state.spawner) !== null;
+    if (callable && tile.x === spawnTile.x && tile.y === spawnTile.y) {
+      if (spawnArmed) callWaveEarly(state);
+      spawnArmed = !spawnArmed;
+      return;
+    }
+    // Any other tap on the board disarms, the same way it clears a selection: an armed
+    // port that survives the player looking at something else is a trap set for them.
+    spawnArmed = false;
+
     const hitTower = towerAt(state, tile);
     if (hitTower) {
       const same = selection?.kind === 'tower' && selection.tower === hitTower;
@@ -468,6 +494,8 @@ function startGame(): void {
       stepGame(state, dtMs, hooks);
       // A selected enemy can die or breach the core mid-tick; both paths set removed.
       if (selection?.kind === 'enemy' && selection.enemy.removed) selection = null;
+      // The wave can arrive on its own while the port is armed; the chevrons go with it.
+      if (spawnArmed && nextWavePreview(state.spawner) === null) spawnArmed = false;
     },
     () => {
       const timeMs = performance.now();
@@ -504,6 +532,10 @@ function startGame(): void {
       worldCtx.drawImage(board, 0, 0);
       drawTowers(worldCtx, state.towers, timeMs);
       if (selection?.kind === 'tower') drawTowerSelection(worldCtx, selection.tower);
+      const portCountdown = nextWavePreview(state.spawner);
+      if (portCountdown) {
+        drawSpawnPort(worldCtx, spawnTile, countdownSeconds(portCountdown.countdownMs), spawnArmed, timeMs);
+      }
       drawEnemies(worldCtx, state.enemies, level1.waypoints, timeMs);
       if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, level1.waypoints);
       drawProjectiles(worldCtx, state.projectiles);

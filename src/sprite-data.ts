@@ -690,6 +690,23 @@ export const SPRITE_DEFS: Record<string, SpriteDef> = {
       ],
     ],
   },
+  spawnArrows: {
+    w: 13,
+    h: 9,
+    frames: [
+      [
+        'Wk.....Wk....',
+        '.Wk.....Wk...',
+        '..Wk.....Wk..',
+        '...Wk.....Wk.',
+        '....Wk.....Wk',
+        '...Wk.....Wk.',
+        '..Wk.....Wk..',
+        '.Wk.....Wk...',
+        'Wk.....Wk....',
+      ],
+    ],
+  },
   core: {
     w: 48,
     h: 48,

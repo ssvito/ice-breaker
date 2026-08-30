@@ -253,8 +253,18 @@ export interface WavePreview {
  */
 export const EARLY_CALL_RATE = 1;
 
+/**
+ * Whole seconds left, as everything that shows a countdown must read it. Shared rather
+ * than repeated: the console prints `IN 8s`, the port lights eight pips, and the call
+ * pays eight, and two readings of one countdown disagreeing by one is the kind of small
+ * lie that costs trust in all of them.
+ */
+export function countdownSeconds(ms: number): number {
+  return Math.ceil(Math.max(0, ms) / 1000);
+}
+
 export function earlyCallBonus(countdownMs: number): number {
-  return Math.ceil(Math.max(0, countdownMs) / 1000) * EARLY_CALL_RATE;
+  return countdownSeconds(countdownMs) * EARLY_CALL_RATE;
 }
 
 function readWave(index: number, countdownMs: number, callable: boolean): WavePreview {

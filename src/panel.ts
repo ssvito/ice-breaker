@@ -2,6 +2,7 @@ import { canUpgrade, MAX_TIER, revealingTowerKinds, sellValue, towerStats, upgra
 import type { Tower, TowerKind } from './tower.ts';
 import { enemyStats, enemyTraits } from './enemy.ts';
 import type { Enemy, EnemyTraits } from './enemy.ts';
+import { countdownSeconds } from './wave.ts';
 import type { WavePreview } from './wave.ts';
 
 /**
@@ -325,7 +326,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     title.textContent = `WAVE ${preview.number}/${preview.total}`;
     // Seconds, not milliseconds: the console is a readout, not a stopwatch, and a
     // number changing sixty times a second is a number nobody reads.
-    meta.textContent = preview.callable ? `IN ${Math.ceil(preview.countdownMs / 1000)}s` : 'ON BOARD';
+    meta.textContent = preview.callable ? `IN ${countdownSeconds(preview.countdownMs)}s` : 'ON BOARD';
     meta.classList.remove('panel-short');
 
     // The one thing there is to do to a wave that has not arrived: bring it
