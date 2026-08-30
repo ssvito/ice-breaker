@@ -73,6 +73,8 @@ Before tuning anything, the harness cannot currently express the complaint.
 
 The instrument first, because it is cheap and because tuning without it is the vibes-based balancing the harness was built in v1.3 to end. Then overlapping waves plus one economy sink. Those two are already filed, they change the *shape* of a run rather than its numbers, and between them they answer three of the four reasons above. `hpScale` keeps existing; it stops being the only tool.
 
-## Not decided here
+## Decided since
 
-Nothing on this page is chosen, and the two things it deliberately does not settle are which milestone any of it belongs to, and whether the answer to "too easy" is a harder curve or a mode that lets the player ask for one.
+Both questions this page left open were answered on 2026-08-30, and neither by this page: **v1.6** is the milestone, and the answer to "too easy" is **the curve** rather than a mode, on the v1.3 precedent that you tune a thing before offering variants of it. What the milestone took from here is three of the four reasons above - the single wrong knob, nothing accumulating, and six kinds that ask two questions - plus the instrument, which it puts first for the reason this page argues. What it left is the economy sink, deliberately, because v1.6 already moves the two things a sink would be tuned against. See [Roadmap](../Roadmap.md).
+
+The rest of this page stands as written: it is the reading that produced those choices, and the directions it lists that were not picked are not rejected, only unscheduled.
