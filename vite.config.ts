@@ -6,6 +6,42 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        /*
+         * The soundtrack is the one asset the service worker has to be told about by
+         * hand, and it is deliberately not precached. The default `globPatterns` never
+         * matched `.webm` or `.m4a` - the build ships 7 precache entries at 54 KiB,
+         * none of them audio - and that is the right default to leave alone: putting
+         * 824 KB of music in the install step spends it before the first frame, for a
+         * player who may never unmute. A runtime route caches the file the first time
+         * it is actually fetched, which is after a gesture, and keeps it from then on.
+         * Without this the installed game is silent offline, which is the whole step.
+         *
+         * `CacheFirst` and not `StaleWhileRevalidate`: for a given `?v=` the file is
+         * immutable, so a revalidation is a request that can only ever answer "still
+         * the same" - and on a phone it is a request that can also answer "offline"
+         * while the cache already held the answer.
+         */
+        runtimeCaching: [
+          {
+            urlPattern: /\/soundtrack\.(webm|m4a)/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ice-breaker-audio',
+              // Explicit, because a CacheFirst route that caches an error body serves
+              // that error forever. Same-origin, so there are no opaque responses to
+              // account for and 0 has no business in this list.
+              cacheableResponse: { statuses: [200] },
+              // Two entries: only one format is ever fetched in a working browser and
+              // the other is the fallback nobody reaches. A `?v=` bump makes a third
+              // and LRU drops the oldest, so a re-encode costs one stale generation
+              // rather than growing without bound. No `maxAgeSeconds` on purpose - an
+              // installed game should still have its music a year later, offline.
+              expiration: { maxEntries: 2, purgeOnQuotaError: true },
+            },
+          },
+        ],
+      },
       manifest: {
         name: 'ICE Breaker',
         short_name: 'ICE Breaker',

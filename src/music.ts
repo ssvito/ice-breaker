@@ -37,6 +37,27 @@ const TRACK_SECONDS = 76;
  */
 const SOURCES = ['soundtrack.webm', 'soundtrack.m4a'];
 
+/**
+ * Cache-busting version for the encoded files, moved by hand when they are re-encoded.
+ *
+ * This exists because of the service worker, not the browser cache. `soundtrack.webm`
+ * carries no content hash in its name - it is a hand-built file in `public/`, not
+ * something the bundler emits - and the moment a `CacheFirst` route exists, a name
+ * that never changes is a file served stale **forever**. Not until the next deploy:
+ * forever, because never revalidating is precisely what that route is for.
+ *
+ * Versioning the request rather than hashing the name, because the file is produced by
+ * two ffmpeg commands a person runs, and a hash would have to be computed and then
+ * pasted in two places. Deriving it from the build would fail in the other direction:
+ * every deploy would re-download 824 KB of music that did not change, which is the
+ * thing the cache exists to prevent.
+ *
+ * So it is a number a human has to remember to move, which is a forgettable step - and
+ * the place it stops being forgettable is the encode script the log already records as
+ * owed. Bumping this belongs in whatever ends up running ffmpeg.
+ */
+const TRACK_VERSION = 1;
+
 export interface Music {
   /** Whether the track is loaded and playing. */
   isPlaying(): boolean;
@@ -118,7 +139,7 @@ async function decodeFirstAvailable(ctx: AudioContext): Promise<AudioBuffer> {
   const failures: string[] = [];
   for (const name of SOURCES) {
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}${name}`);
+      const response = await fetch(`${import.meta.env.BASE_URL}${name}?v=${TRACK_VERSION}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       // decodeAudioData detaches the buffer it is given, so a failure here consumes
       // this attempt's bytes and the next format has to be fetched fresh anyway.
