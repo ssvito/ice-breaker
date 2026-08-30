@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEnemy, ENEMY_KINDS, enemyStats, enemyTraits, stepEnemy } from '../src/enemy.ts';
+import { createEnemy, damageTaken, ENEMY_KINDS, enemyStats, stepEnemy } from '../src/enemy.ts';
 import { SPRITE_DEFS } from '../src/sprite-data.ts';
 
 /**
@@ -43,6 +43,25 @@ test('fixed movement does not exempt a kind from the curve', () => {
   const scaled = createEnemy('beacon', 2);
   assert.equal(scaled.maxHp, enemyStats('beacon').maxHp * 2);
   assert.equal(scaled.hp, scaled.maxHp);
+});
+
+test('armor is subtracted per hit, and the floor is zero rather than one', () => {
+  // The whole design of the kind is in these four numbers: a tier-1 Firewall Node deals
+  // 1 and a tier-3 AES Turret deals 11, so armor 1 erases the first entirely and costs
+  // the second nine percent. A floor of one would have made both of them work.
+  assert.equal(damageTaken('packer', 1), 0, 'chip damage does nothing to a PACKER');
+  assert.equal(damageTaken('packer', 2), 1, 'a tier-2 Firewall Node gets half of its shot through');
+  assert.equal(damageTaken('packer', 11), 10, 'a tier-3 AES Turret barely notices');
+  assert.equal(damageTaken('worm', 1), 1, 'a kind without the trait takes the whole hit');
+});
+
+test('a hit can never heal, whatever the armor is', () => {
+  // `hp -= damageTaken(...)` is the one place damage lands, so a negative result here
+  // would not be a small error - it would be armor that repairs the enemy it protects.
+  for (const kind of ENEMY_KINDS) {
+    assert.ok(damageTaken(kind, 0) >= 0, `${kind} healed from a zero-damage hit`);
+    assert.ok(damageTaken(kind, 1) >= 0, `${kind} healed from a one-damage hit`);
+  }
 });
 
 test('every enemy kind has a sprite to draw it with', () => {

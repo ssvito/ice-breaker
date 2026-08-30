@@ -1,6 +1,6 @@
 import { buildableTileSet, pathLength, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos, LevelData } from './map.ts';
-import { createEnemy, enemyTraits, isImmuneTo, stepEnemy } from './enemy.ts';
+import { createEnemy, damageTaken, enemyTraits, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy, EnemyKind } from './enemy.ts';
 import {
   applyUpgrade,
@@ -270,7 +270,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
     const hit = stepProjectile(projectile, dtMs, targetPos);
     if (!hit) continue;
 
-    projectile.target.hp -= projectile.damage;
+    projectile.target.hp -= damageTaken(projectile.target.kind, projectile.damage);
     if (projectile.target.hp <= 0) {
       projectile.target.removed = true;
       state.cycles += projectile.target.reward;

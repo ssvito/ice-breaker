@@ -318,12 +318,36 @@ function beacon(frame) {
   return toStrings(g);
 }
 
+/**
+ * PACKER - a payload wrapped in a shell that small hits bounce off. Drawn as exactly
+ * that, and it is the one sprite in the roster whose palette is the design: every other
+ * kind is saturated and this one is slate, because **the armor is the thing covering
+ * the colour**. The payload shows through the window in the plating and brightens on
+ * the off frame - the malware straining against the wrapper, not a decoration.
+ */
+function packer(frame) {
+  const g = grid(18, 18);
+  roundRect(g, 0, 0, 17, 17, 'S', 'k'); // outer plating
+  roundRect(g, 2, 2, 15, 15, 's', 'k'); // inner plate, leaving a band of shell
+  // roundRect knocks its four corner pixels transparent, which is right for a
+  // silhouette edge and wrong here: these corners are inside the shell, so an
+  // unpainted one is a hole you can see the trace through.
+  for (const [x, y] of [[2, 2], [15, 2], [2, 15], [15, 15]]) px(g, x, y, 'S');
+  disc(g, 8.5, 8.5, 4.5, frame === 0 ? 'b' : 'c'); // packed payload
+  disc(g, 8.5, 8.5, 2, 'k');
+  disc(g, 8.5, 8.5, 1, frame === 0 ? 'c' : 'C');
+  for (const [x, y] of [[4, 1], [13, 1], [4, 16], [13, 16], [1, 4], [16, 4], [1, 13], [16, 13]])
+    px(g, x, y, 'W'); // rivets
+  return toStrings(g);
+}
+
 // --- Assemble ----------------------------------------------------------------
 
 const SPRITES = {
   packetSniffer: { w: 10, h: 6, frames: [packetSniffer(0), packetSniffer(1)] },
   worm: { w: 16, h: 8, frames: [worm(0), worm(1)] },
   beacon: { w: 14, h: 14, frames: [beacon(0), beacon(1)] },
+  packer: { w: 18, h: 18, frames: [packer(0), packer(1)] },
   encryptor: { w: 12, h: 12, frames: [encryptor(0), encryptor(1)] },
   ransomware: { w: 20, h: 20, frames: [ransomware(0), ransomware(1)] },
   trojan: { w: 24, h: 24, frames: [trojan(0), trojan(1)] },

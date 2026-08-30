@@ -38,6 +38,7 @@ const TRAIT_ROWS: ((traits: EnemyTraits) => [label: string, value: string] | nul
   // itself: a player who has just watched their Scanner do nothing needs the word
   // for the rule, not a list of the towers it beats.
   (traits) => (traits.fixedMovement ? ['MOVEMENT', 'FIXED'] : null),
+  (traits) => (traits.armor ? ['ARMOR', `-${traits.armor} PER HIT`] : null),
 ];
 
 export interface TowerPanel {

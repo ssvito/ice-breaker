@@ -7,6 +7,7 @@ export type EnemyKind =
   | 'ransomware'
   | 'encryptor'
   | 'beacon'
+  | 'packer'
   | 'zeroDay';
 
 export interface Enemy {
@@ -50,6 +51,7 @@ const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
   ransomware: { name: 'RANSOMWARE', speed: 1.5, maxHp: 4, reward: 5, coreDamage: 1 },
   encryptor: { name: 'ENCRYPTOR', speed: 2, maxHp: 2, reward: 2, coreDamage: 1 },
   beacon: { name: 'BEACON', speed: 2.5, maxHp: 4, reward: 5, coreDamage: 1 },
+  packer: { name: 'PACKER', speed: 1.5, maxHp: 6, reward: 8, coreDamage: 1 },
   zeroDay: { name: 'ZERO-DAY', speed: 0.8, maxHp: 40, reward: 50, coreDamage: 3 },
 };
 
@@ -81,11 +83,19 @@ export interface EnemyTraits {
    * `stepEnemy` enforce it in one place. See `stepEnemy` for why that matters.
    */
   fixedMovement?: true;
+  /**
+   * Flat damage subtracted from every hit, floored at zero rather than at one. A floor
+   * of one would keep every board working and make armor a tax; at zero a tier-1
+   * Firewall Node is not slowed against this, it is useless, and that is a question
+   * with two answers - upgrade, or bring a bigger gun. See `damageTaken`.
+   */
+  armor?: number;
 }
 
 const TRAITS: Partial<Record<EnemyKind, EnemyTraits>> = {
   ransomware: { splitsInto: ['encryptor', 'encryptor'] },
   beacon: { fixedMovement: true },
+  packer: { armor: 1 },
   zeroDay: { immuneTo: 'aesTurret' },
 };
 
@@ -135,6 +145,22 @@ export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number, speedM
   const applied = enemyTraits(enemy.kind).fixedMovement ? 1 : speedMultiplier;
   enemy.distance += enemy.speed * applied * (dtMs / 1000);
   return enemy.distance >= pathLength;
+}
+
+/**
+ * What a hit of `amount` actually takes off this kind, after armor.
+ *
+ * Same rule as `fixedMovement`: enforced where the damage is **consumed**, at the one
+ * place a projectile lands, rather than at every place a number is handed out. Towers
+ * keep declaring what they deal and stay ignorant of what survives it.
+ *
+ * The floor is zero. One point of armor against a tier-1 Firewall Node is not a
+ * reduction, it is the whole shot, and that is the point: the answer is to upgrade it
+ * or to buy the tower whose shots are big enough to notice, which prices the tier
+ * ladder in the late run. See [Roster](../docs/Design/Roster.md).
+ */
+export function damageTaken(kind: EnemyKind, amount: number): number {
+  return Math.max(0, amount - (enemyTraits(kind).armor ?? 0));
 }
 
 /** What this kind does beyond the ordinary. Never null - a kind with no traits reads as empty. */
