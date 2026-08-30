@@ -49,15 +49,30 @@ export function enemyStats(kind: EnemyKind): EnemyStats {
   return ENEMY_STATS[kind];
 }
 
-/** Enemy kinds that spawn replacements on death, and what they spawn. */
-const SPLIT_ON_DEATH: Partial<Record<EnemyKind, EnemyKind[]>> = {
-  ransomware: ['encryptor', 'encryptor'],
+/**
+ * Everything a kind does beyond walking, dying and being worth Cycles. One optional
+ * field per behavior, and a kind with no entry is the ordinary case: shoot it.
+ *
+ * One record rather than a table per behavior, which is what this was. Splitting and
+ * immunity each had their own `Partial<Record<EnemyKind, ...>>`, their own accessor,
+ * and their own branch in the console - three places to touch per behavior, times
+ * however many behaviors get added. Adding one here is a field, a line in `TRAITS`,
+ * and a line in the console's row table.
+ */
+export interface EnemyTraits {
+  /** Takes no damage at all from this tower kind. */
+  immuneTo?: TowerKind;
+  /** Spawns these at the same path position when a tower kills it. */
+  splitsInto?: EnemyKind[];
+}
+
+const TRAITS: Partial<Record<EnemyKind, EnemyTraits>> = {
+  ransomware: { splitsInto: ['encryptor', 'encryptor'] },
+  zeroDay: { immuneTo: 'aesTurret' },
 };
 
-/** Enemy kinds that take no damage from a specific tower kind. */
-const IMMUNE_TO: Partial<Record<EnemyKind, TowerKind>> = {
-  zeroDay: 'aesTurret',
-};
+/** Shared and never mutated, so the common case allocates nothing on a hot path. */
+const NO_TRAITS: EnemyTraits = {};
 
 /**
  * `hpScale` is the wave's toughness multiplier (see `wave.ts`). It moves HP and
@@ -87,16 +102,16 @@ export function stepEnemy(enemy: Enemy, dtMs: number, pathLength: number, speedM
   return enemy.distance >= pathLength;
 }
 
-/** Enemy kinds to spawn (at the same path position) when this kind is killed by a tower. */
-export function getSplitKinds(kind: EnemyKind): EnemyKind[] | null {
-  return SPLIT_ON_DEATH[kind] ?? null;
+/** What this kind does beyond the ordinary. Never null - a kind with no traits reads as empty. */
+export function enemyTraits(kind: EnemyKind): EnemyTraits {
+  return TRAITS[kind] ?? NO_TRAITS;
 }
 
+/**
+ * Kept as its own predicate rather than read off the traits at the call site, because
+ * the caller is the targeting loop: it asks this of every enemy for every tower on
+ * every tick, and `isImmuneTo(enemy.kind, tower.kind)` says what that loop means.
+ */
 export function isImmuneTo(kind: EnemyKind, towerKind: TowerKind): boolean {
-  return IMMUNE_TO[kind] === towerKind;
-}
-
-/** The tower kind this enemy shrugs off, or null. Same table isImmuneTo reads. */
-export function immuneTowerKind(kind: EnemyKind): TowerKind | null {
-  return IMMUNE_TO[kind] ?? null;
+  return enemyTraits(kind).immuneTo === towerKind;
 }

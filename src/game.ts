@@ -1,6 +1,6 @@
 import { buildableTileSet, pathLength, positionAlongPath, rasterizePath } from './map.ts';
 import type { GridPos, LevelData } from './map.ts';
-import { createEnemy, getSplitKinds, isImmuneTo, stepEnemy } from './enemy.ts';
+import { createEnemy, enemyTraits, isImmuneTo, stepEnemy } from './enemy.ts';
 import type { Enemy, EnemyKind } from './enemy.ts';
 import {
   applyUpgrade,
@@ -283,7 +283,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
         state.particles.push(...createGlitchBurst(deathPos.x, deathPos.y, pixels));
       }
 
-      const splitKinds = getSplitKinds(projectile.target.kind);
+      const splitKinds = enemyTraits(projectile.target.kind).splitsInto;
       if (splitKinds) {
         splitKinds.forEach((kind, i) => {
           // Children inherit the wave their parent was born under, not whatever

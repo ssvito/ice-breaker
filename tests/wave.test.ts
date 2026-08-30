@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSpawner, nextWavePreview, stepSpawner, waves } from '../src/wave.ts';
-import { createEnemy, enemyStats, getSplitKinds } from '../src/enemy.ts';
+import { createEnemy, enemyStats, enemyTraits } from '../src/enemy.ts';
 import type { EnemyKind } from '../src/enemy.ts';
 import { STARTING_CYCLES, TICK_MS } from '../src/game.ts';
 import { MAX_TIER, towerStats } from '../src/tower.ts';
@@ -107,7 +107,7 @@ test('every kind gets a wave to itself before it turns up in a mix', () => {
   assert.ok(!introduced.has('encryptor'), 'the Encryptor should have no group of its own anywhere in the curve');
   const ransomwareWave = waves.findIndex((wave) => wave.groups.some((group) => group.enemyKind === 'ransomware'));
   assert.equal(waves[ransomwareWave].groups.length, 1, 'the wave that introduces Ransomware must be Ransomware alone');
-  assert.deepEqual(getSplitKinds('ransomware'), ['encryptor', 'encryptor']);
+  assert.deepEqual(enemyTraits('ransomware').splitsInto, ['encryptor', 'encryptor']);
 });
 
 test('the toughness ramp moves HP and nothing else', () => {
@@ -126,7 +126,7 @@ test('the toughness ramp moves HP and nothing else', () => {
 /** Everything a wave pays if nothing leaks, split children included. */
 function wavePayout(kinds: EnemyKind[]): number {
   return kinds.reduce((total, kind) => {
-    const children = getSplitKinds(kind) ?? [];
+    const children = enemyTraits(kind).splitsInto ?? [];
     return total + enemyStats(kind).reward + children.reduce((sum, child) => sum + enemyStats(child).reward, 0);
   }, 0);
 }

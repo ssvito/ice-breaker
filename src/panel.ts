@@ -1,7 +1,7 @@
 import { canUpgrade, MAX_TIER, sellValue, towerStats, upgradeCost } from './tower.ts';
 import type { Tower, TowerKind } from './tower.ts';
-import { enemyStats, getSplitKinds, immuneTowerKind } from './enemy.ts';
-import type { Enemy } from './enemy.ts';
+import { enemyStats, enemyTraits } from './enemy.ts';
+import type { Enemy, EnemyTraits } from './enemy.ts';
 import type { WavePreview } from './wave.ts';
 
 /**
@@ -15,6 +15,26 @@ import type { WavePreview } from './wave.ts';
  * native touch handling, focus, and disabled states for free.
  */
 export type PanelTarget = { kind: 'tower'; tower: Tower } | { kind: 'enemy'; enemy: Enemy } | null;
+
+/**
+ * One reader per trait in `EnemyTraits`, in the order the rows read. A reader returns
+ * null for a kind that does not have its trait, and **the ordinary enemy earns no rows
+ * at all** - same rule as the BREACH line above it, where a cost of 1 is what everything
+ * costs and so is not worth printing.
+ *
+ * A table rather than a run of `if`s inside `renderEnemy`, because a behavior added to
+ * `enemy.ts` should land in the console as one line in one place, next to the other
+ * lines that do the same job, rather than as another branch threaded through the row
+ * counter. The counter is what made the old shape fragile: every branch had to remember
+ * to advance it.
+ */
+const TRAIT_ROWS: ((traits: EnemyTraits) => [label: string, value: string] | null)[] = [
+  (traits) => (traits.immuneTo ? ['IMMUNE', towerStats(traits.immuneTo).name] : null),
+  (traits) =>
+    traits.splitsInto
+      ? ['SPLITS', `${traits.splitsInto.length}x ${enemyStats(traits.splitsInto[0]).name}`]
+      : null,
+];
 
 export interface TowerPanel {
   /** The console's root box. Exposed so its owner can measure it - the console is
@@ -257,8 +277,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
 
   function renderEnemy(enemy: Enemy): void {
     const stats = enemyStats(enemy.kind);
-    const immune = immuneTowerKind(enemy.kind);
-    const splits = getSplitKinds(enemy.kind);
+    const traits = enemyTraits(enemy.kind);
 
     title.textContent = stats.name;
     // HP lives in the header so it stays readable with the console collapsed - it is
@@ -275,8 +294,10 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     // Only worth a row when it is not the ordinary 1: the boss costing the whole
     // core is a rule, and an unwritten rule is the thing the console exists to end.
     if (stats.coreDamage > 1) setStat(row++, 'BREACH', `${stats.coreDamage} HP`);
-    if (immune) setStat(row++, 'IMMUNE', towerStats(immune).name);
-    if (splits) setStat(row++, 'SPLITS', `${splits.length}x ${enemyStats(splits[0]).name}`);
+    for (const readTrait of TRAIT_ROWS) {
+      const line = readTrait(traits);
+      if (line) setStat(row++, line[0], line[1]);
+    }
     clearStatsFrom(row);
   }
 
