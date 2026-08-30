@@ -1,4 +1,5 @@
-import type { EnemyKind } from './enemy.ts';
+import { BASE_SCALE } from './enemy.ts';
+import type { EnemyKind, WaveScale } from './enemy.ts';
 
 /**
  * A group is one kind arriving on its own little timeline inside the wave:
@@ -28,29 +29,60 @@ export interface WaveDefinition {
    * richer.
    */
   hpScale?: number;
+  /**
+   * Multiplies the speed of everything the wave spawns. Defaults to 1, and it is the
+   * second axis the curve got when ten waves of `hpScale` turned out to be one question
+   * asked louder. HP is the axis an upgraded board beats by construction, because damage
+   * per tier climbs faster than any multiplier the curve dares; speed attacks the other
+   * half of a defense, since it shortens time-in-range and so prices coverage and
+   * placement rather than DPS. It is also the axis that finally makes the two slow auras
+   * matter more the deeper the run goes, instead of less.
+   *
+   * Applied at birth in `createEnemy`, never as a per-tick multiplier - see `WaveScale`
+   * for the kind that would otherwise have walked out of the curve unnoticed.
+   */
+  speedScale?: number;
 }
 
 /**
- * The curve. Ten waves with a shape rather than a slope: pressure, a breath at 6,
- * a crunch at 9, the boss at 10.
+ * The curve. Fifteen waves in two acts, each with a shape rather than a slope.
+ *
+ * **Act one, 1-8: the vocabulary.** Worms, Trojans, Packet Sniffers, Ransomware -
+ * pressure, a breath at 6, and a crunch at 8. It is the ten-wave curve minus its last
+ * two waves, kept as it stood because it is the half of the run the player already
+ * reported as fine.
+ *
+ * **Act two, 9-15: the questions.** The three kinds v1.6 added arrive one per odd wave,
+ * each alone and unscaled, and the even wave after each one puts it back on the board
+ * under load. That alternation is what a second act is for here: the first half of the
+ * run teaches a vocabulary and the second half asks whether the board you built out of
+ * it answers a question it was not built for.
  *
  * The rule the order obeys is that **every kind gets a wave to itself before it
  * shows up in a mix** - the wave that introduces a kind is the game teaching a
  * rule, and teaching it under load teaches nothing. Worms open, Trojans land alone
- * at 3, Packet Sniffers alone at 5, Ransomware alone at 7. The Encryptor is the
- * exception that proves it: it has no group of its own anywhere, because it is
- * only ever born from a Ransomware splitting, and wave 7 is where the player meets
- * that with nothing else on the board. `tests/wave.test.ts` gates the rule.
+ * at 3, Packet Sniffers alone at 5, Ransomware alone at 7, then BEACON at 9, PACKER at
+ * 11 and ROOTKIT at 13. The Encryptor is the exception that proves it: it has no group
+ * of its own anywhere, because it is only ever born from a Ransomware splitting, and
+ * wave 7 is where the player meets that with nothing else on the board.
+ * `tests/wave.test.ts` gates the rule, and gates that no kind is left out of the curve.
  *
- * Payout is sized against the tier ladder: a flawless run collects 409 Cycles on
- * top of the 100 it starts with, and topping out all four towers costs 570. Some
- * of the ladder is reachable, all of it is not, which is the decision the ladder
- * exists to pose - `tests/wave.test.ts` computes both numbers and gates the gap.
+ * **The two acts scale on different axes**, which is the point of there being two axes.
+ * Act one ramps `hpScale` and nothing else, so it asks whether the guns are big enough.
+ * Act two ramps `speedScale` on top, so it asks whether they cover enough trace - and the
+ * answer to that one is placement rather than another upgrade. Act two's three
+ * introductions are unscaled on both axes, because the wave that teaches a rule should
+ * teach the rule and not the curve. Act one's are not, and the two that scale say why
+ * where they stand.
  *
- * Difficulty past wave 6 is carried by `hpScale` rather than by counts, because
- * counts are also the economy. The ramp starts late on purpose: rounding makes a
- * small multiplier a big jump on a three-HP Worm, and an early one turned wave 4
- * into a wall for any board still on tier 1.
+ * **Act two is small and hard rather than big and hard, and the economy is why.** Payout
+ * is sized against the tier ladder - topping out some towers is reachable, topping out
+ * all four is not - and the ladder did not get longer when the run did. Counts are also
+ * the bounty, so five more waves of bodies at ten-wave rates would have paid for the
+ * whole ladder and ended the only decision the ladder exists to pose. So act two carries
+ * its difficulty in the two scale axes and in overlap, on about as many bodies per wave
+ * as act one's breath. `tests/wave.test.ts` computes the purse and the ladder and gates
+ * the gap.
  */
 export const waves: WaveDefinition[] = [
   // 1 - first contact. One kind, slow enough to watch a single tower work.
@@ -71,7 +103,7 @@ export const waves: WaveDefinition[] = [
   },
 
   // 5 - PACKET SNIFFER, alone: one HP each at speed 4, a test of coverage and
-  // fire rate rather than damage. Twelve of them, and nothing else to watch.
+  // fire rate rather than damage. Fourteen of them, and nothing else to watch.
   { groups: [{ enemyKind: 'packetSniffer', count: 14, spawnIntervalMs: 300 }] },
 
   // 6 - the breath. Deliberately under-strength: the wave you bank, upgrade
@@ -88,8 +120,8 @@ export const waves: WaveDefinition[] = [
   // is what stops the split arriving at the core.
   { hpScale: 1.5, groups: [{ enemyKind: 'ransomware', count: 4, spawnIntervalMs: 2000 }] },
 
-  // 8 - sniffer flood with two Trojans inside it. The Trojans are the threat and
-  // the sniffers are what stops the towers from being pointed at them.
+  // 8 - act one's crunch: a sniffer flood with two Trojans inside it. The Trojans are
+  // the threat and the sniffers are what stops the towers from being pointed at them.
   {
     hpScale: 2,
     groups: [
@@ -98,24 +130,63 @@ export const waves: WaveDefinition[] = [
     ],
   },
 
-  // 9 - the crunch. Everything the run has taught, overlapping on purpose.
+  // 9 - BEACON, alone and unscaled: act two opens by taking away a rule act one spent
+  // eight waves teaching. Everything the player bought to buy time does nothing here.
+  { groups: [{ enemyKind: 'beacon', count: 5, spawnIntervalMs: 900 }] },
+
+  // 10 - and the same question with the board busy. The sniffers are what the slows are
+  // for; the Beacons walk through them at a speed no aura on the map can touch.
   {
-    hpScale: 2.75,
+    hpScale: 2,
+    speedScale: 1.1,
     groups: [
-      { enemyKind: 'ransomware', count: 3, spawnIntervalMs: 2200 },
-      { enemyKind: 'worm', count: 6, spawnIntervalMs: 700, startMs: 1000 },
-      { enemyKind: 'trojan', count: 2, spawnIntervalMs: 2500, startMs: 3000 },
+      { enemyKind: 'beacon', count: 4, spawnIntervalMs: 1000 },
+      { enemyKind: 'packetSniffer', count: 8, spawnIntervalMs: 300, startMs: 800 },
     ],
   },
 
-  // 10 - ZERO-DAY. Immune to AES Turrets, so a run that answered everything with
-  // one weapon meets the wave that ignores it, with an escort to keep the rest of
-  // the board busy. The scale is what makes the boss an 100 HP boss.
+  // 11 - PACKER, alone and unscaled. Armor 1, so a tier-1 Firewall Node is not slow
+  // against this wave, it is useless - and the answer is a tier or a bigger gun.
+  { groups: [{ enemyKind: 'packer', count: 4, spawnIntervalMs: 1300 }] },
+
+  // 12 - armor with a stream around it. Worms are cheap to kill and expensive to
+  // ignore, which is what stops the whole board being pointed at the Packers.
+  {
+    hpScale: 1.5,
+    speedScale: 1.2,
+    groups: [
+      { enemyKind: 'packer', count: 3, spawnIntervalMs: 1400 },
+      { enemyKind: 'worm', count: 6, spawnIntervalMs: 550, startMs: 800 },
+    ],
+  },
+
+  // 13 - ROOTKIT, alone and unscaled: the wave that asks whether an IDS Scanner was
+  // bought and, more to the point, whether it was put where the guns are.
+  { groups: [{ enemyKind: 'rootkit', count: 5, spawnIntervalMs: 900 }] },
+
+  // 14 - act two's crunch, and the wave that takes over from the old wave 9: three
+  // questions at once, at the fastest the curve ever runs. Rootkits need the Scanner,
+  // Beacons ignore it, and the sniffers arrive while both are still walking.
+  {
+    hpScale: 2,
+    speedScale: 1.3,
+    groups: [
+      { enemyKind: 'rootkit', count: 4, spawnIntervalMs: 1000 },
+      { enemyKind: 'beacon', count: 3, spawnIntervalMs: 1200, startMs: 800 },
+      { enemyKind: 'packetSniffer', count: 8, spawnIntervalMs: 300, startMs: 1800 },
+    ],
+  },
+
+  // 15 - ZERO-DAY. Immune to AES Turrets, so a run that answered everything with
+  // one weapon meets the wave that ignores it, escorted by the two kinds that punish
+  // the other two answers. The scale is what makes the boss a 100 HP boss.
   {
     hpScale: 2.5,
+    speedScale: 1.15,
     groups: [
       { enemyKind: 'zeroDay', count: 1, spawnIntervalMs: 0 },
-      { enemyKind: 'packetSniffer', count: 8, spawnIntervalMs: 500, startMs: 2000 },
+      { enemyKind: 'packer', count: 2, spawnIntervalMs: 2000, startMs: 1500 },
+      { enemyKind: 'packetSniffer', count: 8, spawnIntervalMs: 400, startMs: 2500 },
     ],
   },
 ];
@@ -230,7 +301,7 @@ export function stepSpawner(spawner: Spawner, dtMs: number): readonly EnemyKind[
 export interface WavePreview {
   number: number; // 1-based, as the HUD says it
   total: number;
-  hpScale: number;
+  scale: WaveScale;
   composition: { kind: EnemyKind; count: number }[];
   countdownMs: number;
   /** Cycles the player is paid for calling this wave now, at this instant of the countdown. */
@@ -244,12 +315,16 @@ export interface WavePreview {
 }
 
 /**
- * One Cycle per whole second of countdown skipped. Deliberately modest: over the
- * ten waves it is worth about 80 Cycles against a curve that pays 409, so calling
- * everything early is a Firewall Node's ladder and a bit - real money, and nowhere
- * near a way around the economy. Rounded up rather than down so the button's `+8`
- * and the meta's `IN 8s` are always the same number; two readings of one countdown
- * disagreeing by one is the kind of small lie that costs trust in all of it.
+ * One Cycle per whole second of countdown skipped. It was sized as deliberately modest
+ * against a ten-wave curve - about 80 Cycles on a curve paying 409 - and the fifteen-wave
+ * curve moved it without the rate changing: fifteen lulls at a poorer payout make it
+ * about 117 against 426, which is a quarter of the purse rather than a fifth. It is no
+ * longer obviously modest, and the reason it stays at 1 here is that the harness says
+ * the run that takes all of it now loses - `rush` breaches the core with every one of
+ * those Cycles in hand. A bonus that buys a board you do not live to use is priced by
+ * the curve, not by the rate. Rounded up rather than down so the button's `+8` and the
+ * meta's `IN 8s` are always the same number; two readings of one countdown disagreeing
+ * by one is the kind of small lie that costs trust in all of it.
  */
 export const EARLY_CALL_RATE = 1;
 
@@ -279,7 +354,7 @@ function readWave(index: number, countdownMs: number, callable: boolean): WavePr
   return {
     number: index + 1,
     total: waves.length,
-    hpScale: wave.hpScale ?? 1,
+    scale: waveScaleOf(index),
     composition,
     countdownMs,
     earlyBonus: callable ? earlyCallBonus(countdownMs) : 0,
@@ -315,10 +390,25 @@ export function currentWaveReading(spawner: Spawner): WavePreview | null {
   return readWave(spawner.waveIndex, 0, false);
 }
 
-/** HP multiplier of the wave currently running - what `createEnemy` is handed. */
-export function waveHpScale(spawner: Spawner): number {
-  const wave = waves[spawner.waveIndex];
-  return wave?.hpScale ?? 1;
+/**
+ * What the wave at this index makes of what it spawns. `BASE_SCALE` rather than a fresh
+ * object for the ordinary wave, so the common case allocates nothing and every unscaled
+ * enemy in the run shares one record.
+ */
+function waveScaleOf(index: number): WaveScale {
+  const wave = waves[index];
+  if (!wave || (wave.hpScale === undefined && wave.speedScale === undefined)) return BASE_SCALE;
+  return { hp: wave.hpScale ?? 1, speed: wave.speedScale ?? 1 };
+}
+
+/**
+ * The scaling of the wave currently running - what `createEnemy` is handed. One accessor
+ * for both axes rather than one per axis: they are read at the same instant, by the same
+ * caller, for the same enemy, and a second accessor is the shape v1.6's first step spent
+ * a whole refactor removing from the traits.
+ */
+export function waveScale(spawner: Spawner): WaveScale {
+  return waveScaleOf(spawner.waveIndex);
 }
 
 /** The wave the run is on, 1-based, counting the opening countdown as wave 1. */

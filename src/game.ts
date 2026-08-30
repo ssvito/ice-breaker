@@ -17,7 +17,7 @@ import {
 import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
-import { createSpawner, nextWavePreview, stepSpawner, waveHpScale } from './wave.ts';
+import { createSpawner, nextWavePreview, stepSpawner, waveScale } from './wave.ts';
 import type { Spawner } from './wave.ts';
 import { createGlitchBurst, stepParticle } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
@@ -218,8 +218,8 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
   if (spawnKinds.length > 0) {
     // Read after stepping, never before: the tick a wave opens is a tick that both
     // advances the wave index and spawns, and the enemies belong to the new wave.
-    const hpScale = waveHpScale(state.spawner);
-    for (const kind of spawnKinds) state.enemies.push(createEnemy(kind, hpScale));
+    const scale = waveScale(state.spawner);
+    for (const kind of spawnKinds) state.enemies.push(createEnemy(kind, scale));
   }
 
   // One pass for both aura effects, because they answer the same question - which
@@ -302,7 +302,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
         splitKinds.forEach((kind, i) => {
           // Children inherit the wave their parent was born under, not whatever
           // wave is running when the parent finally dies.
-          const child = createEnemy(kind, projectile.target.hpScale);
+          const child = createEnemy(kind, projectile.target.scale);
           child.distance = Math.max(0, projectile.target.distance - i * 0.4);
           state.enemies.push(child);
         });

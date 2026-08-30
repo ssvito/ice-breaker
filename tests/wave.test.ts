@@ -9,7 +9,7 @@ import {
   stepSpawner,
   waves,
 } from '../src/wave.ts';
-import { createEnemy, enemyStats, enemyTraits } from '../src/enemy.ts';
+import { createEnemy, ENEMY_KINDS, enemyStats, enemyTraits } from '../src/enemy.ts';
 import type { EnemyKind } from '../src/enemy.ts';
 import { STARTING_CYCLES, TICK_MS } from '../src/game.ts';
 import { MAX_TIER, towerStats } from '../src/tower.ts';
@@ -28,10 +28,12 @@ function spawnWave(waveNumber: number): { kind: EnemyKind; atMs: number }[] {
   const spawned: { kind: EnemyKind; atMs: number }[] = [];
 
   let elapsedMs = 0;
-  // Three simulated minutes: this walks every wave before the one it wants, and
-  // the whole curve's spawning fits inside two.
-  for (let tick = 0; tick < 60 * 60 * 3; tick++) {
-    // liveEnemyCount 0 keeps the spawner rolling from wave to wave without a sim.
+  // Eight simulated minutes, up from three when the curve went to fifteen waves: this
+  // walks every wave before the one it wants, and the lulls alone are now about two of
+  // those minutes. The old cap did not fail loudly - it ran out mid-wave-15 and reported
+  // a wave spawning seven of the eight sniffers it declares, which reads as a bug in the
+  // spawner rather than as a stopwatch running out.
+  for (let tick = 0; tick < 60 * 60 * 8; tick++) {
     for (const kind of stepSpawner(spawner, TICK_MS)) {
       if (spawner.waveIndex === waveNumber - 1) spawned.push({ kind, atMs: elapsedMs });
     }
@@ -118,17 +120,49 @@ test('every kind gets a wave to itself before it turns up in a mix', () => {
   assert.deepEqual(enemyTraits('ransomware').splitsInto, ['encryptor', 'encryptor']);
 });
 
-test('the toughness ramp moves HP and nothing else', () => {
-  const scaled = createEnemy('worm', 2.75);
+test('each scaling axis moves its own stat, and neither moves the bounty', () => {
+  // This assertion used to read "the toughness ramp moves HP and nothing else", and half
+  // of it was a statement about a curve with one axis rather than about the design. The
+  // half that survives any number of axes is the bounty: a harder wave must not also be
+  // a richer one, because counts are the economy and scaling is how a wave gets harder
+  // without being paid for. The half that had to go said speed never moves, which the
+  // speed axis contradicts on purpose - so it is replaced by the stronger claim, that
+  // each axis moves its own stat and leaves the other alone.
   const plain = createEnemy('worm');
+  const tougher = createEnemy('worm', { hp: 2.75, speed: 1 });
+  const faster = createEnemy('worm', { hp: 1, speed: 1.3 });
   const stats = enemyStats('worm');
 
   assert.equal(plain.maxHp, stats.maxHp);
-  assert.equal(scaled.maxHp, Math.round(stats.maxHp * 2.75));
-  assert.equal(scaled.hp, scaled.maxHp, 'a scaled enemy starts full');
-  assert.equal(scaled.reward, plain.reward, 'a harder wave must not also be a richer one');
-  assert.equal(scaled.speed, plain.speed, 'the ramp is HP, not speed');
-  assert.equal(createEnemy('packetSniffer', 0.1).maxHp, 1, 'nothing scales below one HP');
+  assert.equal(plain.speed, stats.speed);
+
+  assert.equal(tougher.maxHp, Math.round(stats.maxHp * 2.75));
+  assert.equal(tougher.hp, tougher.maxHp, 'a scaled enemy starts full');
+  assert.equal(tougher.speed, plain.speed, 'the HP axis is HP');
+
+  assert.equal(faster.speed, stats.speed * 1.3);
+  assert.equal(faster.maxHp, plain.maxHp, 'the speed axis is speed');
+
+  assert.equal(tougher.reward, plain.reward, 'a harder wave must not also be a richer one');
+  assert.equal(faster.reward, plain.reward, 'nor a faster one');
+  assert.equal(createEnemy('packetSniffer', { hp: 0.1, speed: 1 }).maxHp, 1, 'nothing scales below one HP');
+});
+
+test('every kind in the roster has somewhere in the run to be met', () => {
+  // Three kinds sat in `ENEMY_STATS` with sprites, traits and tests for a whole step
+  // without appearing in a single wave, which was the plan and was still invisible from
+  // everywhere except this file. A kind nobody can meet is content that does not exist,
+  // and the failure mode is silence: nothing throws, nothing looks wrong, the run is
+  // just missing a question it was built to ask.
+  const spawned = new Set(waves.flatMap((wave) => wave.groups.map((group) => group.enemyKind)));
+  const born = new Set(ENEMY_KINDS.flatMap((kind) => enemyTraits(kind).splitsInto ?? []));
+
+  for (const kind of ENEMY_KINDS) {
+    assert.ok(
+      spawned.has(kind) || born.has(kind),
+      `${kind} is in the roster and in no wave - nothing in a run can produce one`,
+    );
+  }
 });
 
 /** Everything a wave pays if nothing leaks, split children included. */
@@ -182,7 +216,7 @@ test('the preview reads the wave that is coming, from the moment the last one st
   const seen = new Set<number>();
   let sawSpawningWithoutPreview = false;
 
-  for (let tick = 0; tick < 60 * 60 * 5; tick++) {
+  for (let tick = 0; tick < 60 * 60 * 8; tick++) {
     stepSpawner(spawner, TICK_MS);
     const preview = nextWavePreview(spawner);
 
@@ -215,7 +249,8 @@ test('the preview reads the wave that is coming, from the moment the last one st
       preview.composition.length,
       `the preview of wave ${preview.number} lists a kind twice instead of merging its groups`,
     );
-    assert.equal(preview.hpScale, wave.hpScale ?? 1);
+    assert.equal(preview.scale.hp, wave.hpScale ?? 1);
+    assert.equal(preview.scale.speed, wave.speedScale ?? 1);
   }
 
   assert.ok(sawSpawningWithoutPreview, 'the walk should have passed through a wave actually spawning');

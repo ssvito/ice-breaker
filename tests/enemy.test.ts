@@ -38,11 +38,30 @@ test('fixed movement ignores anything done to the enemy, not just the slows that
 });
 
 test('fixed movement does not exempt a kind from the curve', () => {
-  // `hpScale` is a birth-time stat and `speedMultiplier` is a per-tick effect, and the
-  // trait only ever touches the second. A wave that makes a BEACON tougher still does.
-  const scaled = createEnemy('beacon', 2);
+  // The wave's scaling is a birth-time stat and `speedMultiplier` is a per-tick effect,
+  // and the trait only ever touches the second. A wave that makes a BEACON tougher or
+  // faster still does both.
+  const scaled = createEnemy('beacon', { hp: 2, speed: 1 });
   assert.equal(scaled.maxHp, enemyStats('beacon').maxHp * 2);
   assert.equal(scaled.hp, scaled.maxHp);
+});
+
+test('the wave speed axis reaches the one kind defined to ignore speed effects', () => {
+  // The trap [Roster](../docs/Design/Roster.md) wrote down a step before the axis was
+  // built: a wave speed axis written as a per-tick multiplier passes through exactly the
+  // parameter a BEACON refuses, and the kind walks out of the difficulty curve without
+  // anybody noticing - it just quietly stops getting harder. Born at 1.3x and slowed to
+  // half in the same breath, it has to come out at 1.3x: the curve applies, the aura
+  // does not.
+  const fast = createEnemy('beacon', { hp: 1, speed: 1.3 });
+  assert.equal(fast.speed, enemyStats('beacon').speed * 1.3, 'the curve sets what a BEACON is');
+
+  stepEnemy(fast, 1000, PATH, 0.5);
+  assert.equal(
+    fast.distance,
+    enemyStats('beacon').speed * 1.3,
+    'a BEACON in an aura on a fast wave walks the fast wave, not the aura',
+  );
 });
 
 test('armor is subtracted per hit, and the floor is zero rather than one', () => {

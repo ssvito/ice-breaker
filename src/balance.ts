@@ -284,6 +284,15 @@ const VETERAN_BUILDS: Build[] = [
   { kind: 'idsScanner', x: 3, y: 3, tier: 2, fromWave: 5 },
   { kind: 'firewallNode', x: 5, y: 3, tier: 3, fromWave: 7 },
   { kind: 'aesTurret', x: 12, y: 5, fromWave: 9 },
+  // Act two, added when the curve grew to fifteen. A build order that stops at wave 9
+  // measures nothing past wave 9 - it reports act two against a board that quit, and
+  // reads as a curve that got hard when what got hard was the yardstick. The three
+  // entries are what act two asks for by name: a second Scanner where the back half of
+  // the trace is, because the ROOTKIT is only shootable inside one; the Turret's second
+  // tier, because armor is what makes small hits worthless; and one more gun.
+  { kind: 'idsScanner', x: 8, y: 5, fromWave: 10 },
+  { kind: 'aesTurret', x: 12, y: 5, tier: 2, fromWave: 12 },
+  { kind: 'firewallNode', x: 10, y: 5, fromWave: 14 },
 ];
 
 export const loadouts: Loadout[] = [

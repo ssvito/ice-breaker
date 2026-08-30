@@ -11,6 +11,34 @@ export type EnemyKind =
   | 'rootkit'
   | 'zeroDay';
 
+/**
+ * What a wave makes of the things it spawns. One record rather than a parameter per
+ * axis, and for the same reason `EnemyTraits` is one record rather than a table per
+ * behavior: the second axis is the one that shows you the shape of the first. `hpScale`
+ * alone was a number threaded through `waveHpScale`, `createEnemy`, a field on `Enemy`
+ * and the split that inherits it - four places that would each have grown a twin.
+ *
+ * It lives here rather than in `wave.ts` because the consumer is `createEnemy`, and a
+ * type-only import back from `enemy.ts` to `wave.ts` would close a cycle in the module
+ * graph to say something `enemy.ts` already knows: a wave is where this comes from, and
+ * birth is where it is spent.
+ */
+export interface WaveScale {
+  /** Multiplies maxHp, floored at 1. */
+  hp: number;
+  /**
+   * Multiplies `enemy.speed` **at birth**, which is what makes it an axis a BEACON
+   * obeys. See `stepEnemy`: `enemy.speed` is what the enemy *is* and `speedMultiplier`
+   * is what is being *done to it*, and `fixedMovement` only ever refuses the second.
+   * A speed axis written as a per-tick multiplier would have handed the one kind
+   * defined to ignore multipliers a quiet exemption from the difficulty curve.
+   */
+  speed: number;
+}
+
+/** The ordinary wave: no scaling at all. Shared and never mutated. */
+export const BASE_SCALE: WaveScale = { hp: 1, speed: 1 };
+
 export interface Enemy {
   kind: EnemyKind;
   distance: number; // grid units travelled along the path
@@ -19,7 +47,7 @@ export interface Enemy {
   maxHp: number;
   reward: number; // Cycles earned on kill
   coreDamage: number; // core HP lost if it arrives
-  hpScale: number; // the wave's HP multiplier it was born under; split children inherit it
+  scale: WaveScale; // the wave's scaling it was born under; split children inherit it
   /**
    * Whether a revealing aura is covering it *right now*. Recomputed from scratch every
    * tick rather than carried, because an aura is a place and not a status effect: walk
@@ -47,22 +75,36 @@ interface EnemyStats {
 }
 
 /**
- * Bounties are sized against the run, not against each other: ten waves pay out
- * 409 Cycles on top of the 100 the run starts with, and topping out all four
- * towers costs 570. They came down when the curve went from four waves to
- * ten - at the old rates the same curve paid for the entire tier ladder and left
- * change, which is the one thing the ladder cannot survive.
+ * Bounties are sized against the run, not against each other. They came down twice, both
+ * times because the run got longer: once when the curve went from four waves to ten, and
+ * again at fifteen, where the arithmetic left no choice at all. The ladder costs 570 to
+ * top out and did not get longer when the run did, so the purse has to stay under it
+ * whatever the curve's length - and five more waves at the ten-wave rates paid out 580
+ * on their own, a third over the ceiling, with no shape of curve able to fix it. The
+ * shape was tried first: even three extra waves overshot.
+ *
+ * So the table is derived rather than nudged. **A kind is worth its base HP**, with a
+ * premium for the two that are worth more than their HP says: the ROOTKIT, which costs a
+ * tower purchase before it can be shot at all, and nothing else. The old table was 1.25x
+ * HP across the board with a 2x on both the Packet Sniffer and the ROOTKIT, and the
+ * Sniffer's premium is the one that went: at 1 HP it is the cheapest kill in the game,
+ * and paying double for it is what made the 53 sniffers in the curve a quarter of the
+ * whole purse. Now the one body the curve uses to make a wave *crowded* is the one body
+ * that barely pays, which is what lets act two crowd the board without inflating the
+ * economy - counts are the bounty, and this is the kind whose count is free.
+ *
+ * `hpScale` and `speedScale` never touch any of this: a harder wave is not a richer one.
  */
 const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
-  worm: { name: 'WORM', speed: 2, maxHp: 3, reward: 4, coreDamage: 1 },
-  trojan: { name: 'TROJAN', speed: 1, maxHp: 8, reward: 10, coreDamage: 1 },
-  packetSniffer: { name: 'PACKET SNIFFER', speed: 4, maxHp: 1, reward: 2, coreDamage: 1 },
-  ransomware: { name: 'RANSOMWARE', speed: 1.5, maxHp: 4, reward: 5, coreDamage: 1 },
+  worm: { name: 'WORM', speed: 2, maxHp: 3, reward: 3, coreDamage: 1 },
+  trojan: { name: 'TROJAN', speed: 1, maxHp: 8, reward: 8, coreDamage: 1 },
+  packetSniffer: { name: 'PACKET SNIFFER', speed: 4, maxHp: 1, reward: 1, coreDamage: 1 },
+  ransomware: { name: 'RANSOMWARE', speed: 1.5, maxHp: 4, reward: 4, coreDamage: 1 },
   encryptor: { name: 'ENCRYPTOR', speed: 2, maxHp: 2, reward: 2, coreDamage: 1 },
-  beacon: { name: 'BEACON', speed: 2.5, maxHp: 4, reward: 5, coreDamage: 1 },
-  packer: { name: 'PACKER', speed: 1.5, maxHp: 6, reward: 8, coreDamage: 1 },
-  rootkit: { name: 'ROOTKIT', speed: 2, maxHp: 3, reward: 6, coreDamage: 1 },
-  zeroDay: { name: 'ZERO-DAY', speed: 0.8, maxHp: 40, reward: 50, coreDamage: 3 },
+  beacon: { name: 'BEACON', speed: 2.5, maxHp: 4, reward: 4, coreDamage: 1 },
+  packer: { name: 'PACKER', speed: 1.5, maxHp: 6, reward: 6, coreDamage: 1 },
+  rootkit: { name: 'ROOTKIT', speed: 2, maxHp: 3, reward: 5, coreDamage: 1 },
+  zeroDay: { name: 'ZERO-DAY', speed: 0.8, maxHp: 40, reward: 40, coreDamage: 3 },
 };
 
 export function enemyStats(kind: EnemyKind): EnemyStats {
@@ -121,23 +163,31 @@ const TRAITS: Partial<Record<EnemyKind, EnemyTraits>> = {
 const NO_TRAITS: EnemyTraits = {};
 
 /**
- * `hpScale` is the wave's toughness multiplier (see `wave.ts`). It moves HP and
- * nothing else - not speed, not the bounty - so a late wave is a harder wave and
- * not a richer one, which is the only way the curve can keep threatening a
- * tier-3 board without paying for the tier-4 that does not exist.
+ * `scale` is what the wave makes of this one (see `wave.ts`). Both axes move what the
+ * enemy *is* and neither moves the bounty, so a late wave is a harder wave and never a
+ * richer one - the only way the curve can keep threatening a tier-3 board without
+ * paying for the tier-4 that does not exist.
+ *
+ * The two axes ask different questions of the same board, which is the reason there are
+ * two: HP asks whether the guns are big enough, and speed asks whether they cover enough
+ * trace, because it buys the enemy less time inside every radius on the map. An upgraded
+ * board answers the first by construction - damage per tier climbs faster than any
+ * multiplier the curve dares - and has to answer the second with placement.
  */
-export function createEnemy(kind: EnemyKind, hpScale = 1): Enemy {
+export function createEnemy(kind: EnemyKind, scale: WaveScale = BASE_SCALE): Enemy {
   const stats = ENEMY_STATS[kind];
-  const maxHp = Math.max(1, Math.round(stats.maxHp * hpScale));
+  const maxHp = Math.max(1, Math.round(stats.maxHp * scale.hp));
   return {
     kind,
     distance: 0,
-    speed: stats.speed,
+    // No rounding, unlike HP: speed is already fractional (0.8 to 4), so there is no
+    // step for a small multiplier to disappear into or to jump across.
+    speed: stats.speed * scale.speed,
     hp: maxHp,
     maxHp,
     reward: stats.reward,
     coreDamage: stats.coreDamage,
-    hpScale,
+    scale,
     revealed: false,
     removed: false,
   };

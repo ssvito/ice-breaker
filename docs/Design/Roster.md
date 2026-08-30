@@ -38,6 +38,8 @@ Two of the four deal no damage at all, which is why every new kind below is real
 
 ## The three arriving in v1.6
 
+All three are in as of 2026-08-30, and all three have a wave: **BEACON at 9, PACKER at 11, ROOTKIT at 13**, each alone and unscaled, with the wave after each one putting it back on the board under load. That is act two of the fifteen-wave curve, and the reason the three arrive together there rather than spread through the run is the rule below - each needs a wave of its own, and act one is the vocabulary the mixes are written out of. `tests/wave.test.ts` now gates that no kind in the roster is left without somewhere to be met.
+
 Names are proposals and the [Theme](./Theme.md) note owns them.
 
 ### BEACON - the one the auras cannot touch
@@ -89,4 +91,6 @@ The one thing none of that covers is a player who reads the preview and cannot a
 
 ## What this note owes
 
-The kinds above have no sprites, and the sprite is the part that makes a question legible before it is explained - a PACKER has to *look* armored or the player learns the rule by losing to it. Sizes and ratios are [Sprite Spec](./Sprite%20Spec.md)'s, authored in `scripts/gen-sprites.mjs`.
+Nothing structural any more - the three shipped with sprites, and the sprite is the part that makes a question legible before it is explained, so a PACKER looks armored rather than teaching the rule by winning. Sizes and ratios are [Sprite Spec](./Sprite%20Spec.md)'s, authored in `scripts/gen-sprites.mjs`.
+
+What is owed is a reading, and only a person with the game in their hand can give it: **whether each of the three actually poses its question at the table**. The harness can say that a layout without an IDS Scanner now loses to the ROOTKIT - it does, `focused` breaches on exactly that - but it cannot say whether the player understood *why* they lost, which is the whole difference between a hard counter and an unfair number.

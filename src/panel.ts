@@ -372,8 +372,12 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       if (row >= STAT_COUNT) break;
       setStat(row++, enemyStats(entry.kind).name, `x${entry.count}`);
     }
-    // Same rule as the enemy panel's BREACH line: the ordinary case earns no row.
-    if (preview.hpScale > 1 && row < STAT_COUNT) setStat(row++, 'HARDENED', `${preview.hpScale}x`);
+    // Same rule as the enemy panel's BREACH line: the ordinary case earns no row. Both
+    // axes get one, because "tougher" and "faster" are different problems with different
+    // answers - a tier, or a tower somewhere else - and the countdown is the only moment
+    // the player can still act on knowing which one is coming.
+    if (preview.scale.hp > 1 && row < STAT_COUNT) setStat(row++, 'HARDENED', `${preview.scale.hp}x`);
+    if (preview.scale.speed > 1 && row < STAT_COUNT) setStat(row++, 'ACCELERATED', `${preview.scale.speed}x`);
     clearStatsFrom(row);
   }
 

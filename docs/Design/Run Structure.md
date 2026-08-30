@@ -56,6 +56,15 @@ Three mechanics the spec above did not ask for, each one forced by a reading off
 - **Waves past 6 carry an HP multiplier** (`hpScale`, 1.5x through 2.75x). Difficulty had to come from somewhere that is not counts, because counts are also the bounty, and the economy is the other half of what this milestone sizes. It moves HP only - not speed, not the reward. The ramp starts late because rounding makes a small multiplier a big jump on a three-HP Worm.
 - **A Zero-Day breach costs 3 core HP.** It used to cost 1, like a Worm, so the boss could walk into the core and the run still ended in `SYSTEM SECURED`. Three, not five: a run that arrives clean survives it, a run that has been leaking does not, which keeps every earlier leak on the books until the last wave.
 
+## What v1.6 changed
+
+The three bullets above describe a ten-wave run with one difficulty axis, and both halves of that stopped being true on 2026-08-30. Kept rather than rewritten, because they are what the v1.3 milestone decided and this note is a record of decisions; what follows is what the next one decided against them. Build order and reasoning are in [Roadmap](../Roadmap.md), the kinds are in [Roster](./Roster.md).
+
+- **The countdown starts when a wave finishes spawning, not when the board clears.** The single largest change to the shape of a run since it had one: pressure accumulates, a leak becomes a debt rather than only a cost, and calling early stacks a wave onto one already walking instead of buying out an empty lull.
+- **Fifteen waves in two acts.** Act one, 1-8, is the old curve minus its last two waves - the vocabulary, and the half nobody called easy. Act two, 9-15, introduces the three new kinds one per odd wave and puts each back under load on the wave after, then the boss. A second act rather than a second boss.
+- **Two scaling axes, one per act.** `hpScale` asks whether the guns are big enough and is the axis an upgraded board beats by construction. `speedScale` asks whether they cover enough trace, and the answer to that one is placement. Both are applied at birth, in `createEnemy`, which is what keeps the kind that ignores slow auras from also ignoring the curve.
+- **Bounties are a kind's base HP.** Forced rather than chosen: the tier ladder still costs 570 to top out, so a longer run cannot pay at the old rates without ending the decision the ladder exists to pose. The Packet Sniffer lost its premium, which makes the body the curve crowds a wave with the body that barely pays - crowding is now free to the economy.
+
 ## The status bar
 
 Three glyphs at the top center, replacing three labelled lines in the top-left corner: a heart for the core, a coin for Cycles, `Lv 4` for the wave. `CORE 5/5 / CYCLES 100 / WAVE 1/10` is three times more words than the readings need, and the denominators are facts about the game rather than about this second of it - the core's maximum and the curve's length do not change.
