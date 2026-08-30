@@ -242,9 +242,15 @@ export function drawEnemies(
   }
 }
 
-/** How long a full on/off cycle of the armed chevrons takes. Slower than the sprite
- *  animation clock: a blink is a request for attention, and at 220ms it reads as a fault. */
-const CALL_BLINK_MS = 700;
+/**
+ * How long each chevron holds the light before it passes to the other. Faster than the
+ * 700ms the blink it replaced ran at, and that is the point rather than a side effect:
+ * a symbol going dark needs to be slow or it reads as a fault, while a light travelling
+ * along an arrow needs to be quick or it reads as two separate blinks instead of one
+ * movement. Near a turn indicator's rate, which is the thing everyone has already
+ * learned to read as "this way".
+ */
+const CALL_CHASE_MS = 380;
 /** Distance from the port's center to the ring of countdown pips, in virtual pixels. */
 const PIP_RADIUS = 14;
 const PIP_SLOTS = 12;
@@ -258,8 +264,9 @@ const PIP_SLOTS = 12;
  * arrives, which is the same number the console prints as `IN 8s` and the same number
  * the early call pays out, because all three are `Math.ceil(ms / 1000)`. Three readings
  * of one countdown that cannot disagree, which is the rule `earlyCallBonus` set when it
- * chose to round up. **The chevrons**, blinking, once the player has armed the port with
- * a first tap - a second tap calls the wave. The clock is the resting state on purpose:
+ * chose to round up. **The chevrons**, with the light marching from the first to the
+ * second, once the player has armed the port with a first tap - a second tap calls the
+ * wave. The clock is the resting state on purpose:
  * a port that blinked whenever a call was available would blink for most of a run now
  * that the countdown no longer waits for the board to clear.
  */
@@ -282,11 +289,18 @@ export function drawSpawnPort(
     ctx.fillRect(px - 1, py - 1, 2, 2);
   }
 
-  if (armed && Math.floor(timeMs / CALL_BLINK_MS) % 2 === 0) {
+  if (armed) {
     // Replaces the port rather than decorating it: `spawnPortCall` is opaque wherever
-    // `spawnPort` is, so the armed frame covers the prerendered port completely and the
-    // blink alternates between two whole readings of the same object instead of making
-    // a small symbol flash on top of one. `tests/sprites.test.ts` gates the covering.
+    // `spawnPort` is, so the armed sprite covers the prerendered port completely.
+    //
+    // **Drawn on every frame while armed, and the animation lives in the sprite.** The
+    // first cut alternated between drawing this and not drawing it, which made the plain
+    // port underneath the other half of the blink - and the player read that as the
+    // arrows vanishing, which is the wrong verb for a symbol that means "go". Now both
+    // chevrons are always on screen and only the light moves between them, so the armed
+    // state is one continuous object with something travelling through it. It also makes
+    // the covering invariant stronger: there is no longer a frame in which the armed
+    // port is not painted at all. `tests/sprites.test.ts` gates every frame of it.
     //
     // Always screen-right, never downstream. The first cut pointed the chevrons along
     // the trace and let the viewport rotation carry them, which is correct as a compass
@@ -295,7 +309,7 @@ export function drawSpawnPort(
     // the phone is upright is a symbol asking to be re-parsed. The board's rotation maps
     // world +y to screen +x, so a quarter turn here cancels it exactly - and it is a
     // quarter turn, so the pixels stay on their integer grid.
-    drawSprite(ctx, 'spawnPortCall', 0, cx, cy, rotated ? Math.PI / 2 : 0);
+    drawSprite(ctx, 'spawnPortCall', Math.floor(timeMs / CALL_CHASE_MS), cx, cy, rotated ? Math.PI / 2 : 0);
   }
 }
 

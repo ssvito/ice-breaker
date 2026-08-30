@@ -371,25 +371,38 @@ function rootkit(frame) {
  * rings already use - so the armed port reads as the port lighting up rather than as a
  * different sprite arriving on top of it.
  *
+ * **Two frames, and the arrows take turns rather than going out.** The first cut had one
+ * frame that the renderer blinked on and off against the plain port underneath, and the
+ * player's read of it was that the symbol *disappears* - which is the wrong verb for the
+ * thing `>>` means. Here the lit chevron marches: first, then second, and the one that
+ * is not lit is drawn dark green rather than removed, so the arrow is always there and
+ * only the light moves along it. That is what every "go this way" indicator does, and it
+ * is also why it never reads as a fault - nothing is ever missing.
+ *
  * It must be opaque everywhere `spawnPort` is opaque, because the plain port is painted
  * into the prerendered board and this is drawn over it: a transparent pixel here is the
- * old port showing through the new one. `tests/enemy.test.ts` gates exactly that.
+ * old port showing through the new one. Drawing the unlit chevron instead of skipping it
+ * keeps that true frame to frame, and `tests/sprites.test.ts` gates every frame.
  */
-function spawnPortCall() {
+function spawnPortCall(lit) {
   const g = grid(24, 24);
   const inner = concentricSquares(20, 20, ['k', 'e', 'g', 'G']);
   for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) g[y + 2][x + 2] = inner[y][x];
   fillRect(g, 4, 4, 19, 19, 'k'); // hollow out everything inside the two outer rings
 
-  // Two chevrons, each 7 wide and 2 thick, filling the hollow.
-  for (const x0 of [5, 12]) {
+  // Two chevrons, each 7 wide and 2 thick, filling the hollow. `e` is the port's own
+  // dark green, two steps below `G` on the ramp the rings are already built from, so an
+  // unlit chevron reads as the same arrow with the light off it rather than as a
+  // different colour.
+  [5, 12].forEach((x0, chevron) => {
+    const shade = chevron === lit ? 'G' : 'e';
     for (let i = 0; i < 7; i++) {
       for (const t of [0, 1]) {
-        px(g, x0 + 6 - i + t, 11 - i, 'G');
-        px(g, x0 + 6 - i + t, 12 + i, 'G');
+        px(g, x0 + 6 - i + t, 11 - i, shade);
+        px(g, x0 + 6 - i + t, 12 + i, shade);
       }
     }
-  }
+  });
   return toStrings(g);
 }
 
@@ -412,7 +425,7 @@ const SPRITES = {
   projectile: { w: 3, h: 3, frames: [projectile()] },
   projectileAes: { w: 5, h: 5, frames: [projectileAes()] },
   spawnPort: { w: 24, h: 24, frames: [spawnPort()] },
-  spawnPortCall: { w: 24, h: 24, frames: [spawnPortCall()] },
+  spawnPortCall: { w: 24, h: 24, frames: [spawnPortCall(0), spawnPortCall(1)] },
   core: { w: 48, h: 48, frames: [core()] },
 };
 
