@@ -1,10 +1,10 @@
 # Before the Run
 
-Part of [Idea Bank](./Idea%20Bank.md). A screen between launching the game and playing it: a place to start a run, choose which kind of run, read your records, and maybe sign in. Player's idea, 2026-08-30. Nothing chosen.
+Part of [Idea Bank](./Idea%20Bank.md). A screen between launching the game and playing it: a place to start a run, choose which kind of run, read your records, and maybe sign in. Player's idea, 2026-08-30. **Called critical by the player on 2026-08-31**, with a fifth blocked item added that is the reason: a second map has nowhere to be chosen either. So this stops being one candidate among the idea bank's and becomes the thing the roadmap is organized around next. **Promoted to v1.7** the same day: build order in [Roadmap](../Roadmap.md), and the two questions this note left open - DOM or canvas, screen or state - are settled there rather than here.
 
 It arrived out of a different question - how to stop people playing a stale build - and the two turned out to be the same question wearing different clothes.
 
-## The argument: this is a container four filed items already need
+## The argument: this is a container five filed items already need
 
 The game boots straight into a run. There is no moment that is *not* a run, and that single fact is what blocks a surprising number of things already written down:
 
@@ -12,8 +12,9 @@ The game boots straight into a run. There is no moment that is *not* a run, and 
 - **Difficulty modes** ([Difficulty](./Difficulty.md)) are the same shape - a knob set before a run, not during one.
 - **Local high scores** ([Idea Bank](./Idea%20Bank.md)) have to be *read* somewhere, and the console reads the board rather than the history.
 - **The update prompt** (below) needs a safe seam to apply at, and "before a run" is the only seam in the game that costs nothing.
+- **A second map** ([Idea Bank](./Idea%20Bank.md)) has nowhere to be chosen either - the waypoint-only level format was built for more maps and named a map-select screen as its cost the day it was filed. Added by the player 2026-08-31, and it is the item that moves this note from "worth doing" to "in the way": map 2 is content, and content is what the project would otherwise be adding next.
 
-None of those is blocked on wanting a title screen. They are blocked on there being no before. That is what makes this worth its own note rather than a bullet: it is not a feature, it is the place three features are waiting for.
+None of those is blocked on wanting a title screen. They are blocked on there being no before. That is what makes this worth its own note rather than a bullet: it is not a feature, it is the place five filed items are waiting for.
 
 It also gives a home to two things that have nowhere to be displayed today: the **soundtrack credit and licence** that v1.5 still owes the composer, which is the kind of thing that lives on a title screen in every game there is, and a **build version** the player can read back when reporting a bug.
 
@@ -30,6 +31,8 @@ Which is exactly what the endless note has said since it was filed - *"gives hig
 3. The mode picker, which is only then a picker rather than a list with one item.
 
 **Shipping a chooser with one choice is worse than shipping a start button.** The shell should be built so a second mode is a line of data, and should not pretend to offer a decision that does not exist yet.
+
+**What the fifth item changes about that sequence** (2026-08-31): endless was placed second because the picker needed a second entry before it was a picker. A second map is also a second entry, and a different *kind* of choice - what you play rather than how - so a map select is a list with two items the day map 2 lands, with no endless required first. That does not reorder anything: the shell is first either way. What it does is take endless off the critical path of the picker and leave it where it actually belongs, as the answer to what a record measures.
 
 ## Login: split it into the half that needs a server and the half that does not
 

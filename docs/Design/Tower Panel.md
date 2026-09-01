@@ -101,5 +101,5 @@ This is the actual mobile fix. "Arm, then aim" was two taps with an invisible st
 
 ## Deliberately not in scope
 
-- **Tier art.** [Sprite Spec](./Sprite%20Spec.md) has no tier variants and inventing three sprites per tower would swallow the milestone. Tiers read procedurally for now (pips on the tower, or an outline that brightens), and graduate to real sprites only if the procedural tell looks cheap in play.
+- **Tier art.** [Sprite Spec](./Sprite%20Spec.md) has no tier variants and inventing three sprites per tower would swallow the milestone. Tiers read procedurally for now (pips on the tower, or an outline that brightens), and graduate to real sprites only if the procedural tell looks cheap in play. **Called by the player 2026-08-31** - that condition is the one being met, and the item is filed in [Idea Bank](../Idea%20Bank/Idea%20Bank.md) under Feel / juice with the part this note got wrong: the generator makes a tier a parameter to a shape function, not three hand-drawn sprites.
 - **Rebalancing the four waves.** Upgrades change the economy's shape, so the numbers will be wrong afterwards. That is the wave-design pass's job, not this one.
