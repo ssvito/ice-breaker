@@ -472,10 +472,42 @@ can forget.
 
 ## Credit and licence
 
-The brief treats this as blocking before any code lands, and the repo is public with
-the game live as a portfolio piece. Two artifacts owed: a line in the README, and
-somewhere in the game itself. There is no `about` surface today, so where that line
-lives is a decision this milestone has to make rather than inherit.
+**Answered 2026-09-11**, both halves, by the composer. The ask was split in two on
+2026-08-30 precisely so it could come back in two pieces, and it came back whole:
+
+```
+Composition: Leo Benedetti
+Production:  Ancestor SoundWorks
+             www.ancestorsoundworks.com.br
+```
+
+And the licence is that **there is no licence**: the track is a favour, used with
+permission, with no terms written down. That is an answer and not a missing one, and
+what it decides is the README's wording rather than a file. A public repo with no
+`LICENSE` in it reads as "take it" to plenty of people, so the audio in `public/` is
+carved out in words: not a free asset, not offered under whatever terms the code ends
+up read under.
+
+**In the game it is one row, and it names the studio rather than the person.** The
+ABOUT reading has five rows and spends three, the row is `MUSIC .... ANCESTOR
+SOUNDWORKS`, and it opens the studio in a new tab. Player's call, and the reason it
+holds is that the link and the name have to be the same thing: a row that named the
+composer and linked somewhere else would read as two credits wearing one line. The
+README carries both names, because the README has room to say which person did what.
+
+Two details the row is built out of rather than decorated with. It is an `<a>` with
+`target="_blank"`, because an installed PWA that navigates away from itself has no back
+button to come home with - the run would be lost to a credit. And it sits under the
+stats grid as its own full-width row: the studio's name is wider than one of that
+grid's two 118px columns, and it is the only line in the console that is a control
+rather than a reading, so being outside the grid is honest as well as necessary.
+
+**Deviation from the plan, recorded rather than smoothed over.** [Roadmap](../Roadmap.md)
+puts this in v1.7's "what moves in" step, on the argument that the game had no surface
+where a credit fits. That argument expired when ABOUT shipped on 2026-08-30; the debt
+was then only waiting on the answer, and the answer arrived with the shell still two
+steps out. So it is paid on the surface that exists today, and it moves when ABOUT
+moves - the row belongs to the reading, not to the panel.
 
 ## How it gets tested
 

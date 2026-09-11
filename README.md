@@ -11,6 +11,12 @@ Vanilla TypeScript and the raw Canvas API - no Phaser, no Kaboom, no Pixi. It's 
 - Pixel art at a 32px virtual tile (512x288, integer-scaled with nearest-neighbour), authored as palette-enforced pixel-strings emitted by a generator script.
 - Pointer Events for one mouse/touch code path, plus a DOM toolbar so it's playable on a phone.
 
+## Credits
+
+Soundtrack composed by **Leo Benedetti** and produced by **[Ancestor SoundWorks](https://www.ancestorsoundworks.com.br)**. The game credits it in the console's `ABOUT` reading, which links to the studio.
+
+The track is used here with the composer's permission, as a favour to the project. The audio in `public/` is **not** a free asset and is not offered under whatever terms the rest of this repository is read under - if you fork this, bring your own music.
+
 ## Docs
 
 The full design notes, roadmap, and a dated build log live in [`docs/`](./docs/Tower%20Defense%20PWA.md) - including the decisions that got reversed and why.

@@ -182,6 +182,38 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
     return { cell, label, value, next };
   });
 
+  /**
+   * The soundtrack credit, and the only link anywhere in the game.
+   *
+   * A row of its own under the grid rather than a sixth stat cell, for two reasons that
+   * point the same way: the studio's name is wider than one of that grid's two 118px
+   * columns, and this is the one line in the console that is a control rather than a
+   * reading - it leaves the game. Everything else here reports on the run.
+   *
+   * The composer is the reason the game has a soundtrack at all, and the debt has been
+   * open since the first delivery; see the credit section of
+   * [Audio](../docs/Design/Audio.md) for what is owed and on what terms. The console is
+   * where it lands because the console is the only surface the game has that is about
+   * the game rather than about the board - and when ABOUT moves to the shell, this rides
+   * along with it, because it is part of the reading and not part of the panel.
+   */
+  const credit = document.createElement('a');
+  credit.className = 'stat panel-credit';
+  credit.href = 'https://www.ancestorsoundworks.com.br';
+  // Opens beside the game rather than over it: an installed PWA that navigates away from
+  // itself has no back button to come home with, and a run would be lost to a credit.
+  credit.target = '_blank';
+  credit.rel = 'noopener noreferrer';
+  credit.hidden = true;
+  const creditLabel = document.createElement('span');
+  creditLabel.className = 'stat-label';
+  creditLabel.textContent = 'MUSIC';
+  const creditValue = document.createElement('span');
+  creditValue.className = 'stat-value';
+  creditValue.textContent = 'ANCESTOR SOUNDWORKS';
+  credit.append(creditLabel, creditValue);
+  body.appendChild(credit);
+
   const actions = document.createElement('div');
   actions.className = 'panel-actions';
   body.appendChild(actions);
@@ -420,6 +452,7 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
 
     actions.hidden = !updateReady;
     reloadButton.hidden = !updateReady;
+    credit.hidden = false;
     upgradeButton.hidden = true;
     overclockButton.hidden = true;
     sellButton.hidden = true;
@@ -504,10 +537,11 @@ export function createTowerPanel(handlers: TowerPanelHandlers, host: HTMLElement
       signature = stamp;
 
       root.hidden = false;
-      // Cleared here rather than in each of the four renderers that never show it: only
-      // ABOUT ever turns it back on, so one line before the dispatch cannot be forgotten
-      // by whoever writes the fifth reading.
+      // Cleared here rather than in each of the four renderers that never show them:
+      // only ABOUT ever turns them back on, so two lines before the dispatch cannot be
+      // forgotten by whoever writes the sixth reading.
       reloadButton.hidden = true;
+      credit.hidden = true;
       if (aboutOpen) renderAbout(aboutUpdateReady);
       else if (target?.kind === 'tower') renderSelected(target.tower, cycles);
       else if (target?.kind === 'enemy') renderEnemy(target.enemy);

@@ -355,6 +355,28 @@ canvas {
   color: var(--term-faint);
 }
 
+/* The soundtrack credit: a full-width row under the stats grid, borrowing that grid's
+   .stat so the dot leader is the same one every other reading uses. It is an anchor, so
+   it gets the row padding the grid gives its own cells, and enough height to be a tap
+   target on a phone without becoming a button - a button is a thing that acts on the
+   run, and this is a name.
+
+   Underlined on the value alone, because in a readout where every value is already
+   green text there is nothing else left to say "this one opens". */
+.panel-credit {
+  padding: 0 8px 8px;
+  min-height: 22px;
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.panel-credit .stat-value {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--term-faint);
+}
+
 .stat-next {
   color: #ffe27d;
   text-shadow: 0 0 6px rgba(255, 226, 125, 0.4);
