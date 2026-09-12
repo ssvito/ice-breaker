@@ -176,15 +176,67 @@ export function buildCost(build: Build): number {
   return total;
 }
 
-export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunReport {
-  const { level = level1, maxTicks = 60 * 60 * 20, hpScale = 1 } = options;
+/**
+ * Who plays the run, and the reason this instrument has an interface where it used to
+ * have a build order.
+ *
+ * The wave accounting below - what a wave earned, spent, peaked at and leaked - is the
+ * measurement, and it is the same measurement whoever is pressing the buttons. What
+ * differs is only the answer to "what does the player do this tick": a declared layout
+ * spends down a build order, and a recorded run replays what somebody actually did.
+ * Writing the loop twice would be two instruments that have to agree about a reading,
+ * which is the thing this project keeps deleting.
+ */
+export interface RunDriver {
+  /** Names the run in the report, where a loadout name used to be the only possibility. */
+  name: string;
+  note: string;
+  /**
+   * The player's turn, taken before the tick is stepped. Returns the labels of whatever
+   * it bought - so the wave that paid for a tower is the wave it shows up under - and
+   * the Cycles an early call brought in, which is earnings rather than a refund.
+   */
+  act(state: GameState, wave: number): { bought: string[]; calledEarly: number };
+  /**
+   * Builds the run never afforded. A replay has none by construction: a log records what
+   * happened, so there is no queue of things it was still waiting to do.
+   */
+  unbought?(): Build[];
+}
 
-  const state = createGameState(level, { hpScale });
+/** Spends down a declared build order, taking every early call if the loadout says so. */
+function loadoutDriver(loadout: Loadout): RunDriver {
   const pending: PendingBuild[] = loadout.builds.map((build) => ({
     build,
     targetTier: Math.min(build.tier ?? 1, MAX_TIER),
     tower: null,
   }));
+
+  return {
+    name: loadout.name,
+    note: loadout.note,
+    act(state, wave) {
+      const bought = advanceBuildOrder(state, pending, wave);
+      // After the buying, so the bonus is in hand for the wave it belongs to rather than
+      // the one that just ended.
+      const calledEarly = loadout.callWavesEarly ? callWaveEarly(state) : 0;
+      return { bought, calledEarly };
+    },
+    unbought: () =>
+      pending
+        .filter((entry) => entry.tower === null || entry.tower.tier < entry.targetTier)
+        .map((entry) => entry.build),
+  };
+}
+
+export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunReport {
+  return runSimulation(loadoutDriver(loadout), options);
+}
+
+export function runSimulation(driver: RunDriver, options: BalanceOptions = {}): RunReport {
+  const { level = level1, maxTicks = 60 * 60 * 20, hpScale = 1 } = options;
+
+  const state = createGameState(level, { hpScale });
 
   const reports: WaveReport[] = [];
   let wave = openWave(1);
@@ -209,17 +261,14 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
   // it is the same number the game's loop lands on and the same one every log entry is
   // stamped with. Two counters that must agree is one of them being wrong eventually.
   while (state.status === 'playing' && state.tick < maxTicks) {
-    const cyclesBeforeBuying = state.cycles;
-    wave.bought.push(...advanceBuildOrder(state, pending, wave.wave));
-    wave.spent += cyclesBeforeBuying - state.cycles;
-
-    // Called before the tick and after the buying, so the bonus is in hand for the
-    // wave it belongs to rather than the one that just ended.
-    if (loadout.callWavesEarly) {
-      const bonus = callWaveEarly(state);
-      wave.calledEarly += bonus;
-      wave.earned += bonus;
-    }
+    const cyclesBeforeActing = state.cycles;
+    const { bought, calledEarly } = driver.act(state, wave.wave);
+    wave.bought.push(...bought);
+    wave.calledEarly += calledEarly;
+    wave.earned += calledEarly;
+    // What the player's turn cost, with the early call's bonus taken back out of the
+    // delta: money that arrived is not money that was not spent.
+    wave.spent += calledEarly + cyclesBeforeActing - state.cycles;
 
     const cyclesBeforeTick = state.cycles;
     const healthBeforeTick = state.coreHealth;
@@ -250,8 +299,8 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
 
   return {
     board: boardOf(level).name,
-    loadout: loadout.name,
-    note: loadout.note,
+    loadout: driver.name,
+    note: driver.note,
     status: state.tick >= maxTicks ? 'timeout' : state.status,
     coreHealth: state.coreHealth,
     totalLeaks: MAX_CORE_HEALTH - state.coreHealth,
@@ -261,9 +310,7 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
     totalSpent: reports.reduce((total, report) => total + report.spent, 0),
     durationMs: state.tick * TICK_MS,
     waves: reports,
-    unbought: pending
-      .filter((entry) => entry.tower === null || entry.tower.tier < entry.targetTier)
-      .map((entry) => entry.build),
+    unbought: driver.unbought?.() ?? [],
   };
 }
 
