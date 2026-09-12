@@ -384,9 +384,14 @@ export function drawEndScreen(
   ctx.font = `bold ${unit}px monospace`;
   ctx.fillText(won ? 'SYSTEM SECURED' : 'GAME OVER', ox + worldW / 2, oy + worldH / 2 - fontSize * 0.6);
 
+  // The tap used to drop straight into a fresh run. It now goes back to the shell,
+  // and the line says so: a run that ends *into* the before is what gives records
+  // somewhere to be read and a waiting service worker a seam to apply at. The verdict
+  // stays here, over the board it was earned on, because that board is half of what a
+  // verdict means.
   ctx.font = `${fontSize * 0.6}px monospace`;
   ctx.fillStyle = '#e8f9ff';
-  ctx.fillText('TAP TO RESTART', ox + worldW / 2, oy + worldH / 2 + fontSize * 0.8);
+  ctx.fillText('TAP TO RETURN', ox + worldW / 2, oy + worldH / 2 + fontSize * 0.8);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';

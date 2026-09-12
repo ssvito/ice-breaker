@@ -74,14 +74,6 @@ function startGame(): void {
   let runMap = level1;
   let board = prerenderBoard(runMap);
 
-  /**
-   * Which descriptor the current run was started from. Only tap-to-restart reads it,
-   * so that a restart replays the run that just ended rather than the first in the
-   * list - a difference that is invisible with one entry and is the entire reason the
-   * list exists.
-   */
-  let currentRun: RunDescriptor | null = null;
-
   window.addEventListener('resize', () => {
     fitViewport(viewport);
     applyLayout();
@@ -488,7 +480,6 @@ function startGame(): void {
    * argument - today the map, later the kind of run and the difficulty.
    */
   function startRun(run: RunDescriptor): void {
-    currentRun = run;
     // The board is a bake of the map, so it is redone when, and only when, the map
     // under the run changes.
     if (run.map !== runMap) {
@@ -516,6 +507,25 @@ function startGame(): void {
     applyRunSpeed();
     // The dock's visibility is a function of there being a run, and this is the moment
     // that changes.
+    applyLayout();
+  }
+
+  /**
+   * The other side of `startRun()`: the run is over and the app goes back to the
+   * before. Dropping the state is the whole of it - everything that describes a run is
+   * re-established by `startRun()`, so there is nothing here to reset.
+   *
+   * Except the selection, which is not a reset but a release: it holds a tower or an
+   * enemy from a run that no longer exists, and a dropped run that something still
+   * points at is not dropped.
+   *
+   * The verdict is not carried out of here. It is on the board the player is still
+   * looking at when they tap, and the shell has nothing to say about it yet - records
+   * are the next step, and they are what the shell will read a finished run out of.
+   */
+  function endRun(): void {
+    state = null;
+    selection = null;
     applyLayout();
   }
 
@@ -548,8 +558,12 @@ function startGame(): void {
     // No run, no board: in the shell the canvas is a backdrop, and step 2 puts the DOM
     // layer that *is* interactive on top of it.
     if (!state) return;
+    // A finished run has one control left on the board, and it is the whole board:
+    // the tap that used to restart now returns to the shell. It costs a tap to play
+    // again, and that tap is this milestone's bet - the run ending somewhere is what
+    // records and the update seam are waiting for.
     if (state.status !== 'playing') {
-      if (currentRun) startRun(currentRun);
+      endRun();
       return;
     }
     const tile = clientToGrid(viewport, event.clientX, event.clientY);
