@@ -504,29 +504,32 @@ const LEVEL1_LOADOUTS: Loadout[] = [
  * trace against level 1's 7, and that gap is the whole board.
  *
  * Tiles are on the S: row 4 from x 0 to 3, down the column x=3, row 7 from x 3 to 7, then
- * six rows up the spine at x=7, row 1 from x 7 to 12, down the column x=12, and row 4
- * from x 12 to the core. The near elbow is around x 5, rows 5-6; the far one is around
- * x 8-11, rows 2-3.
+ * six rows up the spine at x=7, row 1 from x 7 to 11, down the column x=11, and row 4 from
+ * x 11 to the core. The two elbows are four columns wide each and mirror one another - the
+ * near one around x 4-6 on rows 5-6, the far one around x 8-10 on rows 2-3.
  */
 const VETERAN_BUILDS_2: Build[] = [
-  // On the way in, covering the entry leg and the first column down. Not in the elbow on
-  // purpose: the elbow is good real estate but it is not where the run starts, and the
-  // opening kills are what pay for everything behind them.
+  // On the way in, covering the approach and the column that turns off it. Not in the
+  // elbow on purpose: the elbow is the best real estate on the board but it is not where
+  // the run starts, and the opening kills are what pay for everything behind them.
   { kind: 'firewallNode', x: 2, y: 5 },
-  // And the second in the near elbow, where the bottom leg and the spine both pass.
+  // And the second inside the near elbow, where the bottom bar and the spine both pass.
+  // This is the board's thesis as a build order, and the harness says what it is worth -
+  // the same ladder two tiles off these tiles loses the core.
   { kind: 'firewallNode', x: 5, y: 6 },
-  // On the bottom leg, inside both of them.
+  // On the bottom bar, inside both of them.
   { kind: 'honeypot', x: 5, y: 7 },
   { kind: 'firewallNode', x: 2, y: 5, tier: 3, fromWave: 3 },
-  { kind: 'idsScanner', x: 5, y: 5, tier: 2, fromWave: 5 },
+  { kind: 'idsScanner', x: 4, y: 6, tier: 2, fromWave: 5 },
   { kind: 'firewallNode', x: 5, y: 6, tier: 3, fromWave: 7 },
-  // Act two moves to the far elbow and the top leg, which is the half of the run the
-  // opening cannot reach - and the ROOTKIT has to be shootable somewhere up there.
+  // Act two moves to the far elbow, which is the mirror of the near one and the half of
+  // the run the opening cannot reach - and the ROOTKIT has to be shootable up there.
   { kind: 'aesTurret', x: 9, y: 2, fromWave: 9 },
-  { kind: 'idsScanner', x: 10, y: 2, fromWave: 10 },
+  { kind: 'idsScanner', x: 9, y: 3, fromWave: 10 },
   { kind: 'aesTurret', x: 9, y: 2, tier: 2, fromWave: 12 },
-  { kind: 'firewallNode', x: 11, y: 3, fromWave: 14 },
+  { kind: 'firewallNode', x: 10, y: 2, fromWave: 14 },
 ];
+
 
 /** The three the opening 100 Cycles buys, shared by every level 2 layout that has one. */
 const LEVEL2_OPENING: Build[] = [
@@ -552,9 +555,9 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     builds: [
       ...LEVEL2_OPENING,
       { kind: 'idsScanner', x: 9, y: 2, fromWave: 3 },
-      { kind: 'aesTurret', x: 11, y: 3, fromWave: 5 },
+      { kind: 'aesTurret', x: 10, y: 3, fromWave: 5 },
       { kind: 'firewallNode', x: 10, y: 2, fromWave: 7 },
-      { kind: 'honeypot', x: 10, y: 1, fromWave: 9 },
+      { kind: 'honeypot', x: 9, y: 1, fromWave: 9 },
     ],
   },
   {
@@ -572,7 +575,7 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'the gamble: stay tier 1 at the front and bank for a tier-3 AES Turret late',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'idsScanner', x: 5, y: 5, tier: 2, fromWave: 3 },
+      { kind: 'idsScanner', x: 4, y: 6, tier: 2, fromWave: 3 },
       { kind: 'aesTurret', x: 9, y: 2, tier: 3, fromWave: 5 },
     ],
   },

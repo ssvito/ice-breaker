@@ -55,6 +55,25 @@ export const level1: LevelData = {
  * It is the more forgiving of the two boards up to that point, and that is a trade taken
  * with the numbers on the table.
  *
+ * **A perfectly symmetric S does not exist on this board, and the asymmetry is placed
+ * rather than left where it fell.** Spawn and core are on opposite edges of a 16-wide
+ * grid, so the trace owes 15 columns of horizontal travel - an odd number - while a
+ * left-right symmetric S needs two equal approaches plus two equal bars, which is even.
+ * The spine would have to stand at x=7.5. One pair is always one tile out.
+ *
+ * The player caught it on the bars, which is exactly where it should not have been: the
+ * two bars sit one above the other and are the easiest pair on the board to compare. So
+ * the odd tile was moved to the approaches. **Every pair inside the S now matches** - bars
+ * 4 and 4, elbows 4 and 4, the two short verticals 3 and 3 - and the entry is 3 columns
+ * where the run-out is 4. Those two are eleven columns apart, one wears the spawn port and
+ * the other ends in the core, so nobody reads them as a pair to begin with.
+ *
+ * The first attempt at this moved the entry instead and **cost the board its best tile**,
+ * dropping it from 9 to level 1's own 7: pulling the entry column left widened the near
+ * elbow past tower range, so no tile could see both of its sides any more. The gate in
+ * `tests/map.test.ts` caught it, which is the whole reason that gate compares against
+ * level 1 rather than asserting a constant.
+ *
  * **The through-line across all three drawings: length is not difficulty.** Draft one and
  * draft two were both 29 tiles and differed by 0.36x; this one is *shorter* than both and
  * lands between them. What a board costs the player is coverage - how much of the trace a
@@ -71,8 +90,8 @@ export const level2: LevelData = {
     { x: 3, y: 7 },
     { x: 7, y: 7 },
     { x: 7, y: 1 },
-    { x: 12, y: 1 },
-    { x: 12, y: 4 },
+    { x: 11, y: 1 },
+    { x: 11, y: 4 },
     { x: 15, y: 4 },
   ],
 };
