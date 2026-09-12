@@ -2,6 +2,7 @@ import {
   callWaveEarly,
   createGameState,
   MAX_CORE_HEALTH,
+  overclockTower,
   placeTower,
   stepGame,
   TICK_MS,
@@ -111,6 +112,15 @@ export interface BalanceOptions {
   maxTicks?: number;
   /** Run-wide multiplier over every wave's own `hpScale`. 1 is the shipped curve. */
   hpScale?: number;
+  /**
+   * Fire every tower's Overclock the moment it is available - see `withOverclock`.
+   *
+   * Off by default, which is what made the caveat under every margin table true since
+   * v1.6: *every row is a floor, not a measurement*. Turning it on does not make a row a
+   * measurement either. It makes it the **other end of the bracket**, because a player
+   * does not spam an ability on cooldown any more than they ignore it.
+   */
+  overclock?: boolean;
 }
 
 /** A build plus the tower it became, once it exists. */
@@ -233,9 +243,38 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
   return runSimulation(loadoutDriver(loadout), options);
 }
 
-export function runSimulation(driver: RunDriver, options: BalanceOptions = {}): RunReport {
+/**
+ * Lays an Overclock policy over whoever is playing: after their turn, every tower that
+ * can be boosted is boosted.
+ *
+ * A decorator rather than a flag inside the loadout driver, because **it is not a
+ * property of a build order** - it applies to a recorded human run exactly as well, and
+ * that is the reading this milestone actually wanted: not "what is Overclock worth" in
+ * the abstract, but what it would have been worth in the run that was played.
+ *
+ * It fires through `overclockTower`, so the policy's presses land in the run's log the
+ * same way a player's do. A counterfactual is a run in its own right, and a log of one
+ * has to replay.
+ */
+export function withOverclock(driver: RunDriver): RunDriver {
+  return {
+    name: `${driver.name}+oc`,
+    note: `${driver.note} - and Overclock fired the moment it is off cooldown`,
+    act(state, wave) {
+      const acted = driver.act(state, wave);
+      for (const tower of state.towers) overclockTower(state, tower);
+      return acted;
+    },
+    unbought: () => driver.unbought?.() ?? [],
+  };
+}
+
+export function runSimulation(base: RunDriver, options: BalanceOptions = {}): RunReport {
   const { level = level1, maxTicks = 60 * 60 * 20, hpScale = 1 } = options;
 
+  // Applied here rather than by every caller, so a loadout, a margin bisect and a
+  // replayed human run all take the policy the same way and by the same name.
+  const driver = options.overclock === true ? withOverclock(base) : base;
   const state = createGameState(level, { hpScale });
 
   const reports: WaveReport[] = [];
@@ -412,8 +451,9 @@ export function runMargin(loadout: Loadout, options: BalanceOptions = {}): Margi
 
   return {
     board: baseline.board,
-    loadout: loadout.name,
-    note: loadout.note,
+    // Off the report rather than off the loadout, so an Overclocked bisect says so.
+    loadout: baseline.loadout,
+    note: baseline.note,
     status: baseline.status,
     coreHealth: baseline.coreHealth,
     firstLeak,

@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
  *   npm run balance -- focused               # one of them, on every board
  *   npm run balance -- --board recursion-02  # one board, every loadout
  *   npm run balance -- --run some.run        # a recorded run, beside its board's layouts
+ *   npm run balance -- --overclock           # every row again with Overclock spammed
  *   npm run balance -- --margin              # how much harder the curve would have to be
  *   npm run balance -- --json                # the same reports as JSON
  *
@@ -27,6 +28,13 @@ import { readFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const asMargin = args.includes('--margin');
+/**
+ * Adds a second row for everything selected rather than replacing the first. The reading
+ * is the pair: a row with the ability never used and a row with it used on cooldown are
+ * the two ends of a bracket, and either one alone is the kind of number that gets quoted
+ * as if it were the answer.
+ */
+const withOc = args.includes('--overclock');
 const names = args.filter((arg) => !arg.startsWith('--'));
 
 const boardFlag = args.indexOf('--board');
@@ -38,11 +46,12 @@ const runPath = runFlag === -1 ? null : args[runFlag + 1];
 const wanted = names.filter((name) => name !== boardId && name !== runPath);
 
 if (args.includes('--help')) {
-  console.log('usage: npm run balance -- [loadout...] [--board id] [--run path] [--margin] [--json]');
+  console.log('usage: npm run balance -- [loadout...] [--board id] [--run path] [--overclock] [--margin] [--json]');
   console.log(`loadouts: ${loadoutNames.join(', ')}`);
   console.log(`boards:   ${boards.map((board) => `${board.id} (${board.name})`).join(', ')}`);
   console.log('--margin: bisect the run-wide HP multiplier for the first leak and the loss');
   console.log('--run:    replay a recorded run and read it beside the layouts of its own board');
+  console.log('--overclock: pair every row with the same run firing Overclock on cooldown');
   process.exit(0);
 }
 
@@ -59,8 +68,12 @@ interface Selection {
  */
 const played = runPath === null || runPath === undefined ? null : replay(runPath);
 
-/** The replayed report, and the board its log named - a report carries a board's name, not its id. */
-function replay(path: string): { report: RunReport; boardId: string } {
+/**
+ * The replayed run's rows, and the board its log named - a report carries a board's name
+ * and not its id. With `--overclock` there are two rows and the second is the
+ * counterfactual: the same decisions, with an ability the player never pressed.
+ */
+function replay(path: string): { rows: { report: RunReport; cost: null }[]; boardId: string } {
   const log = parseRunLog(readFileSync(path, 'utf8'));
   if (!log) {
     console.error(`"${path}" is not a run log this build can read`);
@@ -79,7 +92,12 @@ function replay(path: string): { report: RunReport; boardId: string } {
     for (const difference of outcome.differences) console.error(`  ${difference}`);
     console.error('');
   }
-  return { report: outcome.report, boardId: log.run };
+  const rows = [{ report: outcome.report, cost: null }];
+  if (withOc) {
+    const counterfactual = replayRun(log, { overclock: true });
+    if (counterfactual.replayed) rows.push({ report: counterfactual.report, cost: null });
+  }
+  return { rows, boardId: log.run };
 }
 
 const selectedBoards =
@@ -160,10 +178,10 @@ function printReport(report: RunReport, cost: number | null): void {
 function printSummary(all: RunReport[]): void {
   console.log('');
   console.log(`  ${waves.length} waves, ${STARTING_CYCLES} starting Cycles, ${MAX_CORE_HEALTH} core HP`);
-  console.log('  BOARD         LOADOUT   RESULT          CORE  LEAK  EARNED  BANKED   TIME');
+  console.log('  BOARD         LOADOUT      RESULT          CORE  LEAK  EARNED  BANKED   TIME');
   for (const report of all) {
     console.log(
-      `  ${report.board.padEnd(13)} ${report.loadout.padEnd(9)} ${OUTCOME[report.status].padEnd(15)} ${pad(report.coreHealth, 4)}  ` +
+      `  ${report.board.padEnd(13)} ${report.loadout.padEnd(12)} ${OUTCOME[report.status].padEnd(15)} ${pad(report.coreHealth, 4)}  ` +
         `${pad(report.totalLeaks, 4)}  ${pad(report.totalEarned, 6)}  ${pad(report.cyclesEnd, 6)}  ${pad(clock(report.durationMs), 5)}`,
     );
   }
@@ -179,29 +197,55 @@ function margin(value: number | null): string {
 function printMargins(all: MarginReport[]): void {
   console.log('');
   console.log(`  ${waves.length} waves, run-wide HP multiplier bisected over ${MARGIN_MIN}x to ${MARGIN_MAX}x`);
-  console.log('  BOARD         LOADOUT   AT 1x                FIRST LEAK  ON WAVE   LOSES AT  ON WAVE');
+  console.log('  BOARD         LOADOUT      AT 1x                FIRST LEAK  ON WAVE   LOSES AT  ON WAVE');
   for (const report of all) {
     console.log(
-      `  ${report.board.padEnd(13)} ${report.loadout.padEnd(9)} ${(OUTCOME[report.status] + ` ${report.coreHealth}/${MAX_CORE_HEALTH}`).padEnd(20)} ` +
+      `  ${report.board.padEnd(13)} ${report.loadout.padEnd(12)} ${(OUTCOME[report.status] + ` ${report.coreHealth}/${MAX_CORE_HEALTH}`).padEnd(20)} ` +
         `${pad(margin(report.firstLeak), 10)}  ${pad(report.firstLeakWave ?? '-', 7)}   ` +
         `${pad(margin(report.loss), 8)}  ${pad(report.lossWave ?? '-', 7)}`,
     );
   }
   console.log('');
-  console.log('  Every row is a floor, not a measurement: the harness never fires Overclock.');
+  console.log(policyNote());
+}
+
+/**
+ * What the rows did with Overclock, and it replaced a claim that was wrong.
+ *
+ * Since v1.6 this printed "every row is a floor, not a measurement: the harness never
+ * fires Overclock" - which assumed the ability could only add. v1.9 measured it and it
+ * does not: fired on cooldown it costs `veteran` most of its margin and saves `rush`
+ * outright, because a 4-second boost is bought with a 3-second hole. So the pair is a
+ * bracket rather than a floor and a ceiling, and it is not even ordered.
+ */
+function policyNote(): string {
+  if (!withOc) {
+    return '  No row here fires Overclock. Add --overclock for the other end of the bracket.';
+  }
+  return [
+    '  Paired rows: Overclock never fired, then fired on cooldown. A player does neither,',
+    '  so the truth is between them - and the pair is not ordered, because the boost is',
+    '  bought with an overheat that a comfortable layout cannot afford.',
+  ].join('\n');
 }
 
 if (asMargin) {
-  const margins = selected.map(({ board, loadout }) => runMargin(loadout, { level: board.level }));
+  const margins = selected.flatMap(({ board, loadout }) => [
+    runMargin(loadout, { level: board.level }),
+    ...(withOc ? [runMargin(loadout, { level: board.level, overclock: true })] : []),
+  ]);
   if (asJson) console.log(JSON.stringify(margins, null, 2));
   else printMargins(margins);
 } else {
-  const declared = selected.map(({ board, loadout }) => ({
-    report: runBalance(loadout, { level: board.level }),
-    cost: loadoutCost(loadout) as number | null,
-  }));
+  const declared = selected.flatMap(({ board, loadout }) => {
+    const cost = loadoutCost(loadout) as number | null;
+    return [
+      { report: runBalance(loadout, { level: board.level }), cost },
+      ...(withOc ? [{ report: runBalance(loadout, { level: board.level, overclock: true }), cost }] : []),
+    ];
+  });
   // Last, so it is the row the eye lands on after the layouts it is being read against.
-  const rows = played ? [...declared, { report: played.report, cost: null }] : declared;
+  const rows = played ? [...declared, ...played.rows] : declared;
 
   if (asJson) {
     console.log(JSON.stringify(rows.map((row) => row.report), null, 2));
@@ -211,6 +255,9 @@ if (asMargin) {
       printReport(row.report, row.cost);
     });
     // One report is its own summary; the table only earns its place as a comparison.
-    if (rows.length > 1) printSummary(rows.map((row) => row.report));
+    if (rows.length > 1) {
+      printSummary(rows.map((row) => row.report));
+      if (withOc) console.log(policyNote());
+    }
   }
 }

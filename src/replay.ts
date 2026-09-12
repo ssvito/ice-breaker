@@ -1,7 +1,7 @@
 import { callWaveEarly, overclockTower, placeTower, sellTower, towerAt, upgradeTower } from './game.ts';
 import type { GameState } from './game.ts';
 import { runSimulation } from './balance.ts';
-import type { RunDriver, RunReport } from './balance.ts';
+import type { BalanceOptions, RunDriver, RunReport } from './balance.ts';
 import { CURVE_ID } from './records.ts';
 import { RUNS } from './runs.ts';
 import type { LoggedAction, LoggedLeak, RunLog } from './run-log.ts';
@@ -109,19 +109,30 @@ export interface Replay {
 
 export type ReplayOutcome = { replayed: false; refused: string } | ({ replayed: true } & Replay);
 
-/**
- * `name` is what the run is called in the report, and it defaults to something short
- * because that column already holds `veteran` and `rush`: a replayed run has to sit in
- * the same table as a declared layout without widening it. Putting a real run beside the
- * declared ones is the whole of what this instrument was extended for.
- */
-export function replayRun(log: RunLog, name = 'played'): ReplayOutcome {
+export interface ReplayOptions {
+  /**
+   * What the run is called in the report, short because that column already holds
+   * `veteran` and `rush`: a replayed run has to sit in the same table as a declared
+   * layout without widening it.
+   */
+  name?: string;
+  /**
+   * Play the recorded run again **with** the Overclock policy over it - the
+   * counterfactual, and the only honest way to ask what an ability was worth in a run
+   * that never used it. `differences` is then the answer rather than a failure: it is
+   * every place the same decisions came out differently with the ability pressed.
+   */
+  overclock?: boolean;
+}
+
+export function replayRun(log: RunLog, options: ReplayOptions = {}): ReplayOutcome {
   const refused = refusal(log);
   if (refused) return { replayed: false, refused };
 
   const board = RUNS.find((run) => run.id === log.run)!;
-  const { driver, driven } = replayDriver(log, name);
-  const report = runSimulation(driver, { level: board.map });
+  const { driver, driven } = replayDriver(log, options.name ?? 'played');
+  const balance: BalanceOptions = { level: board.map, overclock: options.overclock };
+  const report = runSimulation(driver, balance);
   const state = driven()!;
 
   return { replayed: true, report, state, differences: compare(log, state) };
