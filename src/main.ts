@@ -2,7 +2,7 @@ import './style.css';
 import { GameLoop } from './game-loop.ts';
 import { level1, positionAlongPath } from './map.ts';
 import type { GridPos } from './map.ts';
-import { boardRect, createViewport, fitViewport, present, clientToGrid, clientToWorld } from './canvas.ts';
+import { boardRect, clearDisplay, createViewport, fitViewport, present, clientToGrid, clientToWorld } from './canvas.ts';
 import {
   prerenderBoard,
   drawEnemies,
@@ -33,7 +33,7 @@ import {
   towerAt,
   upgradeTower,
 } from './game.ts';
-import type { GameHooks } from './game.ts';
+import type { GameHooks, GameState } from './game.ts';
 import { createAudio } from './audio.ts';
 import { createHud } from './hud.ts';
 import { startMusic } from './music.ts';
@@ -42,7 +42,9 @@ import { watchForUpdates } from './update.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 
-if (new URLSearchParams(location.search).has('gallery')) {
+const params = new URLSearchParams(location.search);
+
+if (params.has('gallery')) {
   renderGallery(document.querySelector<HTMLDivElement>('#app')!);
 } else {
   startGame();
@@ -64,9 +66,21 @@ function startGame(): void {
     placePanel();
   });
 
-  // The whole simulation, reassigned wholesale on restart rather than reset field by
-  // field. Everything below reads it at call time, so nothing holds a stale run.
-  let state = createGameState(level1);
+  /**
+   * The whole simulation - or `null`, which is the entire point of this step: until
+   * now the game had no way to say *no run exists*. It booted into one, and the only
+   * way out of a run was into another run.
+   *
+   * **The app's two states are this variable being null or not**, and there is
+   * deliberately no `mode` flag beside it. A boolean that has to agree with a nullable
+   * run is two sources of truth for one fact, and the way they drift is that one of
+   * them gets set somewhere the other doesn't - which is the failure this project
+   * already keeps notes about.
+   *
+   * Still reassigned wholesale rather than reset field by field. That was built for
+   * tap-to-restart, and it is why "no run" costs a type and not a teardown.
+   */
+  let state: GameState | null = null;
 
   // The only thing the sim can't work out alone: the kill burst scatters the dead
   // enemy's own sprite pixels, and those live in the baked atlas.
@@ -243,7 +257,11 @@ function startGame(): void {
     // The only thing left that the two orientations disagree about: a turned board
     // leaves the console nearly window-wide, so there it steps right of the column.
     document.body.classList.toggle('turned', viewport.rotated);
-    toolbar.hidden = !menuOpen;
+    // The build menu is about the board, so it goes away with the board. The gear
+    // column deliberately does not: it is about the session - sound, fullscreen, the
+    // build under ABOUT - and all four of those are still true with no run on screen.
+    dockToggle.hidden = state === null;
+    toolbar.hidden = !menuOpen || state === null;
     // Same two glyphs the console's own collapse uses, so the two drawers in the
     // strip say "open me" and "close me" in one vocabulary.
     dockToggle.innerHTML = `<span>BLD</span><span>${menuOpen ? '[-]' : '[+]'}</span>`;
@@ -298,7 +316,7 @@ function startGame(): void {
    */
   const audio = createAudio();
   const music = audio ? startMusic(audio) : null;
-  if (import.meta.env.DEV) Object.assign(window, { audio, music });
+  if (import.meta.env.DEV) Object.assign(window, { audio, music, startRun });
 
   // Right-anchored in the same band as the status glyphs. After the desk, because the
   // sound button reads it.
@@ -312,11 +330,13 @@ function startGame(): void {
 
   const panel = createTowerPanel(
     {
+      // The console is hidden while there is no run, so none of these can fire without
+      // one. The guards are what the type system charges for being able to say that.
       onSell(tower) {
-        if (sellTower(state, tower)) selection = null;
+        if (state && sellTower(state, tower)) selection = null;
       },
       onUpgrade(tower) {
-        upgradeTower(state, tower);
+        if (state) upgradeTower(state, tower);
       },
       onOverclock(tower) {
         triggerOverclock(tower);
@@ -324,7 +344,7 @@ function startGame(): void {
       onTogglePause: togglePause,
       onToggleSpeed: toggleSpeed,
       onCallWave: () => {
-        callWaveEarly(state);
+        if (state) callWaveEarly(state);
       },
       onReload: () => updates.apply(),
     },
@@ -409,34 +429,55 @@ function startGame(): void {
     panel.setCollapsed(false);
   }
 
-  function updateToolbar(): void {
+  function updateToolbar(cycles: number): void {
     for (const { kind, button } of towerButtons) {
       button.classList.toggle('selected', kind === selectedTowerKind);
       // Marked as unaffordable rather than disabled: a disabled button swallows its
       // click, and picking a kind you can't afford yet is how you read its stats in
       // the panel. Placement is blocked by isPlaceable regardless.
-      button.classList.toggle('short', state.cycles < towerStats(kind).cost);
+      button.classList.toggle('short', cycles < towerStats(kind).cost);
     }
   }
 
-  function resetGame(): void {
+  /**
+   * The one door into a run, and the only place a `GameState` is ever built. It was
+   * `resetGame()`, which is the same code under a name that assumed a run was always
+   * running - the rename is the step.
+   *
+   * It takes no arguments yet, and that is the seam step 2 needs: a run descriptor
+   * arrives here, and a second entry in the picker is then a line of data rather than
+   * a second path through this function.
+   */
+  function startRun(): void {
     state = createGameState(level1);
     selection = null;
     buildFocus = false;
     waveFocus = false;
     previewedWave = 0;
-    // Speed is a preference and survives; pause is a state, and restarting into a
-    // frozen board would read as the tap-to-restart having failed.
+    // Was missing from the reset this replaces, and writing down what a run owns is
+    // what found it. Arm the port, lose before tapping it, tap to restart: the tap that
+    // restarts returns before the line that disarms, so the fresh board opens with the
+    // chevrons already lit. **And it is not only cosmetic** - the tick that disarms a
+    // stale flag only fires when there is no wave to call, and a new run opens *in* a
+    // countdown, so the flag survives it. The player's first tap on the port then calls
+    // wave 1 early with no confirm, which is the one thing the port's two taps exist
+    // to prevent.
+    spawnArmed = false;
+    // Speed is a preference and survives; pause is a state, and starting into a frozen
+    // board would read as the start having failed.
     paused = false;
     applyRunSpeed();
+    // The dock's visibility is a function of there being a run, and this is the moment
+    // that changes.
+    applyLayout();
   }
 
   /** Nearest enemy whose sprite covers this world point, or null. */
-  function enemyAt(x: number, y: number): Enemy | null {
+  function enemyAt(run: GameState, x: number, y: number): Enemy | null {
     let nearest: Enemy | null = null;
     let nearestDist = Infinity;
 
-    for (const enemy of state.enemies) {
+    for (const enemy of run.enemies) {
       const pos = positionAlongPath(level1.waypoints, enemy.distance);
       const dist = Math.hypot(pos.x - x, pos.y - y);
       if (dist <= enemyHitRadius(enemy) && dist < nearestDist) {
@@ -457,8 +498,11 @@ function startGame(): void {
   });
 
   canvas.addEventListener('pointerdown', (event) => {
+    // No run, no board: in the shell the canvas is a backdrop, and step 2 puts the DOM
+    // layer that *is* interactive on top of it.
+    if (!state) return;
     if (state.status !== 'playing') {
-      resetGame();
+      startRun();
       return;
     }
     const tile = clientToGrid(viewport, event.clientX, event.clientY);
@@ -496,7 +540,7 @@ function startGame(): void {
     }
 
     const world = clientToWorld(viewport, event.clientX, event.clientY);
-    const hitEnemy = enemyAt(world.x, world.y);
+    const hitEnemy = enemyAt(state, world.x, world.y);
     if (hitEnemy) {
       const same = selection?.kind === 'enemy' && selection.enemy === hitEnemy;
       select(same ? null : { kind: 'enemy', enemy: hitEnemy });
@@ -507,6 +551,10 @@ function startGame(): void {
 
   const loop = new GameLoop(
     (dtMs) => {
+      // The clock runs in the shell and nothing is stepped by it. Cheaper than stopping
+      // and restarting the loop, and it leaves rAF available to whatever the shell
+      // wants to animate - which is the step after this one.
+      if (!state) return;
       stepGame(state, dtMs, hooks);
       // A selected enemy can die or breach the core mid-tick; both paths set removed.
       if (selection?.kind === 'enemy' && selection.enemy.removed) selection = null;
@@ -515,7 +563,16 @@ function startGame(): void {
     },
     () => {
       const timeMs = performance.now();
-      updateToolbar();
+      // The shell frame: every readout in this game reports on a board, so with no board
+      // there is nothing for any of them to say. The display is cleared rather than left
+      // holding the last frame of a run that is over.
+      if (!state) {
+        hud.setVisible(false);
+        panel.hide();
+        clearDisplay(viewport);
+        return;
+      }
+      updateToolbar(state.cycles);
       if (state.status === 'playing') {
         const incoming = nextWavePreview(state.spawner);
         // Each new countdown claims the console back from the build stats, once.
@@ -577,6 +634,20 @@ function startGame(): void {
       drawEndScreen(viewport.ctx, viewport, state.status);
     },
   );
+
+  /**
+   * Boot crosses the shell and lands in a run, so nothing about playing this game
+   * changes today - the same checkpoint v1.6's trait table and v1.5's silent graph
+   * were built against, and for the same reason: the state has to exist before
+   * anything can be moved into it.
+   *
+   * `?shell` holds the app in the shell instead, which is the only way to look at a
+   * state nothing has been built to show yet. Scaffolding with an expiry: step 2 gives
+   * the shell a start button and boot stops here on its own, and this parameter goes
+   * with it. `?gallery` is the precedent for a dev surface riding on a query string,
+   * and being a query string is what lets it be checked on a phone.
+   */
+  if (!params.has('shell')) startRun();
 
   loop.start();
 }

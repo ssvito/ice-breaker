@@ -118,11 +118,24 @@ export function boardRect(vp: Viewport): { left: number; top: number; width: num
 }
 
 /** Blits the world canvas onto the display, scaled, rotated if needed, letterboxed on black. */
-export function present(vp: Viewport): void {
+/**
+ * Black over the whole display. Every frame starts here, because the world is blitted
+ * letterboxed and the band around it is not painted by anything else.
+ *
+ * Exported because a frame with no world to blit is *only* this: the app can be in a
+ * state where no run exists, and a display left holding the last frame of a finished
+ * run would be the game's most convincing lie.
+ */
+export function clearDisplay(vp: Viewport): void {
   const { ctx } = vp;
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, vp.display.width, vp.display.height);
+}
+
+export function present(vp: Viewport): void {
+  const { ctx } = vp;
+  clearDisplay(vp);
 
   if (vp.rotated) {
     // A quarter turn counterclockwise: the world's left edge lands at the bottom of
