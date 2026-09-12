@@ -11,6 +11,7 @@ import {
   sellValue,
   stepOverclock,
   towerCenter,
+  triggerOverclock,
   towerStats,
   upgradeCost,
 } from './tower.ts';
@@ -22,6 +23,7 @@ import type { Spawner } from './wave.ts';
 import { createGlitchBurst, stepParticle } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
 import type { SpritePixel } from './sprites.ts';
+import type { LoggedAction } from './run-log.ts';
 
 /**
  * The simulation, and nothing else: no canvas, no DOM, no input. It used to live in
@@ -66,6 +68,31 @@ export interface GameState {
   occupied: Set<string>;
 
   spawner: Spawner;
+  /**
+   * Ticks stepped so far, and **the only clock the game and the harness share**. The
+   * loop drives this state on ragged frames and the harness drives it in a bare `for`,
+   * and neither can tell the other how long a frame was - but both step `TICK_MS` and
+   * both land here. Everything that has to be true across that seam is counted in
+   * ticks: the fastest-clear record, the harness's durations, and every entry in `log`.
+   *
+   * Counted only while the run is playing, so it stops where the verdict does rather
+   * than where the player stopped looking at it.
+   */
+  tick: number;
+  /**
+   * What the player did, in the order they did it - see `run-log.ts`.
+   *
+   * Written by the action functions in this module rather than by their callers,
+   * because **only they know whether an action happened**. A tap that cannot be
+   * afforded and a tap on an occupied tile both reach `placeTower` and neither is an
+   * event in the run; logging from the caller would file the intent and replay would
+   * then be reproducing a run nobody played. Every action below already returns whether
+   * it took effect, so the record costs a line at the point of the fact.
+   *
+   * On the state and not beside it, which also means the determinism gate compares it:
+   * two runs that agree on everything else and disagree here are not the same run.
+   */
+  log: LoggedAction[];
   coreHealth: number;
   cycles: number;
   status: GameStatus;
@@ -122,6 +149,8 @@ export function createGameState(level: LevelData, options: GameOptions = {}): Ga
     occupied: new Set(),
 
     spawner: createSpawner(),
+    tick: 0,
+    log: [],
     coreHealth: MAX_CORE_HEALTH,
     cycles: STARTING_CYCLES,
     status: 'playing',
@@ -155,6 +184,7 @@ export function placeTower(state: GameState, kind: TowerKind, tile: GridPos): To
   state.towers.push(tower);
   state.occupied.add(tileKey(tile));
   state.cycles -= towerStats(kind).cost;
+  state.log.push({ tick: state.tick, action: 'place', tower: kind, x: tile.x, y: tile.y });
   return tower;
 }
 
@@ -166,6 +196,7 @@ export function sellTower(state: GameState, tower: Tower): boolean {
   state.towers.splice(index, 1);
   state.occupied.delete(tileKey(tower));
   state.cycles += sellValue(tower);
+  state.log.push({ tick: state.tick, action: 'sell', x: tower.x, y: tower.y });
   return true;
 }
 
@@ -176,6 +207,7 @@ export function upgradeTower(state: GameState, tower: Tower): boolean {
 
   state.cycles -= cost;
   applyUpgrade(tower);
+  state.log.push({ tick: state.tick, action: 'upgrade', x: tower.x, y: tower.y });
   return true;
 }
 
@@ -196,10 +228,30 @@ export function callWaveEarly(state: GameState): number {
   if (!preview) return 0;
 
   state.cycles += preview.earlyBonus;
+  state.log.push({ tick: state.tick, action: 'call' });
   // Zero rather than negative: the next tick takes it below zero and opens the
   // wave, through the same branch a countdown that ran out would have taken.
   state.spawner.waveTimerMs = 0;
   return preview.earlyBonus;
+}
+
+/**
+ * Fires a tower's Overclock, and the only reason this wrapper exists is the log.
+ *
+ * `triggerOverclock` takes a tower and knows nothing about a run, which was right while
+ * the only caller was `main.ts` reacting to a tap. But it is an action a player takes,
+ * so it is an action a replay has to reproduce, and the log lives on the state - so the
+ * one call that a run should remember comes through here. The refusals stay where they
+ * were: no Overclock, or already boosted, and nothing is logged because nothing happened.
+ *
+ * It is also the seam the harness needs. Every margin table this project has printed
+ * carries the caveat that no reading has ever used Overclock, and the reason is that the
+ * ability had no state-aware entry point for `balance.ts` to call.
+ */
+export function overclockTower(state: GameState, tower: Tower): boolean {
+  if (!triggerOverclock(tower)) return false;
+  state.log.push({ tick: state.tick, action: 'overclock', x: tower.x, y: tower.y });
+  return true;
 }
 
 /** Nearest enemy in range that this tower is able to hurt, or null. */
@@ -242,6 +294,8 @@ function runScale(state: GameState): WaveScale {
  */
 export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}): void {
   if (state.status !== 'playing') return;
+
+  state.tick++;
 
   const waypoints = state.level.waypoints;
 

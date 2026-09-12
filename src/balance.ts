@@ -188,7 +188,6 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
 
   const reports: WaveReport[] = [];
   let wave = openWave(1);
-  let ticks = 0;
 
   function openWave(number: number): WaveReport {
     return {
@@ -206,7 +205,10 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
     };
   }
 
-  while (state.status === 'playing' && ticks < maxTicks) {
+  // `state.tick` rather than a counter kept here: the run counts its own ticks now, and
+  // it is the same number the game's loop lands on and the same one every log entry is
+  // stamped with. Two counters that must agree is one of them being wrong eventually.
+  while (state.status === 'playing' && state.tick < maxTicks) {
     const cyclesBeforeBuying = state.cycles;
     wave.bought.push(...advanceBuildOrder(state, pending, wave.wave));
     wave.spent += cyclesBeforeBuying - state.cycles;
@@ -222,7 +224,6 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
     const cyclesBeforeTick = state.cycles;
     const healthBeforeTick = state.coreHealth;
     stepGame(state, TICK_MS);
-    ticks++;
 
     // stepGame only ever adds Cycles (kill bounties), and only ever removes core
     // health (leaks), so both deltas are unambiguous without the sim reporting.
@@ -251,14 +252,14 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
     board: boardOf(level).name,
     loadout: loadout.name,
     note: loadout.note,
-    status: ticks >= maxTicks ? 'timeout' : state.status,
+    status: state.tick >= maxTicks ? 'timeout' : state.status,
     coreHealth: state.coreHealth,
     totalLeaks: MAX_CORE_HEALTH - state.coreHealth,
     cyclesEnd: state.cycles,
     totalEarned: reports.reduce((total, report) => total + report.earned, 0),
     totalCalledEarly: reports.reduce((total, report) => total + report.calledEarly, 0),
     totalSpent: reports.reduce((total, report) => total + report.spent, 0),
-    durationMs: ticks * TICK_MS,
+    durationMs: state.tick * TICK_MS,
     waves: reports,
     unbought: pending
       .filter((entry) => entry.tower === null || entry.tower.tier < entry.targetTier)

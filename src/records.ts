@@ -39,7 +39,7 @@ export interface RunResult {
    * the game to count them differently from the instrument that tunes it.
    */
   leaks: number;
-  /** How long the run lasted in simulated time. See `runMs` in `main.ts` for why. */
+  /** How long the run lasted in simulated time - `tick * TICK_MS`. See `GameState.tick` for why. */
   durationMs: number;
 }
 

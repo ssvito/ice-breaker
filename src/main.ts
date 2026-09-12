@@ -20,7 +20,7 @@ import { bakeAtlas, spritePixels } from './sprites.ts';
 import type { SpriteName } from './sprites.ts';
 import { renderGallery } from './gallery.ts';
 import type { Enemy } from './enemy.ts';
-import { towerStats, triggerOverclock } from './tower.ts';
+import { towerStats } from './tower.ts';
 import type { TowerKind } from './tower.ts';
 import { countdownSeconds, currentWaveReading, nextWavePreview, waveNumber } from './wave.ts';
 import {
@@ -28,9 +28,11 @@ import {
   createGameState,
   MAX_CORE_HEALTH,
   isPlaceable,
+  overclockTower,
   placeTower,
   sellTower,
   stepGame,
+  TICK_MS,
   towerAt,
   upgradeTower,
 } from './game.ts';
@@ -44,6 +46,8 @@ import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 import { createShell } from './shell.ts';
 import { readRecords, recordRun } from './records.ts';
+import { formatRunLog, sealRunLog } from './run-log.ts';
+import type { RunLog } from './run-log.ts';
 import { RUNS } from './runs.ts';
 import type { RunDescriptor } from './runs.ts';
 
@@ -88,17 +92,18 @@ function startGame(): void {
   let currentRun: RunDescriptor = RUNS[0];
 
   /**
-   * How long the current run has lasted, in **simulated** milliseconds - the sum of the
-   * ticks it has been stepped by, not the wall clock.
+   * The last finished run, as data - and the answer to the question this step was told
+   * to decide rather than assume: **is a log kept when nothing has asked for one?**
    *
-   * That distinction is the whole of the fastest-clear record. Ticks are `TICK_MS`
-   * whatever the speed button says, so 2x buys no record and the only way to finish
-   * faster is to call waves early, which is the mechanic that exists for exactly that
-   * trade. It also happens to be the same number `balance.ts` reports as a run's
-   * duration, so a record and a harness reading are comparable rather than merely
-   * similar.
+   * Yes while the run is being played, because recording is what makes a log available
+   * to whatever finally asks, and a run's worth of actions is tens of entries rather
+   * than a size worth reasoning about. **No once it is over**: it is sealed and held
+   * here, and it is not written anywhere. Persisting is a different decision with its
+   * own questions - which runs, how many, and what happens to them when the curve moves
+   * - and nothing has asked them yet. This variable is the smallest thing that keeps the
+   * answer available: the report step reads it, and until then the browser console does.
    */
-  let runMs = 0;
+  let lastRunLog: RunLog | null = null;
 
   window.addEventListener('resize', () => {
     fitViewport(viewport);
@@ -242,7 +247,7 @@ function startGame(): void {
     // Kept as a desktop shortcut for the flow players already learned, but it now
     // acts on the selection instead of arming an invisible mode.
     if ((event.key === 'q' || event.key === 'Q') && selection?.kind === 'tower') {
-      triggerOverclock(selection.tower);
+      overclockTower(state, selection.tower);
     }
   });
 
@@ -389,7 +394,11 @@ function startGame(): void {
    */
   const audio = createAudio();
   const music = audio ? startMusic(audio) : null;
-  if (import.meta.env.DEV) Object.assign(window, { audio, music, startRun });
+  // `runLog()` prints the last finished run as text. The player has no way to reach it
+  // yet, and that is the report step's job rather than a global's - see v1.9 step 5.
+  if (import.meta.env.DEV) {
+    Object.assign(window, { audio, music, startRun, runLog: () => (lastRunLog ? formatRunLog(lastRunLog) : null) });
+  }
 
   // Right-anchored in the same band as the status glyphs. After the desk, because the
   // sound button reads it.
@@ -410,7 +419,7 @@ function startGame(): void {
         if (state) upgradeTower(state, tower);
       },
       onOverclock(tower) {
-        triggerOverclock(tower);
+        if (state) overclockTower(state, tower);
       },
       onTogglePause: togglePause,
       onToggleSpeed: toggleSpeed,
@@ -538,7 +547,6 @@ function startGame(): void {
     // wave 1 early with no confirm, which is the one thing the port's two taps exist
     // to prevent.
     spawnArmed = false;
-    runMs = 0;
     // Speed is a preference and survives; pause is a state, and starting into a frozen
     // board would read as the start having failed.
     paused = false;
@@ -556,6 +564,9 @@ function startGame(): void {
    * run, not about whether they stayed to look at it.
    */
   function finishRun(run: GameState): void {
+    // Sealed on the tick the run ends, for the same reason the record is filed there: it
+    // is a fact about the run and not about whether the player stayed to look at it.
+    lastRunLog = sealRunLog(currentRun.id, run);
     const { records, beaten } = recordRun(currentRun.id, {
       cleared: run.status === 'won',
       wave: waveNumber(run.spawner),
@@ -563,7 +574,12 @@ function startGame(): void {
       // harness started counting them that way. Same definition or the record and the
       // balance table are two different claims wearing one word.
       leaks: MAX_CORE_HEALTH - run.coreHealth,
-      durationMs: runMs,
+      // Simulated time, and now read off the run rather than accumulated beside it.
+      // Ticks are `TICK_MS` whatever the speed button says, which is the whole of the
+      // fastest-clear record: 2x buys no record and the only way to finish faster is to
+      // call waves early. It is also the number `balance.ts` reports as a duration, so a
+      // record and a harness reading are comparable rather than merely similar.
+      durationMs: run.tick * TICK_MS,
     });
     shell.setRecords(currentRun.id, records, beaten);
   }
@@ -675,7 +691,6 @@ function startGame(): void {
       // wants to animate - which is the step after this one.
       if (!state) return;
       const playing = state.status === 'playing';
-      if (playing) runMs += dtMs;
       stepGame(state, dtMs, hooks);
       // The edge rather than the state: exactly one tick sees a run stop playing, so
       // exactly one files it, with no "already recorded" flag to keep in step.
