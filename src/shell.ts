@@ -14,8 +14,7 @@ import type { RunDescriptor } from './runs.ts';
  * already solved.
  *
  * **A state, not a splash.** Nothing here is timed and nothing dismisses itself; the
- * app is in the shell until a run starts, and (from the next step) it comes back here
- * when one ends. That is what gives records somewhere to be read and the waiting
+ * app is in the shell until a run starts, and it comes back here when one ends. That is what gives records somewhere to be read and the waiting
  * service worker a seam to apply at.
  */
 export interface ShellHandlers {
