@@ -1,4 +1,5 @@
 import { waves } from './wave.ts';
+import { LEGACY_RUN_ID } from './runs.ts';
 
 /**
  * What a finished run is worth remembering for, and where that is kept.
@@ -47,6 +48,35 @@ export type RecordKey = 'furthest' | 'fastest' | 'cleanest';
 
 const KEY = 'ice-breaker:records';
 
+/**
+ * Where one board's set lives. **The board is in the key and not in the value**, so the
+ * two sets are two documents: a write for one board cannot touch the other's, and a set
+ * that cannot be parsed costs the board it belongs to and no more.
+ */
+function keyFor(runId: string): string {
+  return `${KEY}:${runId}`;
+}
+
+/**
+ * Where the set from before there was a second board lives. v1.7 filed records under the
+ * curve alone, because with one board in the list the board added nothing to the key.
+ *
+ * That set is **adopted rather than dropped**, which is the opposite of what a curve
+ * change does to a record, and for a reason rather than out of kindness: a record whose
+ * curve cannot be established is worthless, but this one's board can be established -
+ * there has only ever been one board to set it on. So the legacy key reads as
+ * MAINFRAME 01's, and the first record written there moves the set to its own key and
+ * stops consulting this one.
+ *
+ * The old key is left where it is rather than deleted. Nothing reads it once the new one
+ * exists, it costs a few dozen bytes, and a service worker can serve yesterday's bundle
+ * for one load after a deploy - which is exactly the load that would find its record
+ * gone.
+ */
+function legacyKeyFor(runId: string): string | null {
+  return runId === LEGACY_RUN_ID ? KEY : null;
+}
+
 const EMPTY: Records = { furthestWave: 0, fastestClearMs: null, fewestLeaks: null };
 
 /**
@@ -69,23 +99,24 @@ function hash(text: string): string {
  * changes this string with it - and a retune that changes nothing a player could feel,
  * like a reordered comment, does not touch it at all.
  *
- * **What it does not cover is the board.** The wave table is global and the map is not,
- * so a second map would run this same curve, hash to this same string, and write to this
- * same record - which would quietly turn "fastest clear" into "whichever board is
- * shortest". A record is a claim about a curve *and* a board; this only carries half of
- * that, and the half it is missing is `RunDescriptor.id`, which exists and is waiting
- * for the day there is a second one. The fix belongs to the step that adds that map, not
- * to a day when both versions of the key behave identically.
+ * **What it does not cover is the board**, and it never did. The wave table is global and
+ * the map is not, so both boards run this same curve and hash to this same string - which
+ * would quietly turn "fastest clear" into "whichever board is shorter". A record is a
+ * claim about a curve *and* a board; this is the curve half, and `RunDescriptor.id` is
+ * the board half. They meet in `keyFor`, one in the key and one in the value, which is
+ * the difference that matters: a curve that moves drops both boards' sets, and a board
+ * that is added takes nothing from the other.
  */
 export const CURVE_ID = hash(JSON.stringify(waves));
 
 /** How long the curve is - the denominator a "furthest" only means anything against. */
 export const CURVE_LENGTH = waves.length;
 
-/** Everything in storage, or nothing, and never an exception. */
-function read(): Records {
+/** Everything in storage for one board, or nothing, and never an exception. */
+function read(runId: string): Records {
   try {
-    const raw = localStorage.getItem(KEY);
+    const legacy = legacyKeyFor(runId);
+    const raw = localStorage.getItem(keyFor(runId)) ?? (legacy && localStorage.getItem(legacy));
     if (!raw) return EMPTY;
     const stored = JSON.parse(raw) as Partial<Records> & { curve?: string };
     // A record set from another curve is not out of date, it is about another game.
@@ -103,16 +134,47 @@ function read(): Records {
   }
 }
 
-function write(records: Records): void {
+function write(runId: string, records: Records): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ curve: CURVE_ID, ...records }));
+    localStorage.setItem(keyFor(runId), JSON.stringify({ curve: CURVE_ID, ...records }));
   } catch {
     // Same argument as the mute key: failing to remember is not a reason to fail.
   }
 }
 
-export function readRecords(): Records {
-  return read();
+export function readRecords(runId: string): Records {
+  return read(runId);
+}
+
+/** Where the shell's readout points when it opens cold. See `writeLastRun`. */
+const LAST_RUN_KEY = 'ice-breaker:last-run';
+
+/**
+ * Which board the player was last on.
+ *
+ * The shell prints one set of records, and with two boards "your record" is no longer a
+ * thing that exists - so the readout has to name a board, and something has to say which.
+ * After a run that is the run that just ended. On a cold open it is this, which is the
+ * same answer one step later.
+ *
+ * Deliberately **not** a pre-selection. The picker reads the same way every time it
+ * opens; what is remembered is which set is worth printing, not which button the thumb
+ * should already be on.
+ */
+export function readLastRun(): string | null {
+  try {
+    return localStorage.getItem(LAST_RUN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastRun(runId: string): void {
+  try {
+    localStorage.setItem(LAST_RUN_KEY, runId);
+  } catch {
+    // Same argument as the mute key: failing to remember is not a reason to fail.
+  }
 }
 
 /**
@@ -122,9 +184,15 @@ export function readRecords(): Records {
  * because it ended, and a run that leaks once and dies has fewer leaks than one that
  * survived five. Guarding them on `cleared` is the whole reason a leak count is worth
  * storing at all.
+ *
+ * `runId` is which board it happened on, and it is the argument rather than a default
+ * because there is no board a result could sensibly belong to by default. It is written
+ * down as the last one played whether or not anything was beaten - having played a board
+ * is what makes its set the one worth printing, and losing badly is still having played.
  */
-export function recordRun(result: RunResult): { records: Records; beaten: RecordKey[] } {
-  const current = read();
+export function recordRun(runId: string, result: RunResult): { records: Records; beaten: RecordKey[] } {
+  writeLastRun(runId);
+  const current = read(runId);
   const records: Records = { ...current };
   const beaten: RecordKey[] = [];
 
@@ -144,6 +212,6 @@ export function recordRun(result: RunResult): { records: Records; beaten: Record
     }
   }
 
-  if (beaten.length > 0) write(records);
+  if (beaten.length > 0) write(runId, records);
   return { records, beaten };
 }

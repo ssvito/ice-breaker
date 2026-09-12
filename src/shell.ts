@@ -28,11 +28,17 @@ export interface Shell {
   /** Whether a newer build has finished downloading and is waiting to take over. */
   setUpdateReady(ready: boolean): void;
   /**
-   * The stored records, and which of them the run that just ended took. The marks are
-   * the shell's only acknowledgement that a run happened at all, and they are cleared
-   * when the shell is hidden - a record is permanent, having just set it is not.
+   * The stored records **for one board**, and which of them the run that just ended took.
+   * The marks are the shell's only acknowledgement that a run happened at all, and they
+   * are cleared when the shell is hidden - a record is permanent, having just set it is
+   * not.
+   *
+   * `runId` is not decoration. With two boards there is no such thing as "your record",
+   * so a readout that does not say which board it is about is a readout that is wrong
+   * half the time - and it is wrong in the direction that looks right, because both
+   * boards run the same fifteen waves.
    */
-  setRecords(records: Records, beaten: RecordKey[]): void;
+  setRecords(runId: string, records: Records, beaten: RecordKey[]): void;
 }
 
 /** Simulated milliseconds as a clock. Runs are minutes long, so no hours case. */
@@ -78,28 +84,54 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
    * Rows in the console's own `.stat`, dot leaders and all, because a readout in this
    * game looks like the console printing. Empty until there is something true to print:
    * a first-time visitor gets a title and a button.
+   *
+   * **One board's set, headed by that board's name.** Printing both would turn the way
+   * into the game into a standings table, and it does not scale past the two boards that
+   * happen to exist today. Which one is printed is the last one played, which after a run
+   * is the run that just ended and on a cold open is the same answer one step later.
    */
   const records = document.createElement('div');
   records.className = 'shell-records';
   box.appendChild(records);
 
   /**
-   * **A list of one renders as a button, not as a menu.** The data is a list either
-   * way, and the whole picker design of this milestone is that single line: a chooser
-   * with one choice is worse than a start button, so the one case where the entry's
-   * own name is worth printing is the case where there is something to choose between.
+   * **A list of one renders as a button, not as a menu.** The data is a list either way,
+   * and v1.7's whole picker design was that single line: a chooser with one choice is
+   * worse than a start button, so the one case where the entry's own name is worth
+   * printing is the case where there is something to choose between. v1.8 added the
+   * second entry as a line in `runs.ts` and this loop had already built it.
    *
-   * The second entry, when it arrives, is a line in `runs.ts` - this loop already
-   * builds it.
+   * It is kept rather than deleted now that it reads false. It is the rule, not a
+   * fallback: a board removed from `runs.ts` puts the list back to one, and START is
+   * still the right thing to print on that day.
+   *
+   * **Nothing is pre-selected**, and that is the question the picker step had to answer
+   * rather than assume. The list reads the same way every time it opens, in declaration
+   * order, and the board you last played is remembered only for which records to print.
+   * Reordering or pre-focusing by history would save one tap and cost the thing a list
+   * is for - that the same board is in the same place every time your thumb goes there.
    */
   const oneRun = runs.length === 1;
+  /**
+   * The column the entries stand in, and it exists because there are two of them. A list
+   * of one was a button and took the box's own 22px gap; a list of two needs its rows
+   * closer to each other than either is to the title, or they read as two separate
+   * offers rather than as a choice between two boards.
+   *
+   * Full width of the same column the records use, so the names line up under the
+   * readout instead of each row being as wide as its own text.
+   */
+  const list = document.createElement('div');
+  list.className = 'shell-runs';
+  box.appendChild(list);
+
   const buttons = runs.map((run) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'shell-start';
     button.textContent = oneRun ? 'START' : run.name;
     button.addEventListener('click', () => handlers.onStart(run));
-    box.appendChild(button);
+    list.appendChild(button);
     return button;
   });
 
@@ -160,6 +192,12 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
   host.appendChild(root);
 
   let shown: Records = { furthestWave: 0, fastestClearMs: null, fewestLeaks: null };
+  /**
+   * Which board the readout is about. Starts on the first entry so the shell can render
+   * before anything has told it otherwise; `main.ts` hands it the last board played
+   * before the shell is ever shown.
+   */
+  let shownRun: RunDescriptor = runs[0];
 
   function row(label: string, value: string, isNew: boolean): void {
     const stat = document.createElement('div');
@@ -198,6 +236,17 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
     if (shown.fewestLeaks !== null) {
       row('CLEANEST', leakText(shown.fewestLeaks), beaten.includes('cleanest'));
     }
+
+    // The heading goes on last and only if something is under it, which is what keeps
+    // `.shell-records:empty` honest: a first-time visitor still gets a title and a
+    // button, not a board name with nothing to say about it. Only worth printing when
+    // there is more than one board it could have been.
+    if (!oneRun && records.childElementCount > 0) {
+      const heading = document.createElement('div');
+      heading.className = 'shell-records-board';
+      heading.textContent = shownRun.name;
+      records.prepend(heading);
+    }
   }
 
   return {
@@ -205,8 +254,13 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       reload.hidden = !ready;
     },
 
-    setRecords(next: Records, beaten: RecordKey[]): void {
+    setRecords(runId: string, next: Records, beaten: RecordKey[]): void {
       shown = next;
+      // An id that names no entry is a board that was removed from `runs.ts` with a
+      // record still on the phone. Falling back to the first entry would print another
+      // board's name over this one's numbers, which is the one thing this argument is
+      // about, so the heading is dropped instead and the rows stand alone.
+      shownRun = runs.find((run) => run.id === runId) ?? shownRun;
       renderRecords(beaten);
     },
 

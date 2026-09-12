@@ -1,5 +1,5 @@
-import { findLoadout, loadoutCost, loadouts, MARGIN_MAX, MARGIN_MIN, runBalance, runMargin } from '../src/balance.ts';
-import type { MarginReport, RunReport } from '../src/balance.ts';
+import { boards, findBoard, loadoutCost, loadoutNames, MARGIN_MAX, MARGIN_MIN, runBalance, runMargin } from '../src/balance.ts';
+import type { Board, Loadout, MarginReport, RunReport } from '../src/balance.ts';
 import { MAX_CORE_HEALTH, STARTING_CYCLES } from '../src/game.ts';
 import { waves } from '../src/wave.ts';
 
@@ -9,10 +9,15 @@ import { waves } from '../src/wave.ts';
  * types here at load; nothing compiles this file, which is why it is kept to
  * formatting with no numbers of its own.
  *
- *   npm run balance                # every declared loadout
- *   npm run balance -- focused     # one of them
- *   npm run balance -- --margin    # how much harder the curve would have to be
- *   npm run balance -- --json      # the same reports as JSON
+ *   npm run balance                          # every declared loadout, on every board
+ *   npm run balance -- focused               # one of them, on every board
+ *   npm run balance -- --board recursion-02  # one board, every loadout
+ *   npm run balance -- --margin              # how much harder the curve would have to be
+ *   npm run balance -- --json                # the same reports as JSON
+ *
+ * The board is part of a reading as of v1.8, and the pairing is the point: the same
+ * layout name is declared on both boards, so `veteran` against `veteran` is a statement
+ * about the two boards with the curve, the roster and the spending order held still.
  */
 
 const args = process.argv.slice(2);
@@ -20,23 +25,48 @@ const asJson = args.includes('--json');
 const asMargin = args.includes('--margin');
 const names = args.filter((arg) => !arg.startsWith('--'));
 
+const boardFlag = args.indexOf('--board');
+const boardId = boardFlag === -1 ? null : args[boardFlag + 1];
+// `--board x` puts the id in `names`, where it would then be read as a loadout.
+const wanted = names.filter((name) => name !== boardId);
+
 if (args.includes('--help')) {
-  console.log('usage: npm run balance -- [loadout...] [--margin] [--json]');
-  console.log(`loadouts: ${loadouts.map((loadout) => loadout.name).join(', ')}`);
+  console.log('usage: npm run balance -- [loadout...] [--board id] [--margin] [--json]');
+  console.log(`loadouts: ${loadoutNames.join(', ')}`);
+  console.log(`boards:   ${boards.map((board) => `${board.id} (${board.name})`).join(', ')}`);
   console.log('--margin: bisect the run-wide HP multiplier for the first leak and the loss');
   process.exit(0);
 }
 
-const selected = names.length > 0 ? names.map(resolve) : loadouts;
+/** One thing to measure: a layout, and the board whose tiles it is written on. */
+interface Selection {
+  board: Board;
+  loadout: Loadout;
+}
 
-function resolve(name: string) {
-  const loadout = findLoadout(name);
-  if (!loadout) {
-    console.error(`unknown loadout "${name}" - try one of: ${loadouts.map((l) => l.name).join(', ')}`);
+const selectedBoards = boardId === undefined || boardId === null ? boards : [resolveBoard(boardId)];
+
+function resolveBoard(id: string): Board {
+  const board = findBoard(id);
+  if (!board) {
+    console.error(`unknown board "${id}" - try one of: ${boards.map((b) => b.id).join(', ')}`);
     process.exit(1);
   }
-  return loadout;
+  return board;
 }
+
+if (wanted.some((name) => !loadoutNames.includes(name))) {
+  const bad = wanted.find((name) => !loadoutNames.includes(name));
+  console.error(`unknown loadout "${bad}" - try one of: ${loadoutNames.join(', ')}`);
+  process.exit(1);
+}
+
+// Board-major: every layout on one board, then every layout on the next. A reading is
+// about a board, and interleaving them would make the comparison the reader has to do
+// a matter of scrolling.
+const selected: Selection[] = selectedBoards.flatMap((board) =>
+  board.loadouts.filter((loadout) => wanted.length === 0 || wanted.includes(loadout.name)).map((loadout) => ({ board, loadout })),
+);
 
 function clock(ms: number): string {
   const seconds = Math.round(ms / 1000);
@@ -54,11 +84,10 @@ const OUTCOME: Record<RunReport['status'], string> = {
   timeout: 'TIMED OUT',
 };
 
-function printReport(report: RunReport): void {
-  const loadout = findLoadout(report.loadout);
-  const cost = loadout ? loadoutCost(loadout) : 0;
+function printReport(report: RunReport, loadout: Loadout): void {
+  const cost = loadoutCost(loadout);
 
-  console.log(`${report.loadout.toUpperCase()} - ${report.note}`);
+  console.log(`${report.board} · ${report.loadout.toUpperCase()} - ${report.note}`);
   const called = report.totalCalledEarly > 0 ? `  (${report.totalCalledEarly} of it called early)` : '';
   console.log(
     `  ${OUTCOME[report.status]}  core ${report.coreHealth}/${MAX_CORE_HEALTH}  ` +
@@ -84,10 +113,10 @@ function printReport(report: RunReport): void {
 function printSummary(all: RunReport[]): void {
   console.log('');
   console.log(`  ${waves.length} waves, ${STARTING_CYCLES} starting Cycles, ${MAX_CORE_HEALTH} core HP`);
-  console.log('  LOADOUT   RESULT          CORE  LEAK  EARNED  BANKED   TIME');
+  console.log('  BOARD         LOADOUT   RESULT          CORE  LEAK  EARNED  BANKED   TIME');
   for (const report of all) {
     console.log(
-      `  ${report.loadout.padEnd(9)} ${OUTCOME[report.status].padEnd(15)} ${pad(report.coreHealth, 4)}  ` +
+      `  ${report.board.padEnd(13)} ${report.loadout.padEnd(9)} ${OUTCOME[report.status].padEnd(15)} ${pad(report.coreHealth, 4)}  ` +
         `${pad(report.totalLeaks, 4)}  ${pad(report.totalEarned, 6)}  ${pad(report.cyclesEnd, 6)}  ${pad(clock(report.durationMs), 5)}`,
     );
   }
@@ -103,10 +132,10 @@ function margin(value: number | null): string {
 function printMargins(all: MarginReport[]): void {
   console.log('');
   console.log(`  ${waves.length} waves, run-wide HP multiplier bisected over ${MARGIN_MIN}x to ${MARGIN_MAX}x`);
-  console.log('  LOADOUT   AT 1x                FIRST LEAK  ON WAVE   LOSES AT  ON WAVE');
+  console.log('  BOARD         LOADOUT   AT 1x                FIRST LEAK  ON WAVE   LOSES AT  ON WAVE');
   for (const report of all) {
     console.log(
-      `  ${report.loadout.padEnd(9)} ${(OUTCOME[report.status] + ` ${report.coreHealth}/${MAX_CORE_HEALTH}`).padEnd(20)} ` +
+      `  ${report.board.padEnd(13)} ${report.loadout.padEnd(9)} ${(OUTCOME[report.status] + ` ${report.coreHealth}/${MAX_CORE_HEALTH}`).padEnd(20)} ` +
         `${pad(margin(report.firstLeak), 10)}  ${pad(report.firstLeakWave ?? '-', 7)}   ` +
         `${pad(margin(report.loss), 8)}  ${pad(report.lossWave ?? '-', 7)}`,
     );
@@ -116,18 +145,18 @@ function printMargins(all: MarginReport[]): void {
 }
 
 if (asMargin) {
-  const margins = selected.map((loadout) => runMargin(loadout));
+  const margins = selected.map(({ board, loadout }) => runMargin(loadout, { level: board.level }));
   if (asJson) console.log(JSON.stringify(margins, null, 2));
   else printMargins(margins);
 } else {
-  const reports = selected.map((loadout) => runBalance(loadout));
+  const reports = selected.map(({ board, loadout }) => runBalance(loadout, { level: board.level }));
 
   if (asJson) {
     console.log(JSON.stringify(reports, null, 2));
   } else {
     reports.forEach((report, index) => {
       if (index > 0) console.log('');
-      printReport(report);
+      printReport(report, selected[index].loadout);
     });
     // One report is its own summary; the table only earns its place as a comparison.
     if (reports.length > 1) printSummary(reports);

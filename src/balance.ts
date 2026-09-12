@@ -9,7 +9,7 @@ import {
   upgradeTower,
 } from './game.ts';
 import type { GameState, GameStatus } from './game.ts';
-import { level1 } from './map.ts';
+import { level1, level2 } from './map.ts';
 import type { LevelData } from './map.ts';
 import { waves } from './wave.ts';
 import { MAX_TIER, towerStats } from './tower.ts';
@@ -87,6 +87,8 @@ export interface WaveReport {
 }
 
 export interface RunReport {
+  /** Which board it was run on. A report that does not say is half a reading. */
+  board: string;
   loadout: string;
   note: string;
   status: GameStatus | 'timeout';
@@ -246,6 +248,7 @@ export function runBalance(loadout: Loadout, options: BalanceOptions = {}): RunR
   reports.push(wave);
 
   return {
+    board: boardOf(level).name,
     loadout: loadout.name,
     note: loadout.note,
     status: ticks >= maxTicks ? 'timeout' : state.status,
@@ -276,6 +279,7 @@ export const MARGIN_MAX = 8;
 const MARGIN_STEPS = 9;
 
 export interface MarginReport {
+  board: string;
   loadout: string;
   note: string;
   /** The verdict at 1x, so a margin has something to be a margin *from*. */
@@ -359,6 +363,7 @@ export function runMargin(loadout: Loadout, options: BalanceOptions = {}): Margi
   const loss = bisect((m) => at(m).status === 'lost', firstLeak ?? MARGIN_MIN, MARGIN_MAX);
 
   return {
+    board: baseline.board,
     loadout: loadout.name,
     note: loadout.note,
     status: baseline.status,
@@ -392,7 +397,13 @@ function diedOn(report: RunReport): number | null {
  * cheap towers beat two good ones, and `focused` whether the tier ladder v1.2
  * built is reachable inside a run at all.
  *
- * Tiles are on level 1's serpentine: the trace runs y=2 (x 0-4), down x=4, y=4
+ * **A layout is tiles, and tiles belong to a board**, which is why v1.8 could not add a
+ * map without adding a second set of these. The same seven names are declared on both
+ * boards so the pair can be read as a controlled comparison - `veteran` against
+ * `veteran` is a statement about the two boards, because everything else about the two
+ * runs is the same curve, the same roster and the same spending order.
+ *
+ * Tiles here are on level 1's serpentine: the trace runs y=2 (x 0-4), down x=4, y=4
  * (x 4-9), down x=9, then y=6 (x 9-15).
  */
 /**
@@ -419,7 +430,7 @@ const VETERAN_BUILDS: Build[] = [
   { kind: 'firewallNode', x: 10, y: 5, fromWave: 14 },
 ];
 
-export const loadouts: Loadout[] = [
+const LEVEL1_LOADOUTS: Loadout[] = [
   {
     name: 'bare',
     note: 'nothing built - what the curve does to an empty board',
@@ -483,8 +494,135 @@ export const loadouts: Loadout[] = [
   },
 ];
 
-export function findLoadout(name: string): Loadout | null {
-  return loadouts.find((loadout) => loadout.name === name) ?? null;
+/**
+ * Level 2's layouts, the same seven names on the fold's tiles.
+ *
+ * **The whole difference is the opening.** On level 1 the front guns sit on row 3 beside
+ * one lane; here they sit on row 3 *between* two, so the same 20 Cycles buys twice the
+ * trace. That is the board's thesis and these are what state it as a number - if the
+ * corridor is worth what it looks like it is worth, `starter` on this board does far
+ * better than `starter` on level 1, and the margin says by how much.
+ *
+ * Tiles are on the fold: the trace runs y=2 (x 0-10), down x=10, y=4 (x 10 back to 5),
+ * down x=5, then y=6 (x 5-15). The tiles that straddle two lanes are row 3 at x 5-9 and
+ * row 5 at x 6-10; everything else on this board sees one lane, exactly as on level 1.
+ */
+const VETERAN_BUILDS_2: Build[] = [
+  // Both in the corridor, both covering the outbound and the return leg at once.
+  { kind: 'firewallNode', x: 6, y: 3 },
+  { kind: 'firewallNode', x: 8, y: 3 },
+  // On the return leg, inside both of them - so what the slow buys is more time in the
+  // one place on this board where two towers are already shooting.
+  { kind: 'honeypot', x: 7, y: 4 },
+  { kind: 'firewallNode', x: 6, y: 3, tier: 3, fromWave: 3 },
+  { kind: 'idsScanner', x: 7, y: 3, tier: 2, fromWave: 5 },
+  { kind: 'firewallNode', x: 8, y: 3, tier: 3, fromWave: 7 },
+  // Act two moves to the second corridor and the run-out. The Turret's tile sees only
+  // the last leg, deliberately: it is this board's one long straight, and the ROOTKIT
+  // has to be shootable somewhere that is not the corridor.
+  { kind: 'aesTurret', x: 12, y: 5, fromWave: 9 },
+  { kind: 'idsScanner', x: 8, y: 5, fromWave: 10 },
+  { kind: 'aesTurret', x: 12, y: 5, tier: 2, fromWave: 12 },
+  { kind: 'firewallNode', x: 10, y: 5, fromWave: 14 },
+];
+
+/** The three the opening 100 Cycles buys, shared by every level 2 layout that has one. */
+const LEVEL2_OPENING: Build[] = [
+  { kind: 'firewallNode', x: 6, y: 3 },
+  { kind: 'firewallNode', x: 8, y: 3 },
+  { kind: 'honeypot', x: 7, y: 4 },
+];
+
+const LEVEL2_LOADOUTS: Loadout[] = [
+  {
+    name: 'bare',
+    note: 'nothing built - what the curve does to an empty board',
+    builds: [],
+  },
+  {
+    name: 'starter',
+    note: 'the opening 100 Cycles, and nothing after it - how far a frozen board gets',
+    builds: LEVEL2_OPENING,
+  },
+  {
+    name: 'spread',
+    note: 'breadth: the same opening, then a new tier-1 tower every couple of waves',
+    builds: [
+      ...LEVEL2_OPENING,
+      { kind: 'idsScanner', x: 8, y: 5, fromWave: 3 },
+      { kind: 'aesTurret', x: 12, y: 5, fromWave: 5 },
+      { kind: 'firewallNode', x: 10, y: 5, fromWave: 7 },
+      { kind: 'honeypot', x: 12, y: 6, fromWave: 9 },
+    ],
+  },
+  {
+    name: 'focused',
+    note: 'depth: the same opening, then every Cycle into upgrading the three towers it has',
+    builds: [
+      ...LEVEL2_OPENING,
+      { kind: 'firewallNode', x: 6, y: 3, tier: 3, fromWave: 3 },
+      { kind: 'firewallNode', x: 8, y: 3, tier: 3, fromWave: 5 },
+      { kind: 'honeypot', x: 7, y: 4, tier: 3, fromWave: 7 },
+    ],
+  },
+  {
+    name: 'turret',
+    note: 'the gamble: stay tier 1 at the front and bank for a tier-3 AES Turret late',
+    builds: [
+      ...LEVEL2_OPENING,
+      { kind: 'idsScanner', x: 7, y: 3, tier: 2, fromWave: 3 },
+      { kind: 'aesTurret', x: 12, y: 5, tier: 3, fromWave: 5 },
+    ],
+  },
+  {
+    name: 'veteran',
+    note: 'mixed: upgrade what is already shooting, then widen with a slow and a turret',
+    builds: VETERAN_BUILDS_2,
+  },
+  {
+    name: 'rush',
+    note: 'the veteran line, taking every early call - more Cycles, less time to spend them',
+    builds: VETERAN_BUILDS_2,
+    callWavesEarly: true,
+  },
+];
+
+/**
+ * A board the harness measures, and the layouts declared on its tiles.
+ *
+ * The grouping is what v1.8 needed and what makes the reading possible: a loadout name
+ * alone stopped identifying a run the moment there were two boards, and a report that
+ * does not say which board it is about would read as the curve moving when what moved
+ * was the map. `id` matches `RunDescriptor.id` so the harness and the game agree on what
+ * a board is called - gated in `tests/balance.test.ts`, because the two lists are in two
+ * files and nothing but a test makes them stay in step.
+ */
+export interface Board {
+  id: string;
+  name: string;
+  level: LevelData;
+  loadouts: Loadout[];
+}
+
+export const boards: Board[] = [
+  { id: 'mainframe-01', name: 'MAINFRAME 01', level: level1, loadouts: LEVEL1_LOADOUTS },
+  { id: 'recursion-02', name: 'RECURSION 02', level: level2, loadouts: LEVEL2_LOADOUTS },
+];
+
+/** Which board a level belongs to, for a report that holds the level and needs the name. */
+function boardOf(level: LevelData): Board {
+  return boards.find((board) => board.level === level) ?? boards[0];
+}
+
+/** The layout names, which every board declares in full. */
+export const loadoutNames: string[] = LEVEL1_LOADOUTS.map((loadout) => loadout.name);
+
+export function findBoard(id: string): Board | null {
+  return boards.find((board) => board.id === id) ?? null;
+}
+
+export function findLoadout(board: Board, name: string): Loadout | null {
+  return board.loadouts.find((loadout) => loadout.name === name) ?? null;
 }
 
 /** Cheapest thing the harness can be asked: does the declared order ever fit? */

@@ -43,7 +43,7 @@ import { watchForUpdates } from './update.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 import { createShell } from './shell.ts';
-import { readRecords, recordRun } from './records.ts';
+import { readLastRun, readRecords, recordRun } from './records.ts';
 import { RUNS } from './runs.ts';
 import type { RunDescriptor } from './runs.ts';
 
@@ -61,20 +61,31 @@ function startGame(): void {
   const canvas = document.createElement('canvas');
   document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas);
 
-  // Sized from the boot map. A second map with different dimensions is the one thing
-  // in here that would need the viewport rebuilt rather than re-fitted, and that is
-  // v1.8's problem on the day it has a second map to size for.
+  // Sized from the boot map, and still only from the boot map. v1.8 added a second
+  // board on the same 16x9 grid deliberately, so this holds: a differently-*sized* map
+  // is the one thing in here that would need the viewport rebuilt rather than re-fitted,
+  // and there still isn't one.
   const viewport = createViewport(canvas, level1.cols, level1.rows);
 
   /**
    * The map the current run is on, and the board baked from it. Both start as the boot
    * map so the first run opens with its board already prerendered, and both are
-   * re-derived only when a run arrives on a different map - which is never today,
-   * because `RUNS` has one entry. That "never" is the seam: it is a condition rather
-   * than an assumption, so the second entry does not need this code to change.
+   * re-derived only when a run arrives on a different map.
+   *
+   * Written in v1.7 as a condition rather than an assumption, against a `RUNS` that had
+   * one entry and could never take the branch. v1.8 added the second entry and this is
+   * the code that did not have to change - which is what the condition was for.
    */
   let runMap = level1;
   let board = prerenderBoard(runMap);
+
+  /**
+   * The descriptor the current run was started from, held because **a finished run has
+   * to be filed under the board it was played on** and `GameState` carries the map, not
+   * the descriptor. Starts on the first entry so the boot board and the boot descriptor
+   * agree; `startRun()` is the only thing that moves it.
+   */
+  let currentRun: RunDescriptor = RUNS[0];
 
   /**
    * How long the current run has lasted, in **simulated** milliseconds - the sum of the
@@ -301,9 +312,17 @@ function startGame(): void {
     RUNS,
     document.body,
   );
-  // Read once at boot. Nothing writes records except a run ending, so the shell can
-  // hold them and be told when they move.
-  shell.setRecords(readRecords(), []);
+  /**
+   * Read once at boot. Nothing writes records except a run ending, so the shell can hold
+   * them and be told when they move.
+   *
+   * Which board's set, now that there are two: the last one played. A stored id that
+   * names no entry - a board dropped from `runs.ts` - falls back to the first, which is
+   * an empty readout rather than another board's numbers under the wrong name.
+   */
+  const lastRunId = readLastRun();
+  const openingRun = RUNS.find((run) => run.id === lastRunId) ?? RUNS[0];
+  shell.setRecords(openingRun.id, readRecords(openingRun.id), []);
 
   function applyLayout(): void {
     // The only thing left that the two orientations disagree about: a turned board
@@ -498,6 +517,7 @@ function startGame(): void {
    * argument - today the map, later the kind of run and the difficulty.
    */
   function startRun(run: RunDescriptor): void {
+    currentRun = run;
     // The board is a bake of the map, so it is redone when, and only when, the map
     // under the run changes.
     if (run.map !== runMap) {
@@ -537,7 +557,7 @@ function startGame(): void {
    * run, not about whether they stayed to look at it.
    */
   function finishRun(run: GameState): void {
-    const { records, beaten } = recordRun({
+    const { records, beaten } = recordRun(currentRun.id, {
       cleared: run.status === 'won',
       wave: waveNumber(run.spawner),
       // The core's lost HP, which is what a leak has meant in this project since the
@@ -546,7 +566,7 @@ function startGame(): void {
       leaks: MAX_CORE_HEALTH - run.coreHealth,
       durationMs: runMs,
     });
-    shell.setRecords(records, beaten);
+    shell.setRecords(currentRun.id, records, beaten);
   }
 
   /**

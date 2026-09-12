@@ -1,10 +1,11 @@
-import { level1 } from './map.ts';
+import { level1, level2 } from './map.ts';
 import type { LevelData } from './map.ts';
 
 /**
- * What the shell can start. One entry today, and the shape is the entire point: the
- * shell reads a list, so the second map in v1.8 is a line in this file rather than a
- * second path through the shell or through `startRun()`.
+ * What the shell can start. Two entries, and the shape was the entire point before
+ * either of them was worth choosing between: the shell reads a list, so v1.8's second
+ * map landed here as a line of data rather than as a second path through the shell or
+ * through `startRun()`.
  *
  * Its own module rather than a field on `LevelData`, because **a run is not a map**.
  * Endless is a second kind of run on the same map, and a difficulty is a knob set
@@ -14,24 +15,47 @@ import type { LevelData } from './map.ts';
  */
 export interface RunDescriptor {
   /**
-   * Stable key, never shown, and **nothing reads it yet - which is a debt and not a
-   * spare field.**
+   * Stable key, never shown, and **half of what a record is filed under** - see
+   * `recordKey` in `records.ts`.
    *
-   * Records exist as of v1.7 and are filed under the curve's hash alone. That is
-   * enough while this list has one entry and wrong the moment it has two: the wave
-   * table is global, so two maps run the same fifteen waves and hash identically, and
-   * their records would land on the same line. A `FASTEST` shared by two boards is not
-   * a best time, it is a reading of which board is shorter.
+   * Records arrived in v1.7 filed under the curve's hash alone, which was enough while
+   * this list had one entry and wrong the moment it had two: the wave table is global,
+   * so both boards run the same fifteen waves and hash identically. A `FASTEST` shared
+   * by two boards is not a best time, it is a reading of which board is shorter.
    *
-   * So the second entry in this list has to bring this id into the record key with it -
-   * see `CURVE_ID` in `records.ts`. It was left undone on purpose rather than done
-   * blind: with one map both versions behave identically, so there is nothing to verify,
-   * and changing the key shape today would discard the records already on the phone.
+   * Paid in the same step that added the second board, which is the step where the claim
+   * "two boards, two sets" can actually be checked rather than assumed.
    */
   id: string;
-  /** What the entry reads as, on the day there is more than one of them to read. */
+  /** What the entry reads as. Printed by the shell now that there are two to read. */
   name: string;
   map: LevelData;
 }
 
-export const RUNS: RunDescriptor[] = [{ id: 'mainframe-01', name: 'MAINFRAME 01', map: level1 }];
+/**
+ * Two entries, and the shell needs no notice of it: `createShell` already loops this
+ * list and already prints names instead of `START` the moment there is more than one
+ * name to print. That was the whole design of v1.7's picker and this is it being taken
+ * up - a line of data rather than a second path through the shell or through
+ * `startRun()`.
+ *
+ * Order is the reading order. MAINFRAME 01 is first because it is the board the curve
+ * was tuned on and the one a first-time player should meet; RECURSION 02 is the fold,
+ * and it asks a question that only makes sense once you have built on a board that does
+ * not fold.
+ */
+export const RUNS: RunDescriptor[] = [
+  { id: 'mainframe-01', name: 'MAINFRAME 01', map: level1 },
+  { id: 'recursion-02', name: 'RECURSION 02', map: level2 },
+];
+
+/**
+ * The board that existed alone while records were filed under the curve and nothing else.
+ * `records.ts` reads the old un-scoped key as this board's, because there has only ever
+ * been one board those records could have been set on - see `legacyKeyFor`.
+ *
+ * A constant rather than the string typed twice: this is the one id in the file that two
+ * modules have to agree about, and the way that agreement breaks is a rename here that
+ * silently orphans a player's set.
+ */
+export const LEGACY_RUN_ID = RUNS[0].id;
