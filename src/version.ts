@@ -5,7 +5,8 @@
  *
  * It exists to be read back. Everything this game does wrong, it does wrong on a phone
  * that is not here, and the difference between a report that can be chased and one that
- * cannot is whether it names a commit. The console shows both under ABOUT.
+ * cannot is whether it names a commit. The shell prints both along its bottom edge,
+ * where crossing the screen is enough to have seen them.
  */
 declare const __APP_VERSION__: string;
 declare const __APP_BUILT__: string;

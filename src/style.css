@@ -394,6 +394,67 @@ canvas {
   display: none;
 }
 
+/* The fine print, along the bottom edge - which is where a title screen has always put
+   this, and the reason it works: a build stamp and a credit stacked over the start
+   button would turn the way into the game into a page to be read. Out of the box's flow
+   entirely, so the box stays what it is.
+
+   It is the one part of the layer that takes pointers, along with the box: there is a
+   link in here and, when a build is waiting, a button. */
+.shell-foot {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--term-dim);
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: center;
+}
+
+/* The padding is the tap target: a line of 11px text is not one, and the negative
+   margin keeps it from spending the space it borrows. */
+.shell-credit {
+  padding: 6px 8px;
+  margin: -6px 0;
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+/* The name is the link and the label is not, which is the same rule the console's
+   values follow: green is the part that carries something. */
+.shell-credit span {
+  color: var(--term);
+  text-shadow: var(--term-glow);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--term-faint);
+}
+
+.shell-build {
+  letter-spacing: 0.06em;
+}
+
+/* Bordered, where the two lines under it are not: this one is the only thing down here
+   that acts. Small on purpose - a build waiting is news, not an interruption. */
+.shell-reload {
+  min-height: 36px;
+  padding: 6px 14px;
+  background: var(--term-back);
+  color: var(--term);
+  border: 1px solid var(--term-faint);
+  border-radius: 4px;
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-shadow: var(--term-glow);
+  touch-action: manipulation;
+}
+
 /* The one control on the screen, so it is allowed to be wide. Same box as the two
    drawer toggles - opaque, faint border, green glow - because the player will meet
    those two seconds later and they should have been the same button all along. */
@@ -442,28 +503,6 @@ canvas {
 .stat-label::after {
   content: ' ..............................';
   color: var(--term-faint);
-}
-
-/* The soundtrack credit: a full-width row under the stats grid, borrowing that grid's
-   .stat so the dot leader is the same one every other reading uses. It is an anchor, so
-   it gets the row padding the grid gives its own cells, and enough height to be a tap
-   target on a phone without becoming a button - a button is a thing that acts on the
-   run, and this is a name.
-
-   Underlined on the value alone, because in a readout where every value is already
-   green text there is nothing else left to say "this one opens". */
-.panel-credit {
-  padding: 0 8px 8px;
-  min-height: 22px;
-  color: inherit;
-  text-decoration: none;
-  touch-action: manipulation;
-}
-
-.panel-credit .stat-value {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: var(--term-faint);
 }
 
 .stat-next {

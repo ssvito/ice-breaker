@@ -1,3 +1,4 @@
+import { APP_BUILT, APP_VERSION } from './version.ts';
 import { CURVE_LENGTH } from './records.ts';
 import type { RecordKey, Records } from './records.ts';
 import type { RunDescriptor } from './runs.ts';
@@ -17,8 +18,16 @@ import type { RunDescriptor } from './runs.ts';
  * when one ends. That is what gives records somewhere to be read and the waiting
  * service worker a seam to apply at.
  */
+export interface ShellHandlers {
+  onStart(run: RunDescriptor): void;
+  /** Let the waiting worker through and reload onto it. Free here: there is no run. */
+  onReload(): void;
+}
+
 export interface Shell {
   setVisible(visible: boolean): void;
+  /** Whether a newer build has finished downloading and is waiting to take over. */
+  setUpdateReady(ready: boolean): void;
   /**
    * The stored records, and which of them the run that just ended took. The marks are
    * the shell's only acknowledgement that a run happened at all, and they are cleared
@@ -38,11 +47,7 @@ function leakText(leaks: number): string {
   return `${leaks} LEAK${leaks === 1 ? '' : 'S'}`;
 }
 
-export function createShell(
-  host: HTMLElement,
-  runs: RunDescriptor[],
-  onStart: (run: RunDescriptor) => void,
-): Shell {
+export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host: HTMLElement): Shell {
   /**
    * A full-bleed layer that catches nothing. Nothing in this project sets a `z-index`,
    * so a layer appended late paints over everything - including the gear column, which
@@ -94,10 +99,64 @@ export function createShell(
     button.type = 'button';
     button.className = 'shell-start';
     button.textContent = oneRun ? 'START' : run.name;
-    button.addEventListener('click', () => onStart(run));
+    button.addEventListener('click', () => handlers.onStart(run));
     box.appendChild(button);
     return button;
   });
+
+  /**
+   * The fine print, and the whole of what moved out of the console's ABOUT reading.
+   *
+   * It is a foot rather than three more rows in the box, because the box is the way
+   * into the game and this is not: a credit and a build stamp stacked over the start
+   * button would turn the way in into a page to read. Along the bottom edge is where a
+   * title screen has always put this, and it is the answer to the question the move
+   * asked - a credit reads as a credit there, and becomes chrome anywhere else.
+   *
+   * All three lines were reachable before only by opening a gear and then a drawer.
+   * Here they are simply on the screen the player already has to cross.
+   */
+  const foot = document.createElement('div');
+  foot.className = 'shell-foot';
+  root.appendChild(foot);
+
+  /**
+   * The reload, and **this is the place it was always waiting for**. `registerType:
+   * 'prompt'` was chosen so a new worker could not seize a page mid-run; the cost of
+   * that was a reload offered where taking it destroyed the run. Offered here it costs
+   * nothing at all, which is what makes it an offer rather than a trap.
+   */
+  const reload = document.createElement('button');
+  reload.type = 'button';
+  reload.className = 'shell-reload';
+  reload.textContent = 'NEW BUILD · RELOAD';
+  reload.hidden = true;
+  reload.addEventListener('click', () => handlers.onReload());
+  foot.appendChild(reload);
+
+  /**
+   * The soundtrack credit, moved from the console's ABOUT with the rest of that
+   * reading. Same link, same target, same reason: an installed PWA that navigates away
+   * from itself has no back button to come home with - and here, unlike in the console,
+   * there is not even a run to lose.
+   */
+  const credit = document.createElement('a');
+  credit.className = 'shell-credit';
+  credit.href = 'https://www.ancestorsoundworks.com.br';
+  credit.target = '_blank';
+  credit.rel = 'noopener noreferrer';
+  credit.innerHTML = 'MUSIC BY <span>ANCESTOR SOUNDWORKS</span>';
+  foot.appendChild(credit);
+
+  /**
+   * Which build this is. It exists for the bug report that starts on a phone that is
+   * not here: "it broke" and "it broke on `7e8329f`" are different reports, and only
+   * one of them can be chased.
+   */
+  const build = document.createElement('div');
+  build.className = 'shell-build';
+  build.textContent = `BUILD ${APP_VERSION} · ${APP_BUILT}`;
+  foot.appendChild(build);
 
   host.appendChild(root);
 
@@ -143,6 +202,10 @@ export function createShell(
   }
 
   return {
+    setUpdateReady(ready: boolean): void {
+      reload.hidden = !ready;
+    },
+
     setRecords(next: Records, beaten: RecordKey[]): void {
       shown = next;
       renderRecords(beaten);

@@ -126,15 +126,15 @@ const GEAR_ROWS = [
   '......#..#......',
 ];
 
-/** Adds whichever of the three this platform supports. Adds nothing if none. */
 /**
- * `onAbout` is the ABOUT reading's toggle. It lives in this column and not in the
- * console's own header for the same reason the other three do: it is about the session
- * rather than about the run, and the console's header could not hold another 44px
- * target. It is also the only control here that is not a setting, which is why it speaks
- * the drawer vocabulary - it opens a thing rather than turning one on.
+ * Adds whichever of these this platform supports, and nothing it does not.
+ *
+ * It held a fourth control for one milestone: ABOUT, which was the only thing in here
+ * that was not a setting. It is in the shell now, on a screen the player crosses anyway
+ * rather than behind a gear and a drawer - and the column is back to being what its
+ * name says, the things that are about the session rather than about the run.
  */
-export function createTopTools(host: HTMLElement, audio: AudioSystem | null, onAbout: (open: boolean) => void): void {
+export function createTopTools(host: HTMLElement, audio: AudioSystem | null): void {
   const canFullscreen = typeof document.documentElement.requestFullscreen === 'function';
   // The lock's API check is not enough on its own: desktop Chrome defines lock()
   // and rejects every call, so a button gated on the method alone would render on
@@ -142,8 +142,9 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null, onA
   // of the question - this control is for a phone turning in a hand.
   const canLock =
     typeof screen.orientation?.lock === 'function' && window.matchMedia('(pointer: coarse)').matches;
-  // No early return any more: ABOUT renders on every device, so the column is never
-  // empty. It was guarding against a gear that opened onto nothing, and that case is gone.
+  // Still no early return, and now the sound button is what earns it: fullscreen and
+  // the lock are both feature-detected and neither exists on an iPhone, but audio does,
+  // so the drawer can never open onto nothing.
 
   const root = document.createElement('div');
   root.className = 'top-tools';
@@ -220,14 +221,6 @@ export function createTopTools(host: HTMLElement, audio: AudioSystem | null, onA
     });
     lock.setState(false);
   }
-
-  let aboutOpen = false;
-  const about = makeButton('ABOUT', 'About this build', 'drawer', drawer, () => {
-    aboutOpen = !aboutOpen;
-    about.setState(aboutOpen);
-    onAbout(aboutOpen);
-  });
-  about.setState(false);
 
   if (audio) addSound(drawer, audio);
 

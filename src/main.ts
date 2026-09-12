@@ -293,7 +293,14 @@ function startGame(): void {
    * `applyLayout()` decides what is on screen when there is no run and it is called
    * during setup - a shell created further down would be in its temporal dead zone.
    */
-  const shell = createShell(document.body, RUNS, (run) => startRun(run));
+  const shell = createShell(
+    {
+      onStart: (run) => startRun(run),
+      onReload: () => updates.apply(),
+    },
+    RUNS,
+    document.body,
+  );
   // Read once at boot. Nothing writes records except a run ending, so the shell can
   // hold them and be told when they move.
   shell.setRecords(readRecords(), []);
@@ -368,8 +375,6 @@ function startGame(): void {
 
   // Right-anchored in the same band as the status glyphs. After the desk, because the
   // sound button reads it.
-  let aboutOpen = false;
-
   function placeHud(): void {
     const rect = boardRect(viewport);
     document.documentElement.style.setProperty('--hud-top', `${Math.round(rect.top - HUD_HEIGHT - BOARD_GAP)}px`);
@@ -394,24 +399,19 @@ function startGame(): void {
       onCallWave: () => {
         if (state) callWaveEarly(state);
       },
-      onReload: () => updates.apply(),
     },
     document.body,
   );
 
   /**
-   * Registration and the update check, and the console is where the answer surfaces.
-   * `syncAbout` is called from three places - the toggle, the reload readiness callback,
-   * and here to set the opening state - because the reading is a pair and either half
-   * can move without the other.
+   * Registration and the update check, and the shell is where the answer surfaces now.
+   * One line instead of the pair the console needed: the reading used to be "is ABOUT
+   * open" crossed with "is a build waiting", and only the second half was ever a fact
+   * about the world.
    */
-  const syncAbout = (): void => panel.setAbout(aboutOpen, updates.isReady());
-  const updates = watchForUpdates(syncAbout);
+  const updates = watchForUpdates(() => shell.setUpdateReady(updates.isReady()));
 
-  createTopTools(document.body, audio, (open) => {
-    aboutOpen = open;
-    syncAbout();
-  });
+  createTopTools(document.body, audio);
 
   /**
    * The console's turn at parking against the board instead of the window, and the
