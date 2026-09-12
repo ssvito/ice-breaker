@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildableTileSet, levels, pathLength, rasterizePath } from '../src/map.ts';
+import { buildableTileSet, levels, pathLength, rasterizePath, REACH } from '../src/map.ts';
 import type { LevelData } from '../src/map.ts';
 import { RUNS } from '../src/runs.ts';
 
@@ -93,29 +93,82 @@ test('every run points at a declared map, under its own id', () => {
   }
 });
 
-test('level 2 folds back, and a tower in the corridor covers both lanes', () => {
+/** How much trace a tower standing on this tile would cover, at opening range. */
+function coverage(level: LevelData, x: number, y: number): number {
+  return rasterizePath(level.waypoints).filter((tile) => Math.hypot(tile.x - x, tile.y - y) <= REACH).length;
+}
+
+/** The best tile a board offers, in trace tiles covered. The board's ceiling, as a number. */
+function bestTile(level: LevelData): number {
+  return Math.max(...[...buildableTileSet(level)].map((key) => {
+    const [x, y] = key.split(',').map(Number);
+    return coverage(level, x, y);
+  }));
+}
+
+test('level 2 folds back, and a tower between the lanes covers both', () => {
   // The axis of the board, gated rather than trusted to the drawing. Two things have to
-  // be true together: a leg that travels backwards, and a buildable tile with trace one
-  // row above it *and* one row below. Either alone is a different board - a backwards leg
-  // far from its outbound one is a longer level 1, and two lanes with no gap between them
-  // are one thick lane nobody can build in.
+  // be true together: a leg that travels backwards, and tiles that reach trace on both
+  // sides of themselves. Either alone is a different board - a backwards leg far from its
+  // outbound one is a longer level 1, and two lanes with no gap are one thick lane nobody
+  // can build in.
+  //
+  // Reach, not adjacency. The first draft of this board put its legs two rows apart, where
+  // "covers both" meant "one row above and one row below" and could be gated by counting
+  // neighbours. The corners moved them four rows apart, which is the whole reason the
+  // board works - so what has to be asserted is what a *tower* can see, which is the thing
+  // that was really being measured all along.
   const level = levels[1];
   const backwards = level.waypoints.some((to, i) => i > 0 && to.x < level.waypoints[i - 1].x);
   assert.ok(backwards, 'level 2 has no leg that runs back');
 
-  const trace = new Set(rasterizePath(level.waypoints).map((tile) => `${tile.x},${tile.y}`));
-  const buildable = buildableTileSet(level);
-  const straddling = [...buildable].filter((key) => {
+  const trace = rasterizePath(level.waypoints);
+  const straddling = [...buildableTileSet(level)].filter((key) => {
     const [x, y] = key.split(',').map(Number);
-    return trace.has(`${x},${y - 1}`) && trace.has(`${x},${y + 1}`);
+    const sees = (dir: number) =>
+      trace.some((tile) => Math.sign(tile.y - y) === dir && Math.hypot(tile.x - x, tile.y - y) <= REACH);
+    return sees(-1) && sees(1);
   });
-  // Five each on rows 3 and 5, which is what "widened from one column to five" means as
-  // a number. Level 1's own overlap column is its connector tile, so it scores zero here
-  // and the assertion is deliberately about level 2 alone.
-  assert.equal(straddling.length, 10, `straddling tiles: ${straddling.join(' ')}`);
+  assert.ok(straddling.length >= 20, `only ${straddling.length} tiles see trace on both sides`);
 
-  // The cost, asserted so it cannot drift quietly: every column the fold walks back is
-  // paid for twice, and trace length is difficulty under one global curve.
+  // And the fold has to actually pay, which is the claim a count cannot make on its own:
+  // level 1's legs meet at their turns too, but a tower there catches a sliver of each.
+  assert.ok(
+    bestTile(level) > bestTile(levels[0]),
+    `the fold buys nothing: best tile covers ${bestTile(level)} against level 1's ${bestTile(levels[0])}`,
+  );
+});
+
+test('level 2 runs corner to corner and uses every row', () => {
+  // The player's constraint, and it turned out to be the load-bearing one. Reaching both
+  // corners forces the three legs four rows apart instead of two, and that is what took
+  // the board from clearing the curve untouched to taking a leak at 1x like level 1 does.
+  // Gated so it cannot drift back: a later edit that pulls the legs inward would quietly
+  // hand the fold its old strength back, and nothing else here would notice.
+  const level = levels[1];
+  const trace = rasterizePath(level.waypoints);
+  const first = trace[0];
+  const last = trace[trace.length - 1];
+
+  assert.deepEqual({ x: first.x, y: first.y }, { x: 0, y: 0 }, 'spawn is not the top-left corner');
+  assert.deepEqual({ x: last.x, y: last.y }, { x: 15, y: 8 }, 'the core is not the bottom-right corner');
+
+  const rows = new Set(trace.map((tile) => tile.y));
+  assert.equal(rows.size, level.rows, `the trace uses ${rows.size} of ${level.rows} rows`);
+});
+
+test('the fold costs trace, and the trace is not what costs the player', () => {
+  // Both halves of this milestone's central finding, as numbers that cannot drift.
+  //
+  // The cost: spawn and core are on opposite edges, so the trace owes 15 columns whatever
+  // it does, and every column the middle leg walks back is paid for twice. There is no
+  // fold at level 1's length.
   assert.equal(pathLength(levels[0].waypoints), 19);
-  assert.equal(pathLength(level.waypoints), 29);
+  assert.equal(pathLength(levels[1].waypoints), 29);
+
+  // And what it does not cost: this board was 29 tiles in its first draft too, with the
+  // legs two rows apart, and it cleared the curve without taking a scratch. Same length,
+  // same curve, different difficulty - so the ten extra tiles are not what a player pays.
+  // Coverage is. The control that established it lives in `balance.test.ts`.
+  assert.equal(levels[1].waypoints[2].y - levels[1].waypoints[0].y, 4, 'the legs are no longer four rows apart');
 });

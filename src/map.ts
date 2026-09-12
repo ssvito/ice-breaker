@@ -28,59 +28,61 @@ export const level1: LevelData = {
  *
  * Level 1 always moves right: three legs, each one further along than the last, so a
  * tower covers the stretch of trace it happens to sit beside and the only lever the
- * player has is how many of them there are. Here the middle leg **runs backwards**, two
- * rows under the leg it came from, so the corridor between them is one tile from both
- * lanes at once and a single tower in it covers the trace twice. The question stops
- * being *how many* and becomes *where*.
+ * player has is how many of them there are. Here the middle leg **runs backwards**, so
+ * the band between it and the leg it came from is within reach of both lanes at once and
+ * a single tower there covers the trace twice. The question stops being *how many* and
+ * becomes *where*.
  *
- * Not a new idea so much as an old hint made the point. Level 1's first two legs already
- * meet, at the single column x=4, and `VETERAN_BUILDS` in `balance.ts` has quietly built
- * on it since v1.3 - two Firewall Nodes on row 3. This board widens that from one column
- * to five: rows 3 and 5 each have five tiles with a lane above and a lane below.
+ * Not a new idea so much as an old hint made the point. Level 1's legs already meet at
+ * their turns, and `VETERAN_BUILDS` in `balance.ts` has quietly built on that since v1.3.
+ * What is new is that here the two lanes run *parallel* for five columns rather than
+ * touching at a corner, so a tower between them covers a stretch of each instead of a
+ * sliver.
  *
- * Same 16x9 grid on purpose. The shape carries the difference and the size does not, and
- * a differently-sized board is the one thing that would force `createViewport` to be
- * rebuilt rather than re-fitted.
+ * **Corner to corner, and all nine rows.** Spawn is the top-left tile and the core the
+ * bottom-right, and the legs sit on rows 0, 4 and 8 - which is the player's call and
+ * turned out to be the thing that made the board work. Level 1 leaves four of its nine
+ * rows completely empty; this one uses the whole grid. Same 16x9 as level 1, because the
+ * shape carries the difference and the size does not, and a differently-*sized* board is
+ * the one thing that would force `createViewport` to be rebuilt rather than re-fitted.
  *
- * **What the fold costs, and what it turned out not to cost.** Spawn is on the left edge
- * and the core on the right, so the trace owes 15 columns of travel no matter what it
- * does; every column the middle leg walks back is paid for twice. Five columns of overlap
- * is therefore 29 tiles of trace against level 1's 19 - and there is no way around that,
- * because level 1's trace is already a minimal path and a fold of k columns costs 19+2k.
+ * **Why the corners are load-bearing and not decoration.** Reaching both edges forces the
+ * three legs four rows apart instead of two, and that is the whole difficulty of the
+ * board. A tower one row from a lane covers about 4.6 tiles of it; a tower two rows from
+ * two lanes covers about 3 of each. So the fold still pays - it is still the best real
+ * estate on the board - but it pays about 30% rather than about 100%. The first draft of
+ * this board put the legs on rows 2, 4 and 6 and measured **1.15x to first blood against
+ * level 1's 0.65x**: it cleared the curve untouched, which is the "one problem and a rest"
+ * this milestone set out to avoid. Moved to the corners, with the fold pulled from five
+ * columns to three, it reads **0.79x** and takes a leak at 1x like level 1 does.
  *
- * The milestone predicted that this would be the board's problem: one global curve, so
- * more trace is more time under fire and the board would be easier for the length alone.
- * **That was measured and it is false.** Same 29-tile board, same Cycles, same build
- * order, one difference - the towers standing outside the corridor instead of in it - and
- * the run loses the core at 1x, first leaking at 0.65x, which is level 1's own number on
- * a trace ten tiles longer. Trace that nothing covers is not time under fire; it is
- * enemies walking for free. **Length is not difficulty here. Coverage is.**
- *
- * So the corridor is the whole of what makes this board a different board, and it is
- * worth an enormous amount: the same Cycles spent inside it clear the curve untouched.
- * This board is the more forgiving of the two *for a player who finds the fold*, and the
- * harsher of the two for one who does not. Shipped that way on the player's call, with
- * the narrower folds measured and turned down - see the v1.8 notes in the Roadmap.
+ * **And the trace is 29 either way**, which is the cleanest possible proof of the thing
+ * this milestone spent a session establishing: length is not difficulty. The same 29 tiles
+ * arranged two rows apart clear untouched and arranged four rows apart draw blood. What a
+ * board costs the player is coverage, and trace nothing covers is enemies walking for
+ * free. See the v1.8 notes in the Roadmap for the control that separated the two.
  */
 export const level2: LevelData = {
   cols: 16,
   rows: 9,
   waypoints: [
-    { x: 0, y: 2 },
-    { x: 10, y: 2 },
-    { x: 10, y: 4 },
-    { x: 5, y: 4 },
-    { x: 5, y: 6 },
-    { x: 15, y: 6 },
+    { x: 0, y: 0 },
+    { x: 9, y: 0 },
+    { x: 9, y: 4 },
+    { x: 6, y: 4 },
+    { x: 6, y: 8 },
+    { x: 15, y: 8 },
   ],
 };
 
 /**
- * Every board this project declares. The picker reads `RUNS`, not this - what this is
- * for is the gate in `tests/map.test.ts`, which has to be able to say "every map" rather
- * than "the maps someone remembered to list in the test". A board that breaks a rule
- * breaks it silently, so the list the rules run over is the list of boards itself.
+ * How far a tower reaches, for the one board property that is worth asserting: whether a
+ * tile can cover two lanes at once. A Firewall Node opens at 2.5 grid units and this is
+ * that number, named here because `map.ts` must not import the tower table - the tiles
+ * are geometry and the tower is balance, and this is the one place the two touch.
  */
+export const REACH = 2.5;
+
 export const levels: LevelData[] = [level1, level2];
 
 /** Expands waypoints into every grid tile the path passes through. */

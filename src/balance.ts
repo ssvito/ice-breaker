@@ -497,39 +497,45 @@ const LEVEL1_LOADOUTS: Loadout[] = [
 /**
  * Level 2's layouts, the same seven names on the fold's tiles.
  *
- * **The whole difference is the opening.** On level 1 the front guns sit on row 3 beside
- * one lane; here they sit on row 3 *between* two, so the same 20 Cycles buys twice the
- * trace. That is the board's thesis and these are what state it as a number - if the
- * corridor is worth what it looks like it is worth, `starter` on this board does far
- * better than `starter` on level 1, and the margin says by how much.
+ * **The whole difference is the second gun.** On level 1 both front guns sit beside one
+ * lane; here the first still does - covering the long opening leg, which is where the
+ * early kills that pay for everything else come from - and the second sits in the band
+ * between the outbound and return legs, where it covers a stretch of each. That is the
+ * board's thesis stated as a build order, and the harness is what says how much it is
+ * worth: the same ladder with both guns off the fold loses the core.
  *
- * Tiles are on the fold: the trace runs y=2 (x 0-10), down x=10, y=4 (x 10 back to 5),
- * down x=5, then y=6 (x 5-15). The tiles that straddle two lanes are row 3 at x 5-9 and
- * row 5 at x 6-10; everything else on this board sees one lane, exactly as on level 1.
+ * Tiles are on the corner-to-corner trace: row 0 from x 0 to 9, down the column x=9, row
+ * 4 from x 9 back to 6, down the column x=6, then row 8 from x 6 to 15. The legs are four
+ * rows apart, so a tower covering two of them is two rows from each - the reason the
+ * corridor pays about 30% here rather than the 100% it paid at two rows apart. Row 2
+ * between x 5 and 8 sees the first pair of legs; row 6 between x 7 and 9 sees the second.
  */
 const VETERAN_BUILDS_2: Build[] = [
-  // Both in the corridor, both covering the outbound and the return leg at once.
-  { kind: 'firewallNode', x: 6, y: 3 },
-  { kind: 'firewallNode', x: 8, y: 3 },
-  // On the return leg, inside both of them - so what the slow buys is more time in the
-  // one place on this board where two towers are already shooting.
+  // Beside the opening leg, where the run is paid for. Not in the fold on purpose: a
+  // board whose first two buys both sit in the corridor starves, because the corridor is
+  // three quarters of the way along a trace the enemies have to survive to reach.
+  { kind: 'firewallNode', x: 3, y: 1 },
+  // And the second one in the band, covering the outbound leg and the return leg at once.
+  { kind: 'firewallNode', x: 7, y: 2 },
+  // On the return leg, inside the second gun's range - so what the slow buys is more time
+  // in the one place on this board where the trace is covered twice.
   { kind: 'honeypot', x: 7, y: 4 },
-  { kind: 'firewallNode', x: 6, y: 3, tier: 3, fromWave: 3 },
-  { kind: 'idsScanner', x: 7, y: 3, tier: 2, fromWave: 5 },
-  { kind: 'firewallNode', x: 8, y: 3, tier: 3, fromWave: 7 },
-  // Act two moves to the second corridor and the run-out. The Turret's tile sees only
-  // the last leg, deliberately: it is this board's one long straight, and the ROOTKIT
-  // has to be shootable somewhere that is not the corridor.
-  { kind: 'aesTurret', x: 12, y: 5, fromWave: 9 },
-  { kind: 'idsScanner', x: 8, y: 5, fromWave: 10 },
-  { kind: 'aesTurret', x: 12, y: 5, tier: 2, fromWave: 12 },
-  { kind: 'firewallNode', x: 10, y: 5, fromWave: 14 },
+  { kind: 'firewallNode', x: 3, y: 1, tier: 3, fromWave: 3 },
+  { kind: 'idsScanner', x: 8, y: 2, tier: 2, fromWave: 5 },
+  { kind: 'firewallNode', x: 7, y: 2, tier: 3, fromWave: 7 },
+  // Act two moves to the second band and the run-out. The Turret's tile sees only the
+  // last leg, deliberately: it is this board's one long straight, and the ROOTKIT has to
+  // be shootable somewhere that is not the fold.
+  { kind: 'aesTurret', x: 12, y: 7, fromWave: 9 },
+  { kind: 'idsScanner', x: 8, y: 6, fromWave: 10 },
+  { kind: 'aesTurret', x: 12, y: 7, tier: 2, fromWave: 12 },
+  { kind: 'firewallNode', x: 9, y: 6, fromWave: 14 },
 ];
 
 /** The three the opening 100 Cycles buys, shared by every level 2 layout that has one. */
 const LEVEL2_OPENING: Build[] = [
-  { kind: 'firewallNode', x: 6, y: 3 },
-  { kind: 'firewallNode', x: 8, y: 3 },
+  { kind: 'firewallNode', x: 3, y: 1 },
+  { kind: 'firewallNode', x: 7, y: 2 },
   { kind: 'honeypot', x: 7, y: 4 },
 ];
 
@@ -549,10 +555,10 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'breadth: the same opening, then a new tier-1 tower every couple of waves',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'idsScanner', x: 8, y: 5, fromWave: 3 },
-      { kind: 'aesTurret', x: 12, y: 5, fromWave: 5 },
-      { kind: 'firewallNode', x: 10, y: 5, fromWave: 7 },
-      { kind: 'honeypot', x: 12, y: 6, fromWave: 9 },
+      { kind: 'idsScanner', x: 8, y: 6, fromWave: 3 },
+      { kind: 'aesTurret', x: 12, y: 7, fromWave: 5 },
+      { kind: 'firewallNode', x: 9, y: 6, fromWave: 7 },
+      { kind: 'honeypot', x: 12, y: 8, fromWave: 9 },
     ],
   },
   {
@@ -560,8 +566,8 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'depth: the same opening, then every Cycle into upgrading the three towers it has',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'firewallNode', x: 6, y: 3, tier: 3, fromWave: 3 },
-      { kind: 'firewallNode', x: 8, y: 3, tier: 3, fromWave: 5 },
+      { kind: 'firewallNode', x: 3, y: 1, tier: 3, fromWave: 3 },
+      { kind: 'firewallNode', x: 7, y: 2, tier: 3, fromWave: 5 },
       { kind: 'honeypot', x: 7, y: 4, tier: 3, fromWave: 7 },
     ],
   },
@@ -570,8 +576,8 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'the gamble: stay tier 1 at the front and bank for a tier-3 AES Turret late',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'idsScanner', x: 7, y: 3, tier: 2, fromWave: 3 },
-      { kind: 'aesTurret', x: 12, y: 5, tier: 3, fromWave: 5 },
+      { kind: 'idsScanner', x: 8, y: 2, tier: 2, fromWave: 3 },
+      { kind: 'aesTurret', x: 12, y: 7, tier: 3, fromWave: 5 },
     ],
   },
   {
