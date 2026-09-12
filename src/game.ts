@@ -23,7 +23,7 @@ import type { Spawner } from './wave.ts';
 import { createGlitchBurst, stepParticle } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
 import type { SpritePixel } from './sprites.ts';
-import type { LoggedAction } from './run-log.ts';
+import type { LoggedAction, LoggedLeak } from './run-log.ts';
 
 /**
  * The simulation, and nothing else: no canvas, no DOM, no input. It used to live in
@@ -92,7 +92,18 @@ export interface GameState {
    * On the state and not beside it, which also means the determinism gate compares it:
    * two runs that agree on everything else and disagree here are not the same run.
    */
-  log: LoggedAction[];
+  actions: LoggedAction[];
+  /**
+   * What walked through, and **the other kind of thing entirely**: actions are the input
+   * a replay feeds back, and this is one of the outputs it is checked against. A replay
+   * that reaches the same core HP by leaking a different wave agrees with the verdict and
+   * disagrees here, which is the failure worth catching.
+   *
+   * Enemies and not hit points. Every other leak count in the project is the core's lost
+   * HP - the record, the harness's tables - and that definition stays; this is not the
+   * same number, because a Zero-Day takes three of them by itself.
+   */
+  leaks: LoggedLeak[];
   coreHealth: number;
   cycles: number;
   status: GameStatus;
@@ -150,7 +161,8 @@ export function createGameState(level: LevelData, options: GameOptions = {}): Ga
 
     spawner: createSpawner(),
     tick: 0,
-    log: [],
+    actions: [],
+    leaks: [],
     coreHealth: MAX_CORE_HEALTH,
     cycles: STARTING_CYCLES,
     status: 'playing',
@@ -184,7 +196,7 @@ export function placeTower(state: GameState, kind: TowerKind, tile: GridPos): To
   state.towers.push(tower);
   state.occupied.add(tileKey(tile));
   state.cycles -= towerStats(kind).cost;
-  state.log.push({ tick: state.tick, action: 'place', tower: kind, x: tile.x, y: tile.y });
+  state.actions.push({ tick: state.tick, action: 'place', tower: kind, x: tile.x, y: tile.y });
   return tower;
 }
 
@@ -196,7 +208,7 @@ export function sellTower(state: GameState, tower: Tower): boolean {
   state.towers.splice(index, 1);
   state.occupied.delete(tileKey(tower));
   state.cycles += sellValue(tower);
-  state.log.push({ tick: state.tick, action: 'sell', x: tower.x, y: tower.y });
+  state.actions.push({ tick: state.tick, action: 'sell', x: tower.x, y: tower.y });
   return true;
 }
 
@@ -207,7 +219,7 @@ export function upgradeTower(state: GameState, tower: Tower): boolean {
 
   state.cycles -= cost;
   applyUpgrade(tower);
-  state.log.push({ tick: state.tick, action: 'upgrade', x: tower.x, y: tower.y });
+  state.actions.push({ tick: state.tick, action: 'upgrade', x: tower.x, y: tower.y });
   return true;
 }
 
@@ -228,7 +240,7 @@ export function callWaveEarly(state: GameState): number {
   if (!preview) return 0;
 
   state.cycles += preview.earlyBonus;
-  state.log.push({ tick: state.tick, action: 'call' });
+  state.actions.push({ tick: state.tick, action: 'call' });
   // Zero rather than negative: the next tick takes it below zero and opens the
   // wave, through the same branch a countdown that ran out would have taken.
   state.spawner.waveTimerMs = 0;
@@ -250,7 +262,7 @@ export function callWaveEarly(state: GameState): number {
  */
 export function overclockTower(state: GameState, tower: Tower): boolean {
   if (!triggerOverclock(tower)) return false;
-  state.log.push({ tick: state.tick, action: 'overclock', x: tower.x, y: tower.y });
+  state.actions.push({ tick: state.tick, action: 'overclock', x: tower.x, y: tower.y });
   return true;
 }
 
@@ -338,6 +350,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
     enemy.removed = true;
     state.enemies.splice(i, 1);
     state.coreHealth = Math.max(0, state.coreHealth - enemy.coreDamage);
+    state.leaks.push({ tick: state.tick, kind: enemy.kind });
     if (state.coreHealth === 0) state.status = 'lost';
   }
 
