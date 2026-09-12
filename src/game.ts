@@ -342,7 +342,25 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
     state.projectiles.splice(i, 1);
   }
 
-  if (state.spawner.state === 'done' && state.enemies.length === 0) state.status = 'won';
+  /**
+   * The curve is out of waves and the board is clear, so the run is won - **unless it
+   * was already lost**, and that guard is the whole of this line.
+   *
+   * Without it the two endings race on a single tick and the loss always loses. The last
+   * enemy of the last wave reaches the core, takes the final HP and sets `lost` - and
+   * then despawns, which empties `state.enemies` and satisfies this condition in the
+   * same `stepGame` call. The run reports SYSTEM SECURED with the core on zero.
+   *
+   * Not cosmetic: `recordRun` files a result as a clear on `status === 'won'`, so that
+   * run would take the fastest-clear and fewest-leaks records having been killed by the
+   * last thing on the board. Found by the harness printing `won 0/5` while a second
+   * board was being redrawn, which is the harness catching something the game has been
+   * carrying since v1 - the ending only became reachable when a board got close enough
+   * to the curve for the final enemy to be the one that kills you.
+   */
+  if (state.status === 'playing' && state.spawner.state === 'done' && state.enemies.length === 0) {
+    state.status = 'won';
+  }
 
   for (let i = state.particles.length - 1; i >= 0; i--) {
     if (!stepParticle(state.particles[i], dtMs)) state.particles.splice(i, 1);

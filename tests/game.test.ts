@@ -199,3 +199,51 @@ test('reveal is not sold by the tier', () => {
   // into "did you buy enough Scanner".
   for (let tier = 1; tier <= 3; tier++) assert.equal(towerStats('idsScanner', tier).reveals, true);
 });
+
+/**
+ * The two endings raced on a single tick, and the loss always lost.
+ *
+ * `stepGame` sets `lost` the moment the core reaches zero, and further down it sets `won`
+ * when the spawner is done and the board is clear. An enemy that reaches the core also
+ * *despawns* there - so the last enemy of the last wave taking the final core HP satisfies
+ * both conditions in the same call, and the unguarded win check overwrote the loss.
+ *
+ * It is not a cosmetic wrong word on an end screen. `recordRun` files a result as a clear
+ * on `status === 'won'`, so this run would have taken the fastest-clear and fewest-leaks
+ * records after being killed by the last thing on the board - the two records that exist
+ * precisely to mean "you survived the whole curve".
+ *
+ * Carried since v1 and only reachable when a board is tuned close enough to the curve for
+ * the final enemy to be the one that kills you. It surfaced as `won 0/5` in a balance
+ * report while the second board was being redrawn, which is the harness catching something
+ * no amount of playing had.
+ */
+test('the last enemy killing the core is a loss, not a win on zero', () => {
+  const state = createGameState(level1);
+
+  // The curve is spent and the board holds one enemy, one step from the core.
+  state.spawner.state = 'done';
+  state.spawner.waveIndex = 99;
+  state.coreHealth = 1;
+  const enemy = createEnemy('worm');
+  enemy.distance = state.pathLength;
+  state.enemies.push(enemy);
+
+  stepGame(state, SIM_TICK_MS);
+
+  assert.equal(state.coreHealth, 0, 'the enemy should have taken the last core HP');
+  assert.equal(state.enemies.length, 0, 'and despawned, which is what makes the two endings collide');
+  assert.equal(state.status, 'lost', 'a run that lost its core on the final enemy reported as a clear');
+});
+
+test('a board cleared with core to spare is still a win', () => {
+  // The other side of the guard: it must not turn every finished run into a loss.
+  const state = createGameState(level1);
+  state.spawner.state = 'done';
+  state.spawner.waveIndex = 99;
+
+  stepGame(state, SIM_TICK_MS);
+
+  assert.equal(state.status, 'won');
+  assert.equal(state.coreHealth, 5);
+});
