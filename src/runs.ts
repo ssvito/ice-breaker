@@ -14,8 +14,19 @@ import type { LevelData } from './map.ts';
  */
 export interface RunDescriptor {
   /**
-   * Stable key, never shown. It is what a record will be filed under once records
-   * exist - a record is a claim about a run, so it has to name which one.
+   * Stable key, never shown, and **nothing reads it yet - which is a debt and not a
+   * spare field.**
+   *
+   * Records exist as of v1.7 and are filed under the curve's hash alone. That is
+   * enough while this list has one entry and wrong the moment it has two: the wave
+   * table is global, so two maps run the same fifteen waves and hash identically, and
+   * their records would land on the same line. A `FASTEST` shared by two boards is not
+   * a best time, it is a reading of which board is shorter.
+   *
+   * So the second entry in this list has to bring this id into the record key with it -
+   * see `CURVE_ID` in `records.ts`. It was left undone on purpose rather than done
+   * blind: with one map both versions behave identically, so there is nothing to verify,
+   * and changing the key shape today would discard the records already on the phone.
    */
   id: string;
   /** What the entry reads as, on the day there is more than one of them to read. */

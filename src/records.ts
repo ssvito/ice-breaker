@@ -68,6 +68,14 @@ function hash(text: string): string {
  * scale axes all live in `waves`, so any retune that would change what a record means
  * changes this string with it - and a retune that changes nothing a player could feel,
  * like a reordered comment, does not touch it at all.
+ *
+ * **What it does not cover is the board.** The wave table is global and the map is not,
+ * so a second map would run this same curve, hash to this same string, and write to this
+ * same record - which would quietly turn "fastest clear" into "whichever board is
+ * shortest". A record is a claim about a curve *and* a board; this only carries half of
+ * that, and the half it is missing is `RunDescriptor.id`, which exists and is waiting
+ * for the day there is a second one. The fix belongs to the step that adds that map, not
+ * to a day when both versions of the key behave identically.
  */
 export const CURVE_ID = hash(JSON.stringify(waves));
 
