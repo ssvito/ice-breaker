@@ -26,6 +26,7 @@ import { countdownSeconds, currentWaveReading, nextWavePreview, waveNumber } fro
 import {
   callWaveEarly,
   createGameState,
+  MAX_CORE_HEALTH,
   isPlaceable,
   placeTower,
   sellTower,
@@ -42,6 +43,7 @@ import { watchForUpdates } from './update.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 import { createShell } from './shell.ts';
+import { readRecords, recordRun } from './records.ts';
 import { RUNS } from './runs.ts';
 import type { RunDescriptor } from './runs.ts';
 
@@ -73,6 +75,19 @@ function startGame(): void {
    */
   let runMap = level1;
   let board = prerenderBoard(runMap);
+
+  /**
+   * How long the current run has lasted, in **simulated** milliseconds - the sum of the
+   * ticks it has been stepped by, not the wall clock.
+   *
+   * That distinction is the whole of the fastest-clear record. Ticks are `TICK_MS`
+   * whatever the speed button says, so 2x buys no record and the only way to finish
+   * faster is to call waves early, which is the mechanic that exists for exactly that
+   * trade. It also happens to be the same number `balance.ts` reports as a run's
+   * duration, so a record and a harness reading are comparable rather than merely
+   * similar.
+   */
+  let runMs = 0;
 
   window.addEventListener('resize', () => {
     fitViewport(viewport);
@@ -279,6 +294,9 @@ function startGame(): void {
    * during setup - a shell created further down would be in its temporal dead zone.
    */
   const shell = createShell(document.body, RUNS, (run) => startRun(run));
+  // Read once at boot. Nothing writes records except a run ending, so the shell can
+  // hold them and be told when they move.
+  shell.setRecords(readRecords(), []);
 
   function applyLayout(): void {
     // The only thing left that the two orientations disagree about: a turned board
@@ -501,6 +519,7 @@ function startGame(): void {
     // wave 1 early with no confirm, which is the one thing the port's two taps exist
     // to prevent.
     spawnArmed = false;
+    runMs = 0;
     // Speed is a preference and survives; pause is a state, and starting into a frozen
     // board would read as the start having failed.
     paused = false;
@@ -508,6 +527,26 @@ function startGame(): void {
     // The dock's visibility is a function of there being a run, and this is the moment
     // that changes.
     applyLayout();
+  }
+
+  /**
+   * File the run that just ended, and hand the shell whatever moved.
+   *
+   * Called on the tick the run ends rather than on the tap that leaves it. A player who
+   * closes the tab on the verdict still set the record they set: it is a fact about the
+   * run, not about whether they stayed to look at it.
+   */
+  function finishRun(run: GameState): void {
+    const { records, beaten } = recordRun({
+      cleared: run.status === 'won',
+      wave: waveNumber(run.spawner),
+      // The core's lost HP, which is what a leak has meant in this project since the
+      // harness started counting them that way. Same definition or the record and the
+      // balance table are two different claims wearing one word.
+      leaks: MAX_CORE_HEALTH - run.coreHealth,
+      durationMs: runMs,
+    });
+    shell.setRecords(records, beaten);
   }
 
   /**
@@ -616,7 +655,12 @@ function startGame(): void {
       // and restarting the loop, and it leaves rAF available to whatever the shell
       // wants to animate - which is the step after this one.
       if (!state) return;
+      const playing = state.status === 'playing';
+      if (playing) runMs += dtMs;
       stepGame(state, dtMs, hooks);
+      // The edge rather than the state: exactly one tick sees a run stop playing, so
+      // exactly one files it, with no "already recorded" flag to keep in step.
+      if (playing && state.status !== 'playing') finishRun(state);
       // A selected enemy can die or breach the core mid-tick; both paths set removed.
       if (selection?.kind === 'enemy' && selection.enemy.removed) selection = null;
       // The wave can arrive on its own while the port is armed; the chevrons go with it.
