@@ -376,6 +376,47 @@ canvas {
   animation: term-blink 1.1s step-end infinite;
 }
 
+/* What the last run did. Same width as the list under it, so the screen is one column
+   and not a report beside a menu - and the same .stat rows the cards use, because a
+   readout in this game looks like the console printing whatever surface it is on.
+
+   Nothing here is a control. It is the only block on this screen that is purely a
+   reading, which is why it has no border and no box: a card is something to press, and
+   giving this the same frame would invite a tap that does nothing. */
+.shell-report {
+  width: min(320px, 78vw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shell-report[hidden] {
+  display: none;
+}
+
+/* The verdict, in the board's own name. Letter-spaced like a card's title because it is
+   the same kind of line - what this is about - rather than a value. */
+.shell-verdict {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--term);
+}
+
+/* Amber for a breach: the console's own "look at this", the same colour that marks a
+   record which just moved. A clear needs no such mark - the words already say it, and
+   colouring both would make the colour mean "a run ended" instead of "look here". */
+.shell-verdict-lost {
+  color: #ffe27d;
+  text-shadow: 0 0 6px rgba(255, 226, 125, 0.4);
+}
+
+.shell-report-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
 /* The entries. Tighter than the box's own gap on purpose: two rows this close read as
    one choice with two answers, and two rows 22px apart read as two separate offers. */
 .shell-runs {

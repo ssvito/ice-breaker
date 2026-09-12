@@ -567,6 +567,17 @@ function startGame(): void {
     // Sealed on the tick the run ends, for the same reason the record is filed there: it
     // is a fact about the run and not about whether the player stayed to look at it.
     lastRunLog = sealRunLog(currentRun.id, run);
+    // The report the player reads, from the same facts the log seals. Handed over on the
+    // tick the run ends, like the record, so a player who closes the tab on the verdict
+    // still gets the reading when they come back.
+    shell.setLastRun({
+      board: currentRun.name,
+      cleared: run.status === 'won',
+      durationMs: run.tick * TICK_MS,
+      coreHealth: run.coreHealth,
+      wave: waveNumber(run.spawner),
+      leaks: run.leaks,
+    });
     const { records, beaten } = recordRun(currentRun.id, {
       cleared: run.status === 'won',
       wave: waveNumber(run.spawner),

@@ -18,7 +18,7 @@ import {
 import type { Tower, TowerKind } from './tower.ts';
 import { createProjectile, stepProjectile } from './projectile.ts';
 import type { Projectile } from './projectile.ts';
-import { createSpawner, nextWavePreview, stepSpawner, waveScale } from './wave.ts';
+import { createSpawner, nextWavePreview, stepSpawner, waveNumber, waveScale } from './wave.ts';
 import type { Spawner } from './wave.ts';
 import { createGlitchBurst, stepParticle } from './effects.ts';
 import type { GlitchParticle } from './effects.ts';
@@ -350,7 +350,7 @@ export function stepGame(state: GameState, dtMs: number, hooks: GameHooks = {}):
     enemy.removed = true;
     state.enemies.splice(i, 1);
     state.coreHealth = Math.max(0, state.coreHealth - enemy.coreDamage);
-    state.leaks.push({ tick: state.tick, kind: enemy.kind });
+    state.leaks.push({ tick: state.tick, kind: enemy.kind, wave: waveNumber(state.spawner) });
     if (state.coreHealth === 0) state.status = 'lost';
   }
 

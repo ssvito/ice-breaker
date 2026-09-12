@@ -1,7 +1,10 @@
 import { APP_BUILT, APP_VERSION } from './version.ts';
 import { CURVE_LENGTH } from './records.ts';
+import { MAX_CORE_HEALTH } from './game.ts';
 import type { RecordKey, Records } from './records.ts';
 import type { RunDescriptor } from './runs.ts';
+import { enemyStats } from './enemy.ts';
+import type { LoggedLeak } from './run-log.ts';
 import { rasterizePath } from './map.ts';
 import type { LevelData } from './map.ts';
 import { pixelSvg } from './glyph.ts';
@@ -26,6 +29,26 @@ export interface ShellHandlers {
   onReload(): void;
 }
 
+/**
+ * What the run that just ended did, for the player to read.
+ *
+ * The harness has printed this wave by wave since v1.3 and nobody playing has ever seen
+ * any of it. What crosses over is deliberately not the harness's table: a player is not
+ * tuning a curve, and the columns that answer "is the curve right" are not the ones that
+ * answer "what do I build next time". So this is the verdict, the clock, the core, and
+ * **what walked through it and when** - which is the half that is new rather than moved.
+ */
+export interface RunSummary {
+  /** The board's name, because the report sits above two cards and has to say which. */
+  board: string;
+  cleared: boolean;
+  durationMs: number;
+  coreHealth: number;
+  /** How far the run got, printed only when it did not get all the way. */
+  wave: number;
+  leaks: readonly LoggedLeak[];
+}
+
 export interface Shell {
   setVisible(visible: boolean): void;
   /** Whether a newer build has finished downloading and is waiting to take over. */
@@ -42,6 +65,13 @@ export interface Shell {
    * that knows where records live.
    */
   setRecords(runId: string, records: Records, beaten: RecordKey[]): void;
+  /**
+   * The run that just ended, or `null` for none. Held in memory and never stored, which
+   * is what keeps this from re-introducing the `ice-breaker:last-run` key v1.8 deleted -
+   * a report is about a moment rather than about a board, so the moment owning it is the
+   * whole design.
+   */
+  setLastRun(summary: RunSummary | null): void;
 }
 
 /**
@@ -79,6 +109,36 @@ function formatClock(ms: number): string {
 function leakText(leaks: number): string {
   if (leaks === 0) return 'NO LEAKS';
   return `${leaks} LEAK${leaks === 1 ? '' : 'S'}`;
+}
+
+/**
+ * Leaks grouped by the wave that took the damage, in wave order.
+ *
+ * By wave rather than one line each, because five separate rows saying WORM is a list and
+ * "wave 10 let three worms through" is a reading - and the report exists to change what
+ * gets built next run rather than to recount it. Counted by enemy and not by core HP,
+ * which is the distinction only the log can make: a Zero-Day is one thing through the
+ * gate and three hit points off the core.
+ *
+ * Exported and pure because it is the only part of this screen that can be wrong in a way
+ * looking at it would not catch - the rest is text in a box, and this project has always
+ * verified that on a phone rather than in a runner.
+ */
+export function groupLeaks(leaks: readonly LoggedLeak[]): { wave: number; text: string }[] {
+  const byWave = new Map<number, Map<string, number>>();
+  for (const leak of leaks) {
+    const kinds = byWave.get(leak.wave) ?? new Map<string, number>();
+    const name = enemyStats(leak.kind).name;
+    kinds.set(name, (kinds.get(name) ?? 0) + 1);
+    byWave.set(leak.wave, kinds);
+  }
+
+  return [...byWave.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([wave, kinds]) => ({
+      wave,
+      text: [...kinds.entries()].map(([name, count]) => (count > 1 ? `${name} x${count}` : name)).join(', '),
+    }));
 }
 
 export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host: HTMLElement): Shell {
@@ -130,6 +190,25 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
    * 22px gap; a list of two needs its rows closer to each other than either is to the
    * title, or they read as two separate offers rather than as a choice between boards.
    */
+  /**
+   * What the last run did, above the list and below the title.
+   *
+   * **Reading order is the argument for the position**: the title says where you are, the
+   * report says what just happened, the list says what to do next. Put under the cards it
+   * would be read after the decision it exists to inform, and put inside one it would be
+   * a permanent fixture describing a single moment.
+   *
+   * A shared block above the list is the shape v1.8 deleted, and it is right here for the
+   * reason it was wrong there: records are per board and forced the shell to decide whose
+   * to show, which cost a storage key. A run report is about one run that just ended, so
+   * there is nothing to decide and nothing to remember - it names its own board and dies
+   * with the screen.
+   */
+  const report = document.createElement('div');
+  report.className = 'shell-report';
+  report.hidden = true;
+  box.appendChild(report);
+
   const list = document.createElement('div');
   list.className = 'shell-runs';
   box.appendChild(list);
@@ -262,6 +341,31 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
     into.appendChild(stat);
   }
 
+  function renderReport(summary: RunSummary | null): void {
+    report.replaceChildren();
+    report.hidden = summary === null;
+    if (!summary) return;
+
+    const verdict = document.createElement('div');
+    verdict.className = 'shell-verdict';
+    verdict.textContent = `${summary.board} · ${summary.cleared ? 'SYSTEM SECURED' : 'CORE BREACHED'}`;
+    // Amber for a breach, the console's own "look at this" - the same colour that marks a
+    // record that just moved, and the only two moments this game ever asks to be noticed.
+    if (!summary.cleared) verdict.classList.add('shell-verdict-lost');
+    report.appendChild(verdict);
+
+    const rows = document.createElement('div');
+    rows.className = 'shell-report-rows';
+    report.appendChild(rows);
+
+    // Only when it did not get all the way: after a clear this reads 15/15 forever, which
+    // is the same argument that keeps FURTHEST out of a card once the board has fallen.
+    if (!summary.cleared) row(rows, 'REACHED', `${summary.wave}/${CURVE_LENGTH}`, false);
+    row(rows, 'TIME', formatClock(summary.durationMs), false);
+    row(rows, 'CORE', `${summary.coreHealth}/${MAX_CORE_HEALTH}`, false);
+    for (const leak of groupLeaks(summary.leaks)) row(rows, `WAVE ${leak.wave}`, leak.text, false);
+  }
+
   function renderCard(runId: string, beaten: RecordKey[]): void {
     const card = cards.get(runId);
     const records = shown.get(runId);
@@ -289,6 +393,10 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       reload.hidden = !ready;
     },
 
+    setLastRun(summary: RunSummary | null): void {
+      renderReport(summary);
+    },
+
     setRecords(runId: string, next: Records, beaten: RecordKey[]): void {
       // An id that names no card is a board dropped from `runs.ts` with a record still on
       // the phone. There is nowhere to print it and nowhere it would be true, so it is
@@ -304,7 +412,12 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       root.hidden = !visible;
       // Going away takes the NEW marks with it. They belong to the moment a run ended,
       // not to the record, and the next time this screen opens that moment is over.
-      if (!visible) for (const runId of shown.keys()) renderCard(runId, []);
+      // Going away takes the report with it for the same reason it takes the marks: it is
+      // a reading of a moment, and the next time this screen opens that moment is over.
+      if (!visible) {
+        for (const runId of shown.keys()) renderCard(runId, []);
+        renderReport(null);
+      }
       // The keyboard gets the same single move the thumb gets. It also means the one
       // thing on screen is visibly the thing to press, which is the difference between
       // a start screen and a screen that has stopped.

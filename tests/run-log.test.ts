@@ -182,7 +182,7 @@ test('the envelope carries the board, the curve and how it came out', () => {
   // A copy: the run is over, and a sealed log that keeps pointing at the live arrays is
   // not a record of it.
   state.actions.push({ tick: state.tick, action: 'call' });
-  state.leaks.push({ tick: state.tick, kind: 'worm' });
+  state.leaks.push({ tick: state.tick, kind: 'worm', wave: 2 });
   assert.equal(log.actions.length, 0);
   assert.equal(log.leaks.length, state.leaks.length - 1);
 });
@@ -222,17 +222,17 @@ test('a leak and an action on the same tick print in the order they happened', (
       { tick: 400, action: 'sell', x: 1, y: 3 },
     ],
     leaks: [
-      { tick: 100, kind: 'worm' },
-      { tick: 300, kind: 'zeroDay' },
+      { tick: 100, kind: 'worm', wave: 1 },
+      { tick: 300, kind: 'zeroDay', wave: 4 },
     ],
     end: { tick: 500, status: 'won', coreHealth: 2, cycles: 54, wave: 15 },
   };
 
   assert.deepEqual(formatRunLog(log).split('\n'), [
-    `ice-breaker/2 ${RUN} ${CURVE_ID}`,
-    '100 leak worm',
+    `ice-breaker/3 ${RUN} ${CURVE_ID}`,
+    '100 leak worm 1',
     '100 call',
-    '300 leak zeroDay',
+    '300 leak zeroDay 4',
     '400 sell 1 3',
     '500 end won 2 54 15',
   ]);
@@ -250,7 +250,7 @@ test('an unreadable log is null rather than a partial one', () => {
     'nothing at all': '',
     'a header and nothing else': header,
     'no header': body.join('\n'),
-    'another format entirely': text.replace('ice-breaker/2', 'ice-breaker/3'),
+    'another format entirely': text.replace('ice-breaker/3', 'ice-breaker/4'),
     'a fourth thing in the header': `${header} 10\n${body.join('\n')}`,
     'no ending': [header, ...body.slice(0, -1)].join('\n'),
     'two endings': `${text}\n10 end lost 0 0 1`,

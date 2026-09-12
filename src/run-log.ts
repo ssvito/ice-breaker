@@ -60,6 +60,17 @@ export type LoggedAction = LoggedPlace | LoggedTileAction | LoggedCall;
 export interface LoggedLeak {
   tick: number;
   kind: EnemyKind;
+  /**
+   * The wave that was running when it arrived, and not the wave that spawned it - waves
+   * overlap, so those are different claims. This is the one the harness has counted since
+   * v1.3 (`WaveReport.leaks` is charged to the wave on the clock), and a leak attributed
+   * one way in the report and the other way in the table would be two facts wearing one
+   * word.
+   *
+   * Stored rather than derived, because the only moment it can be known without replaying
+   * the whole run is the moment it happens.
+   */
+  wave: number;
 }
 
 /**
@@ -116,7 +127,7 @@ export function sealRunLog(runId: string, state: GameState): RunLog {
   };
 }
 
-const HEADER = 'ice-breaker/2';
+const HEADER = 'ice-breaker/3';
 
 /**
  * The log as text, because text is what fits in a bug report typed on a phone.
@@ -135,7 +146,7 @@ const HEADER = 'ice-breaker/2';
  */
 export function formatRunLog(log: RunLog): string {
   const body = [
-    ...log.leaks.map((leak) => ({ tick: leak.tick, text: `${leak.tick} leak ${leak.kind}` })),
+    ...log.leaks.map((leak) => ({ tick: leak.tick, text: `${leak.tick} leak ${leak.kind} ${leak.wave}` })),
     ...log.actions.map((entry) => ({ tick: entry.tick, text: `${entry.tick} ${actionText(entry)}` })),
   ].sort((a, b) => a.tick - b.tick);
 
@@ -217,8 +228,9 @@ export function parseRunLog(text: string): RunLog | null {
     }
     if (verb === 'leak') {
       const kind = ENEMY_KINDS.find((known) => known === rest[0]);
-      if (rest.length !== 1 || !kind) return null;
-      leaks.push({ tick, kind });
+      const wave = wholeNumber(rest[1]);
+      if (rest.length !== 2 || !kind || wave === null) return null;
+      leaks.push({ tick, kind, wave });
       continue;
     }
     if (verb === 'call') {
