@@ -299,7 +299,8 @@ canvas {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel-title::after {
+  .panel-title::after,
+  .shell-title::after {
     animation: none;
   }
 }
@@ -321,6 +322,76 @@ canvas {
 
 .panel-body[hidden] {
   display: none;
+}
+
+/* The shell: the app's other state, and the only screen in this game that is not
+   about a board. A full-bleed layer with no background of its own - the display canvas
+   behind it is already cleared to black when no run exists, and painting a second black
+   over it would only be a way to get the two out of step.
+
+   It catches no pointers. Nothing here sets a z-index, so this layer paints over the
+   gear column that is appended before it, and that column is about the session rather
+   than the run - sound, fullscreen, the build under ABOUT - so it stays live with no
+   run on screen. Only .shell-box takes taps. */
+.shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  padding: max(8px, env(safe-area-inset-top)) 16px max(8px, env(safe-area-inset-bottom));
+}
+
+.shell[hidden] {
+  display: none;
+}
+
+.shell-box {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  color: var(--term);
+  text-shadow: var(--term-glow);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Bigger than anything else in the chrome, and still the same voice: the console's
+   prompt and blinking cursor, because this is the same machine talking. */
+.shell-title {
+  margin: 0;
+  font-size: clamp(20px, 7vw, 30px);
+  font-weight: normal;
+  letter-spacing: 0.18em;
+}
+
+.shell-title::before {
+  content: '> ';
+  color: var(--term-dim);
+}
+
+.shell-title::after {
+  content: '_';
+  animation: term-blink 1.1s step-end infinite;
+}
+
+/* The one control on the screen, so it is allowed to be wide. Same box as the two
+   drawer toggles - opaque, faint border, green glow - because the player will meet
+   those two seconds later and they should have been the same button all along. */
+.shell-start {
+  min-height: 48px;
+  padding: 12px 36px;
+  background: var(--term-back);
+  color: var(--term);
+  border: 1px solid var(--term-faint);
+  border-radius: 4px;
+  box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-shadow: var(--term-glow);
+  touch-action: manipulation;
 }
 
 .panel-stats {

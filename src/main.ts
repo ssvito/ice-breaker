@@ -41,6 +41,9 @@ import { createTopTools } from './top-tools.ts';
 import { watchForUpdates } from './update.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
+import { createShell } from './shell.ts';
+import { RUNS } from './runs.ts';
+import type { RunDescriptor } from './runs.ts';
 
 const params = new URLSearchParams(location.search);
 
@@ -56,8 +59,28 @@ function startGame(): void {
   const canvas = document.createElement('canvas');
   document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas);
 
+  // Sized from the boot map. A second map with different dimensions is the one thing
+  // in here that would need the viewport rebuilt rather than re-fitted, and that is
+  // v1.8's problem on the day it has a second map to size for.
   const viewport = createViewport(canvas, level1.cols, level1.rows);
-  const board = prerenderBoard(level1);
+
+  /**
+   * The map the current run is on, and the board baked from it. Both start as the boot
+   * map so the first run opens with its board already prerendered, and both are
+   * re-derived only when a run arrives on a different map - which is never today,
+   * because `RUNS` has one entry. That "never" is the seam: it is a condition rather
+   * than an assumption, so the second entry does not need this code to change.
+   */
+  let runMap = level1;
+  let board = prerenderBoard(runMap);
+
+  /**
+   * Which descriptor the current run was started from. Only tap-to-restart reads it,
+   * so that a restart replays the run that just ended rather than the first in the
+   * list - a difference that is invisible with one entry and is the entire reason the
+   * list exists.
+   */
+  let currentRun: RunDescriptor | null = null;
 
   window.addEventListener('resize', () => {
     fitViewport(viewport);
@@ -138,7 +161,7 @@ function startGame(): void {
    * one lived off-target, over the whole board, and this one lives on the control.
    */
   let spawnArmed = false;
-  const spawnTile = level1.waypoints[0];
+  let spawnTile = runMap.waypoints[0];
 
   /**
    * Which of the two unselected readings the console shows: the wave being counted
@@ -172,6 +195,11 @@ function startGame(): void {
   }
 
   window.addEventListener('keydown', (event) => {
+    // Every shortcut below acts on a run, and in the shell there is none. Leaving them
+    // live was harmless while nothing was drawn, but harmless is not the same as
+    // decided: the one key with a job on this screen is whatever the focused button
+    // already does with it, and swallowing Space would take that away.
+    if (!state) return;
     if (event.code === 'Space') {
       // Space activates a focused button, so a press that just worked the console's
       // own controls is not also a shortcut firing behind them.
@@ -253,6 +281,13 @@ function startGame(): void {
   });
   document.body.appendChild(dockToggle);
 
+  /**
+   * Built before the layout pass rather than beside the rest of the chrome, because
+   * `applyLayout()` decides what is on screen when there is no run and it is called
+   * during setup - a shell created further down would be in its temporal dead zone.
+   */
+  const shell = createShell(document.body, RUNS, (run) => startRun(run));
+
   function applyLayout(): void {
     // The only thing left that the two orientations disagree about: a turned board
     // leaves the console nearly window-wide, so there it steps right of the column.
@@ -262,6 +297,9 @@ function startGame(): void {
     // build under ABOUT - and all four of those are still true with no run on screen.
     dockToggle.hidden = state === null;
     toolbar.hidden = !menuOpen || state === null;
+    // The two states are exclusive by construction: the shell is exactly the absence
+    // of a run, so one expression decides both halves and they cannot disagree.
+    shell.setVisible(state === null);
     // Same two glyphs the console's own collapse uses, so the two drawers in the
     // strip say "open me" and "close me" in one vocabulary.
     dockToggle.innerHTML = `<span>BLD</span><span>${menuOpen ? '[-]' : '[+]'}</span>`;
@@ -444,12 +482,21 @@ function startGame(): void {
    * `resetGame()`, which is the same code under a name that assumed a run was always
    * running - the rename is the step.
    *
-   * It takes no arguments yet, and that is the seam step 2 needs: a run descriptor
-   * arrives here, and a second entry in the picker is then a line of data rather than
-   * a second path through this function.
+   * It takes the descriptor the shell was pointing at, which is what makes a second
+   * entry in the list a line of data rather than a second path through this function.
+   * Everything a run needs to be different from another run arrives through that
+   * argument - today the map, later the kind of run and the difficulty.
    */
-  function startRun(): void {
-    state = createGameState(level1);
+  function startRun(run: RunDescriptor): void {
+    currentRun = run;
+    // The board is a bake of the map, so it is redone when, and only when, the map
+    // under the run changes.
+    if (run.map !== runMap) {
+      runMap = run.map;
+      board = prerenderBoard(runMap);
+      spawnTile = runMap.waypoints[0];
+    }
+    state = createGameState(runMap);
     selection = null;
     buildFocus = false;
     waveFocus = false;
@@ -478,7 +525,7 @@ function startGame(): void {
     let nearestDist = Infinity;
 
     for (const enemy of run.enemies) {
-      const pos = positionAlongPath(level1.waypoints, enemy.distance);
+      const pos = positionAlongPath(runMap.waypoints, enemy.distance);
       const dist = Math.hypot(pos.x - x, pos.y - y);
       if (dist <= enemyHitRadius(enemy) && dist < nearestDist) {
         nearest = enemy;
@@ -502,7 +549,7 @@ function startGame(): void {
     // layer that *is* interactive on top of it.
     if (!state) return;
     if (state.status !== 'playing') {
-      startRun();
+      if (currentRun) startRun(currentRun);
       return;
     }
     const tile = clientToGrid(viewport, event.clientX, event.clientY);
@@ -616,8 +663,8 @@ function startGame(): void {
           viewport.rotated,
         );
       }
-      drawEnemies(worldCtx, state.enemies, level1.waypoints, timeMs);
-      if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, level1.waypoints);
+      drawEnemies(worldCtx, state.enemies, runMap.waypoints, timeMs);
+      if (selection?.kind === 'enemy') drawEnemySelection(worldCtx, selection.enemy, runMap.waypoints);
       drawProjectiles(worldCtx, state.projectiles);
       drawGlitchParticles(worldCtx, state.particles);
       if (hoverTile && selectedTowerKind && state.status === 'playing') {
@@ -636,18 +683,12 @@ function startGame(): void {
   );
 
   /**
-   * Boot crosses the shell and lands in a run, so nothing about playing this game
-   * changes today - the same checkpoint v1.6's trait table and v1.5's silent graph
-   * were built against, and for the same reason: the state has to exist before
-   * anything can be moved into it.
+   * Boot stops in the shell now: no run exists until the player starts one, which
+   * retires the `?shell` scaffolding the previous step needed to look at a state
+   * nothing could show yet.
    *
-   * `?shell` holds the app in the shell instead, which is the only way to look at a
-   * state nothing has been built to show yet. Scaffolding with an expiry: step 2 gives
-   * the shell a start button and boot stops here on its own, and this parameter goes
-   * with it. `?gallery` is the precedent for a dev surface riding on a query string,
-   * and being a query string is what lets it be checked on a phone.
+   * The loop starts either way. It steps nothing while there is no run, and rAF is
+   * what the shell will animate on if it ever wants to.
    */
-  if (!params.has('shell')) startRun();
-
   loop.start();
 }
