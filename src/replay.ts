@@ -109,12 +109,18 @@ export interface Replay {
 
 export type ReplayOutcome = { replayed: false; refused: string } | ({ replayed: true } & Replay);
 
-export function replayRun(log: RunLog): ReplayOutcome {
+/**
+ * `name` is what the run is called in the report, and it defaults to something short
+ * because that column already holds `veteran` and `rush`: a replayed run has to sit in
+ * the same table as a declared layout without widening it. Putting a real run beside the
+ * declared ones is the whole of what this instrument was extended for.
+ */
+export function replayRun(log: RunLog, name = 'played'): ReplayOutcome {
   const refused = refusal(log);
   if (refused) return { replayed: false, refused };
 
   const board = RUNS.find((run) => run.id === log.run)!;
-  const { driver, driven } = replayDriver(log, `replay ${board.id}`);
+  const { driver, driven } = replayDriver(log, name);
   const report = runSimulation(driver, { level: board.map });
   const state = driven()!;
 

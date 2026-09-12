@@ -2,6 +2,9 @@ import { boards, findBoard, loadoutCost, loadoutNames, MARGIN_MAX, MARGIN_MIN, r
 import type { Board, Loadout, MarginReport, RunReport } from '../src/balance.ts';
 import { MAX_CORE_HEALTH, STARTING_CYCLES } from '../src/game.ts';
 import { waves } from '../src/wave.ts';
+import { parseRunLog } from '../src/run-log.ts';
+import { replayRun } from '../src/replay.ts';
+import { readFileSync } from 'node:fs';
 
 /**
  * CLI shell for the balance harness. All it does is read argv and print - the run
@@ -12,6 +15,7 @@ import { waves } from '../src/wave.ts';
  *   npm run balance                          # every declared loadout, on every board
  *   npm run balance -- focused               # one of them, on every board
  *   npm run balance -- --board recursion-02  # one board, every loadout
+ *   npm run balance -- --run some.run        # a recorded run, beside its board's layouts
  *   npm run balance -- --margin              # how much harder the curve would have to be
  *   npm run balance -- --json                # the same reports as JSON
  *
@@ -27,14 +31,18 @@ const names = args.filter((arg) => !arg.startsWith('--'));
 
 const boardFlag = args.indexOf('--board');
 const boardId = boardFlag === -1 ? null : args[boardFlag + 1];
-// `--board x` puts the id in `names`, where it would then be read as a loadout.
-const wanted = names.filter((name) => name !== boardId);
+const runFlag = args.indexOf('--run');
+const runPath = runFlag === -1 ? null : args[runFlag + 1];
+// `--board x` and `--run p` put their values in `names`, where they would then be read
+// as loadouts.
+const wanted = names.filter((name) => name !== boardId && name !== runPath);
 
 if (args.includes('--help')) {
-  console.log('usage: npm run balance -- [loadout...] [--board id] [--margin] [--json]');
+  console.log('usage: npm run balance -- [loadout...] [--board id] [--run path] [--margin] [--json]');
   console.log(`loadouts: ${loadoutNames.join(', ')}`);
   console.log(`boards:   ${boards.map((board) => `${board.id} (${board.name})`).join(', ')}`);
   console.log('--margin: bisect the run-wide HP multiplier for the first leak and the loss');
+  console.log('--run:    replay a recorded run and read it beside the layouts of its own board');
   process.exit(0);
 }
 
@@ -44,7 +52,42 @@ interface Selection {
   loadout: Loadout;
 }
 
-const selectedBoards = boardId === undefined || boardId === null ? boards : [resolveBoard(boardId)];
+/**
+ * The recorded run, replayed - the reason this instrument grew a flag. A log names its
+ * own board, so `--run` alone selects the comparison the reading needs: the run that was
+ * played, beside the layouts declared on the same board and measured by the same loop.
+ */
+const played = runPath === null || runPath === undefined ? null : replay(runPath);
+
+/** The replayed report, and the board its log named - a report carries a board's name, not its id. */
+function replay(path: string): { report: RunReport; boardId: string } {
+  const log = parseRunLog(readFileSync(path, 'utf8'));
+  if (!log) {
+    console.error(`"${path}" is not a run log this build can read`);
+    process.exit(1);
+  }
+  const outcome = replayRun(log);
+  if (!outcome.replayed) {
+    console.error(`"${path}" is a log of another game - ${outcome.refused}`);
+    process.exit(1);
+  }
+  // Printed rather than swallowed, and it is the only line here that reports on the
+  // instrument instead of on the game: a replay that does not reproduce is a determinism
+  // bug, and every number under it would be about a run nobody played.
+  if (outcome.differences.length > 0) {
+    console.error(`WARNING: this run did not reproduce - ${outcome.differences.length} differences`);
+    for (const difference of outcome.differences) console.error(`  ${difference}`);
+    console.error('');
+  }
+  return { report: outcome.report, boardId: log.run };
+}
+
+const selectedBoards =
+  boardId !== undefined && boardId !== null
+    ? [resolveBoard(boardId)]
+    : played
+      ? [resolveBoard(played.boardId)]
+      : boards;
 
 function resolveBoard(id: string): Board {
   const board = findBoard(id);
@@ -84,14 +127,18 @@ const OUTCOME: Record<RunReport['status'], string> = {
   timeout: 'TIMED OUT',
 };
 
-function printReport(report: RunReport, loadout: Loadout): void {
-  const cost = loadoutCost(loadout);
-
+/**
+ * `cost` is what the layout would have cost if bought whole, and a replayed run has no
+ * such number: a log is what somebody did, not a plan they were working towards. So the
+ * denominator is dropped rather than faked.
+ */
+function printReport(report: RunReport, cost: number | null): void {
   console.log(`${report.board} · ${report.loadout.toUpperCase()} - ${report.note}`);
   const called = report.totalCalledEarly > 0 ? `  (${report.totalCalledEarly} of it called early)` : '';
   console.log(
     `  ${OUTCOME[report.status]}  core ${report.coreHealth}/${MAX_CORE_HEALTH}  ` +
-      `banked ${report.cyclesEnd}  earned ${report.totalEarned}  spent ${report.totalSpent}/${cost}  ${clock(report.durationMs)}${called}`,
+      `banked ${report.cyclesEnd}  earned ${report.totalEarned}  ` +
+      `spent ${report.totalSpent}${cost === null ? '' : `/${cost}`}  ${clock(report.durationMs)}${called}`,
   );
   console.log('');
   console.log('  WAVE  SIZE  PEAK  LEAK  EARNED  SPENT  BANKED   TIME  BOUGHT');
@@ -149,16 +196,21 @@ if (asMargin) {
   if (asJson) console.log(JSON.stringify(margins, null, 2));
   else printMargins(margins);
 } else {
-  const reports = selected.map(({ board, loadout }) => runBalance(loadout, { level: board.level }));
+  const declared = selected.map(({ board, loadout }) => ({
+    report: runBalance(loadout, { level: board.level }),
+    cost: loadoutCost(loadout) as number | null,
+  }));
+  // Last, so it is the row the eye lands on after the layouts it is being read against.
+  const rows = played ? [...declared, { report: played.report, cost: null }] : declared;
 
   if (asJson) {
-    console.log(JSON.stringify(reports, null, 2));
+    console.log(JSON.stringify(rows.map((row) => row.report), null, 2));
   } else {
-    reports.forEach((report, index) => {
+    rows.forEach((row, index) => {
       if (index > 0) console.log('');
-      printReport(report, selected[index].loadout);
+      printReport(row.report, row.cost);
     });
     // One report is its own summary; the table only earns its place as a comparison.
-    if (reports.length > 1) printSummary(reports);
+    if (rows.length > 1) printSummary(rows.map((row) => row.report));
   }
 }
