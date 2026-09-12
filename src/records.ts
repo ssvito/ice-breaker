@@ -146,37 +146,6 @@ export function readRecords(runId: string): Records {
   return read(runId);
 }
 
-/** Where the shell's readout points when it opens cold. See `writeLastRun`. */
-const LAST_RUN_KEY = 'ice-breaker:last-run';
-
-/**
- * Which board the player was last on.
- *
- * The shell prints one set of records, and with two boards "your record" is no longer a
- * thing that exists - so the readout has to name a board, and something has to say which.
- * After a run that is the run that just ended. On a cold open it is this, which is the
- * same answer one step later.
- *
- * Deliberately **not** a pre-selection. The picker reads the same way every time it
- * opens; what is remembered is which set is worth printing, not which button the thumb
- * should already be on.
- */
-export function readLastRun(): string | null {
-  try {
-    return localStorage.getItem(LAST_RUN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeLastRun(runId: string): void {
-  try {
-    localStorage.setItem(LAST_RUN_KEY, runId);
-  } catch {
-    // Same argument as the mute key: failing to remember is not a reason to fail.
-  }
-}
-
 /**
  * Fold a finished run into the stored set, and report what it took.
  *
@@ -186,12 +155,9 @@ function writeLastRun(runId: string): void {
  * storing at all.
  *
  * `runId` is which board it happened on, and it is the argument rather than a default
- * because there is no board a result could sensibly belong to by default. It is written
- * down as the last one played whether or not anything was beaten - having played a board
- * is what makes its set the one worth printing, and losing badly is still having played.
+ * because there is no board a result could sensibly belong to by default.
  */
 export function recordRun(runId: string, result: RunResult): { records: Records; beaten: RecordKey[] } {
-  writeLastRun(runId);
   const current = read(runId);
   const records: Records = { ...current };
   const beaten: RecordKey[] = [];

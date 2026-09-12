@@ -376,43 +376,96 @@ canvas {
   animation: term-blink 1.1s step-end infinite;
 }
 
-/* The records, in the console's own rows - same .stat, same dot leaders, because a
-   readout in this game looks like the console printing whatever surface it is on. A
-   width is needed for the leaders to have anything to stretch across, since the box
-   centres its children rather than filling them.
-
-   :empty is doing real work: a first-time visitor has no records, and an empty div
-   between the title and the button would still spend the column's gap. */
-.shell-records {
-  width: min(300px, 74vw);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.shell-records:empty {
-  display: none;
-}
-
-/* Which board the rows under this one are about. Dim and ruled, like a column header,
-   because that is what it is - with two boards running the same fifteen waves, a best
-   time with no board over it is a number that is wrong half the time. Only printed when
-   there is more than one board it could have been. */
-.shell-records-board {
-  padding-bottom: 4px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--term-faint);
-  color: var(--term-dim);
-  letter-spacing: 0.18em;
-}
-
 /* The entries. Tighter than the box's own gap on purpose: two rows this close read as
    one choice with two answers, and two rows 22px apart read as two separate offers. */
 .shell-runs {
-  width: min(300px, 74vw);
+  width: min(320px, 78vw);
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* One card per board: a picture of the map, its name, and what has been done on it.
+   Same box as the two drawer toggles - opaque, faint border, green glow - because the
+   player meets those two seconds later and they should have been the same button all
+   along.
+
+   The whole card is one button. Everything in it describes the same thing, which is the
+   run about to start, so there is nothing in here that would want its own tap. */
+.shell-run {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 12px;
+  background: var(--term-back);
+  color: var(--term);
+  border: 1px solid var(--term-faint);
+  border-radius: 4px;
+  box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
+  font: inherit;
+  text-align: left;
+  text-shadow: var(--term-glow);
+  touch-action: manipulation;
+}
+
+/* 64px over a 16-wide board is exactly 4px a tile, which is the board renderer's own
+   integer-scaling rule arriving in the chrome: at a fractional scale the one-tile trace
+   would rasterise two pixels thick on some legs and one on others. The two layers stack,
+   so the box is the size and the layers fill it. */
+.shell-thumb {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 36px;
+}
+
+.shell-thumb svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  shape-rendering: crispEdges;
+}
+
+/* The trace reads as the board's dim floor and the endpoints as the bright thing on it -
+   the same contrast the console uses between a label and its value. */
+.shell-thumb-trace {
+  fill: var(--term-dim);
+}
+
+.shell-thumb-ends {
+  fill: var(--term);
+}
+
+.shell-run-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.shell-run-name {
+  font-size: 14px;
+  letter-spacing: 0.18em;
+}
+
+/* The records, in the console's own rows - same .stat, same dot leaders, because a
+   readout in this game looks like the console printing whatever surface it is on.
+
+   :empty is doing real work: a board nobody has finished has nothing true to print, and
+   an empty element under the name would still spend the column's gap. */
+.shell-run-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.shell-run-stats:empty {
+  display: none;
 }
 
 /* The fine print, along the bottom edge - which is where a title screen has always put
@@ -472,26 +525,6 @@ canvas {
   border-radius: 4px;
   font: inherit;
   letter-spacing: 0.08em;
-  text-shadow: var(--term-glow);
-  touch-action: manipulation;
-}
-
-/* The way in. Same box as the two drawer toggles - opaque, faint border, green glow -
-   because the player will meet those two seconds later and they should have been the
-   same button all along. Full width of its column, so a list of boards is a list of rows
-   rather than a stack of differently-sized buttons. */
-.shell-start {
-  width: 100%;
-  min-height: 48px;
-  padding: 12px 16px;
-  background: var(--term-back);
-  color: var(--term);
-  border: 1px solid var(--term-faint);
-  border-radius: 4px;
-  box-shadow: 0 0 14px rgba(57, 255, 136, 0.12);
-  font: inherit;
-  font-size: 14px;
-  letter-spacing: 0.22em;
   text-shadow: var(--term-glow);
   touch-action: manipulation;
 }

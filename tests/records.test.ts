@@ -33,7 +33,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   },
 });
 
-const { CURVE_ID, readLastRun, readRecords, recordRun } = await import('../src/records.ts');
+const { CURVE_ID, readRecords, recordRun } = await import('../src/records.ts');
 const { LEGACY_RUN_ID, RUNS } = await import('../src/runs.ts');
 
 /** The key v1.7 wrote, before a record was a claim about a board as well as a curve. */
@@ -179,19 +179,4 @@ test('the adopted set moves to its own key the first time it is beaten', () => {
   // yesterday's bundle for one load after a deploy, and that is the load that would
   // otherwise find its record gone.
   assert.equal(JSON.parse(store.get(LEGACY_KEY)!).fastestClearMs, 210_000);
-});
-
-test('the board just played is remembered, whether or not anything was beaten', () => {
-  reset();
-  assert.equal(readLastRun(), null);
-
-  recordRun(OTHER, { cleared: false, wave: 2, leaks: 5, durationMs: 20_000 });
-  assert.equal(readLastRun(), OTHER);
-
-  // Losing worse than before beats nothing and still writes nothing to the record set -
-  // but having played a board is what makes its set the one worth printing, and playing
-  // badly is still playing.
-  const { beaten } = recordRun(RUN, { cleared: false, wave: 1, leaks: 5, durationMs: 10_000 });
-  assert.deepEqual(beaten, ['furthest']);
-  assert.equal(readLastRun(), RUN);
 });

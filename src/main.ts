@@ -43,7 +43,7 @@ import { watchForUpdates } from './update.ts';
 import { createTowerPanel } from './panel.ts';
 import type { PanelTarget } from './panel.ts';
 import { createShell } from './shell.ts';
-import { readLastRun, readRecords, recordRun } from './records.ts';
+import { readRecords, recordRun } from './records.ts';
 import { RUNS } from './runs.ts';
 import type { RunDescriptor } from './runs.ts';
 
@@ -313,16 +313,15 @@ function startGame(): void {
     document.body,
   );
   /**
-   * Read once at boot. Nothing writes records except a run ending, so the shell can hold
-   * them and be told when they move.
+   * Read once at boot, one set per board, because each board's card prints its own. That
+   * is also why nothing has to remember which board was played last: a best time inside
+   * MAINFRAME 01's card is MAINFRAME 01's best time, and the card says so by being the
+   * card it is.
    *
-   * Which board's set, now that there are two: the last one played. A stored id that
-   * names no entry - a board dropped from `runs.ts` - falls back to the first, which is
-   * an empty readout rather than another board's numbers under the wrong name.
+   * Nothing writes records except a run ending, so the shell can hold them and be told
+   * when they move - and `main.ts` stays the only module that knows where they live.
    */
-  const lastRunId = readLastRun();
-  const openingRun = RUNS.find((run) => run.id === lastRunId) ?? RUNS[0];
-  shell.setRecords(openingRun.id, readRecords(openingRun.id), []);
+  for (const run of RUNS) shell.setRecords(run.id, readRecords(run.id), []);
 
   function applyLayout(): void {
     // The only thing left that the two orientations disagree about: a turned board

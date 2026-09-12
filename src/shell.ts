@@ -2,6 +2,9 @@ import { APP_BUILT, APP_VERSION } from './version.ts';
 import { CURVE_LENGTH } from './records.ts';
 import type { RecordKey, Records } from './records.ts';
 import type { RunDescriptor } from './runs.ts';
+import { rasterizePath } from './map.ts';
+import type { LevelData } from './map.ts';
+import { pixelSvg } from './glyph.ts';
 
 /**
  * The before: the screen the app is on when no run exists. Five filed items were never
@@ -29,16 +32,42 @@ export interface Shell {
   setUpdateReady(ready: boolean): void;
   /**
    * The stored records **for one board**, and which of them the run that just ended took.
-   * The marks are the shell's only acknowledgement that a run happened at all, and they
-   * are cleared when the shell is hidden - a record is permanent, having just set it is
-   * not.
+   * They are printed inside that board's own card, so nothing has to say which board a
+   * best time belongs to - the card it is in does. The marks are the shell's only
+   * acknowledgement that a run happened at all, and they are cleared when the shell is
+   * hidden: a record is permanent, having just set it is not.
    *
-   * `runId` is not decoration. With two boards there is no such thing as "your record",
-   * so a readout that does not say which board it is about is a readout that is wrong
-   * half the time - and it is wrong in the direction that looks right, because both
-   * boards run the same fifteen waves.
+   * Called once per board at boot and again for the board a finished run was played on.
+   * The shell reads no storage of its own, which is what keeps `main.ts` the only module
+   * that knows where records live.
    */
   setRecords(runId: string, records: Records, beaten: RecordKey[]): void;
+}
+
+/**
+ * The board, at one SVG unit per tile.
+ *
+ * Drawn with `pixelSvg`, the same builder the HUD's heart and the sound button's note
+ * use, because a board *is* a grid of whole pixels - a map thumbnail made of anything
+ * else would be the one picture in this project that is not pixel art. The trace is
+ * rasterised to a `#` grid and handed over; run-length encoding turns each leg into one
+ * `<rect>`, so a whole map costs about seven elements.
+ *
+ * Two layers rather than one, and the second is what makes the picture readable at
+ * 64px: the trace alone says what shape the map is, and the endpoints say which way it
+ * runs. Without them the two boards are a squiggle and a different squiggle.
+ */
+function thumbnail(map: LevelData): string {
+  const tiles = rasterizePath(map.waypoints);
+  const on = new Set(tiles.map((tile) => `${tile.x},${tile.y}`));
+  const ends = new Set([tiles[0], tiles[tiles.length - 1]].map((tile) => `${tile.x},${tile.y}`));
+
+  const grid = (keys: Set<string>) =>
+    Array.from({ length: map.rows }, (_, y) =>
+      Array.from({ length: map.cols }, (_, x) => (keys.has(`${x},${y}`) ? '#' : '.')).join(''),
+    );
+
+  return pixelSvg(grid(on), 'shell-thumb-trace') + pixelSvg(grid(ends), 'shell-thumb-ends');
 }
 
 /** Simulated milliseconds as a clock. Runs are minutes long, so no hours case. */
@@ -77,24 +106,6 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
   box.appendChild(title);
 
   /**
-   * Where the run that just ended is read out - and the reason the shell had to be a
-   * state rather than a splash. A run that ended into the board had nowhere to say any
-   * of this.
-   *
-   * Rows in the console's own `.stat`, dot leaders and all, because a readout in this
-   * game looks like the console printing. Empty until there is something true to print:
-   * a first-time visitor gets a title and a button.
-   *
-   * **One board's set, headed by that board's name.** Printing both would turn the way
-   * into the game into a standings table, and it does not scale past the two boards that
-   * happen to exist today. Which one is printed is the last one played, which after a run
-   * is the run that just ended and on a cold open is the same answer one step later.
-   */
-  const records = document.createElement('div');
-  records.className = 'shell-records';
-  box.appendChild(records);
-
-  /**
    * **A list of one renders as a button, not as a menu.** The data is a list either way,
    * and v1.7's whole picker design was that single line: a chooser with one choice is
    * worse than a start button, so the one case where the entry's own name is worth
@@ -103,35 +114,71 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
    *
    * It is kept rather than deleted now that it reads false. It is the rule, not a
    * fallback: a board removed from `runs.ts` puts the list back to one, and START is
-   * still the right thing to print on that day.
+   * still the right thing to print on that day - with no thumbnail and no records beside
+   * it, because with one board there is nothing to tell apart.
    *
    * **Nothing is pre-selected**, and that is the question the picker step had to answer
    * rather than assume. The list reads the same way every time it opens, in declaration
-   * order, and the board you last played is remembered only for which records to print.
-   * Reordering or pre-focusing by history would save one tap and cost the thing a list
-   * is for - that the same board is in the same place every time your thumb goes there.
+   * order. Reordering or pre-focusing by history would save one tap and cost the thing a
+   * list is for - that the same board is in the same place every time your thumb goes
+   * there.
    */
   const oneRun = runs.length === 1;
+
   /**
-   * The column the entries stand in, and it exists because there are two of them. A list
-   * of one was a button and took the box's own 22px gap; a list of two needs its rows
-   * closer to each other than either is to the title, or they read as two separate
-   * offers rather than as a choice between two boards.
-   *
-   * Full width of the same column the records use, so the names line up under the
-   * readout instead of each row being as wide as its own text.
+   * The column the entries stand in. A list of one was a button and took the box's own
+   * 22px gap; a list of two needs its rows closer to each other than either is to the
+   * title, or they read as two separate offers rather than as a choice between boards.
    */
   const list = document.createElement('div');
   list.className = 'shell-runs';
   box.appendChild(list);
 
+  /**
+   * One card per board: a picture of the map, its name, and what has been done on it.
+   *
+   * **This is where the records live, and putting them here deleted a whole mechanism.**
+   * The first draft printed one shared readout above the list, which forced the shell to
+   * decide *whose* records to show and forced storage to remember the last board played.
+   * A card answers that by construction - a best time inside MAINFRAME 01's card is
+   * MAINFRAME 01's best time - so the shared block, the board heading over it, and the
+   * `ice-breaker:last-run` key all went away rather than being tidied.
+   *
+   * The card is still one button. Everything in it is the same tap target, because
+   * everything in it is describing the same thing: the run you are about to start.
+   */
+  const cards = new Map<string, { button: HTMLButtonElement; stats: HTMLElement }>();
+
   const buttons = runs.map((run) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'shell-start';
-    button.textContent = oneRun ? 'START' : run.name;
+    button.className = 'shell-run';
     button.addEventListener('click', () => handlers.onStart(run));
+
+    if (!oneRun) {
+      const thumb = document.createElement('span');
+      thumb.className = 'shell-thumb';
+      thumb.innerHTML = thumbnail(run.map);
+      button.appendChild(thumb);
+    }
+
+    const text = document.createElement('span');
+    text.className = 'shell-run-text';
+    button.appendChild(text);
+
+    const name = document.createElement('span');
+    name.className = 'shell-run-name';
+    name.textContent = oneRun ? 'START' : run.name;
+    text.appendChild(name);
+
+    // Empty until there is something true to print, and `:empty` keeps it from spending
+    // the column's gap: a first-time visitor gets a title, two maps and no numbers.
+    const stats = document.createElement('span');
+    stats.className = 'shell-run-stats';
+    text.appendChild(stats);
+
     list.appendChild(button);
+    cards.set(run.id, { button, stats });
     return button;
   });
 
@@ -191,16 +238,11 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
 
   host.appendChild(root);
 
-  let shown: Records = { furthestWave: 0, fastestClearMs: null, fewestLeaks: null };
-  /**
-   * Which board the readout is about. Starts on the first entry so the shell can render
-   * before anything has told it otherwise; `main.ts` hands it the last board played
-   * before the shell is ever shown.
-   */
-  let shownRun: RunDescriptor = runs[0];
+  /** What each card is currently printing, so hiding the shell can redraw it unmarked. */
+  const shown = new Map<string, Records>();
 
-  function row(label: string, value: string, isNew: boolean): void {
-    const stat = document.createElement('div');
+  function row(into: HTMLElement, label: string, value: string, isNew: boolean): void {
+    const stat = document.createElement('span');
     stat.className = 'stat';
     const labelEl = document.createElement('span');
     labelEl.className = 'stat-label';
@@ -217,35 +259,28 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       mark.textContent = 'NEW';
       stat.appendChild(mark);
     }
-    records.appendChild(stat);
+    into.appendChild(stat);
   }
 
-  function renderRecords(beaten: RecordKey[]): void {
-    records.replaceChildren();
-    const cleared = shown.fastestClearMs !== null;
+  function renderCard(runId: string, beaten: RecordKey[]): void {
+    const card = cards.get(runId);
+    const records = shown.get(runId);
+    if (!card || !records) return;
 
-    // Before the curve has ever fallen, how far you got is the only claim a run can
-    // make. After it has, that row would read 15/15 forever, so the two clear records
-    // take its place rather than sitting under it.
-    if (!cleared && shown.furthestWave > 0) {
-      row('FURTHEST', `${shown.furthestWave}/${CURVE_LENGTH}`, beaten.includes('furthest'));
-    }
-    if (shown.fastestClearMs !== null) {
-      row('FASTEST', formatClock(shown.fastestClearMs), beaten.includes('fastest'));
-    }
-    if (shown.fewestLeaks !== null) {
-      row('CLEANEST', leakText(shown.fewestLeaks), beaten.includes('cleanest'));
-    }
+    card.stats.replaceChildren();
+    const cleared = records.fastestClearMs !== null;
 
-    // The heading goes on last and only if something is under it, which is what keeps
-    // `.shell-records:empty` honest: a first-time visitor still gets a title and a
-    // button, not a board name with nothing to say about it. Only worth printing when
-    // there is more than one board it could have been.
-    if (!oneRun && records.childElementCount > 0) {
-      const heading = document.createElement('div');
-      heading.className = 'shell-records-board';
-      heading.textContent = shownRun.name;
-      records.prepend(heading);
+    // Before the curve has ever fallen on this board, how far you got is the only claim a
+    // run there can make. After it has, that row would read 15/15 forever, so the two
+    // clear records take its place rather than sitting under it.
+    if (!cleared && records.furthestWave > 0) {
+      row(card.stats, 'FURTHEST', `${records.furthestWave}/${CURVE_LENGTH}`, beaten.includes('furthest'));
+    }
+    if (records.fastestClearMs !== null) {
+      row(card.stats, 'FASTEST', formatClock(records.fastestClearMs), beaten.includes('fastest'));
+    }
+    if (records.fewestLeaks !== null) {
+      row(card.stats, 'CLEANEST', leakText(records.fewestLeaks), beaten.includes('cleanest'));
     }
   }
 
@@ -255,13 +290,11 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
     },
 
     setRecords(runId: string, next: Records, beaten: RecordKey[]): void {
-      shown = next;
-      // An id that names no entry is a board that was removed from `runs.ts` with a
-      // record still on the phone. Falling back to the first entry would print another
-      // board's name over this one's numbers, which is the one thing this argument is
-      // about, so the heading is dropped instead and the rows stand alone.
-      shownRun = runs.find((run) => run.id === runId) ?? shownRun;
-      renderRecords(beaten);
+      // An id that names no card is a board dropped from `runs.ts` with a record still on
+      // the phone. There is nowhere to print it and nowhere it would be true, so it is
+      // ignored rather than shown under some other board's name.
+      shown.set(runId, next);
+      renderCard(runId, beaten);
     },
 
     setVisible(visible: boolean): void {
@@ -271,7 +304,7 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       root.hidden = !visible;
       // Going away takes the NEW marks with it. They belong to the moment a run ended,
       // not to the record, and the next time this screen opens that moment is over.
-      if (!visible) renderRecords([]);
+      if (!visible) for (const runId of shown.keys()) renderCard(runId, []);
       // The keyboard gets the same single move the thumb gets. It also means the one
       // thing on screen is visibly the thing to press, which is the difference between
       // a start screen and a screen that has stopped.
