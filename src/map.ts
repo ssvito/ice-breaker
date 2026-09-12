@@ -26,52 +26,54 @@ export const level1: LevelData = {
 /**
  * The second board, and it is a different *question* rather than a different squiggle.
  *
- * Level 1 always moves right: three legs, each one further along than the last, so a
- * tower covers the stretch of trace it happens to sit beside and the only lever the
- * player has is how many of them there are. Here the middle leg **runs backwards**, so
- * the band between it and the leg it came from is within reach of both lanes at once and
- * a single tower there covers the trace twice. The question stops being *how many* and
- * becomes *where*.
+ * Level 1 always moves right and always turns the same way: three legs, each further
+ * along than the last, so a tower covers the stretch of trace it happens to sit beside
+ * and the only lever the player has is how many of them there are. This one is an **S**.
+ * Spawn and core sit opposite each other in the middle of the left and right edges, and
+ * between x=3 and x=12 the trace doubles back on itself vertically - down, then all the
+ * way up, then down again. What that builds is **two elbows**, and the inside of an elbow
+ * is a tile that covers two stretches of trace running at right angles to each other. The
+ * question stops being *how many* and becomes *where*.
  *
- * Not a new idea so much as an old hint made the point. Level 1's legs already meet at
- * their turns, and `VETERAN_BUILDS` in `balance.ts` has quietly built on that since v1.3.
- * What is new is that here the two lanes run *parallel* for five columns rather than
- * touching at a corner, so a tower between them covers a stretch of each instead of a
- * sliver.
+ * Same 16x9 as level 1, because the shape carries the difference and the size does not,
+ * and a differently-*sized* board is the one thing that would force `createViewport` to
+ * be rebuilt rather than re-fitted.
  *
- * **Corner to corner, and all nine rows.** Spawn is the top-left tile and the core the
- * bottom-right, and the legs sit on rows 0, 4 and 8 - which is the player's call and
- * turned out to be the thing that made the board work. Level 1 leaves four of its nine
- * rows completely empty; this one uses the whole grid. Same 16x9 as level 1, because the
- * shape carries the difference and the size does not, and a differently-*sized* board is
- * the one thing that would force `createViewport` to be rebuilt rather than re-fitted.
+ * **Note what it does not do: it never goes backwards.** Every horizontal leg runs left
+ * to right, and x never decreases. The doubling-back is entirely on the other axis, which
+ * is why the long spine at x=7 climbs six rows in one segment. That makes the S cheaper
+ * than a horizontal fold - 27 tiles of trace against the 29 a five-column fold costs -
+ * and it is still the most expensive thing on the board, since level 1 needs only 19.
  *
- * **Why the corners are load-bearing and not decoration.** Reaching both edges forces the
- * three legs four rows apart instead of two, and that is the whole difficulty of the
- * board. A tower one row from a lane covers about 4.6 tiles of it; a tower two rows from
- * two lanes covers about 3 of each. So the fold still pays - it is still the best real
- * estate on the board - but it pays about 30% rather than about 100%. The first draft of
- * this board put the legs on rows 2, 4 and 6 and measured **1.15x to first blood against
- * level 1's 0.65x**: it cleared the curve untouched, which is the "one problem and a rest"
- * this milestone set out to avoid. Moved to the corners, with the fold pulled from five
- * columns to three, it reads **0.79x** and takes a leak at 1x like level 1 does.
+ * **What it cost to get here, because the board was drawn three times.** The first draft
+ * was a horizontal fold with the legs two rows apart, and it cleared the whole curve
+ * without taking a scratch: **1.15x to first blood against level 1's 0.65x**. The second
+ * ran corner to corner, which forced the legs four rows apart and read **0.79x**. This
+ * one, the player's, reads **0.96x to first blood and 1.17x to the loss** against level
+ * 1's 0.65x and 1.14x - it bleeds before the shipped curve does, which is the gate this
+ * project holds a board to, and it dies at almost exactly the same place level 1 does.
+ * It is the more forgiving of the two boards up to that point, and that is a trade taken
+ * with the numbers on the table.
  *
- * **And the trace is 29 either way**, which is the cleanest possible proof of the thing
- * this milestone spent a session establishing: length is not difficulty. The same 29 tiles
- * arranged two rows apart clear untouched and arranged four rows apart draw blood. What a
- * board costs the player is coverage, and trace nothing covers is enemies walking for
- * free. See the v1.8 notes in the Roadmap for the control that separated the two.
+ * **The through-line across all three drawings: length is not difficulty.** Draft one and
+ * draft two were both 29 tiles and differed by 0.36x; this one is *shorter* than both and
+ * lands between them. What a board costs the player is coverage - how much of the trace a
+ * tower budget can be made to reach at once - and trace that nothing covers is enemies
+ * walking for free. The control that established it is in `balance.test.ts`; the v1.8
+ * notes in the Roadmap carry the rest.
  */
 export const level2: LevelData = {
   cols: 16,
   rows: 9,
   waypoints: [
-    { x: 0, y: 0 },
-    { x: 9, y: 0 },
-    { x: 9, y: 4 },
-    { x: 6, y: 4 },
-    { x: 6, y: 8 },
-    { x: 15, y: 8 },
+    { x: 0, y: 4 },
+    { x: 3, y: 4 },
+    { x: 3, y: 7 },
+    { x: 7, y: 7 },
+    { x: 7, y: 1 },
+    { x: 12, y: 1 },
+    { x: 12, y: 4 },
+    { x: 15, y: 4 },
   ],
 };
 

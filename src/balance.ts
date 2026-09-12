@@ -495,48 +495,44 @@ const LEVEL1_LOADOUTS: Loadout[] = [
 ];
 
 /**
- * Level 2's layouts, the same seven names on the fold's tiles.
+ * Level 2's layouts, the same seven names on the S's tiles.
  *
- * **The whole difference is the second gun.** On level 1 both front guns sit beside one
- * lane; here the first still does - covering the long opening leg, which is where the
- * early kills that pay for everything else come from - and the second sits in the band
- * between the outbound and return legs, where it covers a stretch of each. That is the
- * board's thesis stated as a build order, and the harness is what says how much it is
- * worth: the same ladder with both guns off the fold loses the core.
+ * **The difference is that the good tiles are inside the bends.** On level 1 a tower sits
+ * beside a leg and covers a stretch of it; here the best tiles sit in an elbow and cover
+ * two stretches at right angles - the near elbow between the entry leg and the spine, the
+ * far one between the spine and the run-out. The board's best tile reaches 9 tiles of
+ * trace against level 1's 7, and that gap is the whole board.
  *
- * Tiles are on the corner-to-corner trace: row 0 from x 0 to 9, down the column x=9, row
- * 4 from x 9 back to 6, down the column x=6, then row 8 from x 6 to 15. The legs are four
- * rows apart, so a tower covering two of them is two rows from each - the reason the
- * corridor pays about 30% here rather than the 100% it paid at two rows apart. Row 2
- * between x 5 and 8 sees the first pair of legs; row 6 between x 7 and 9 sees the second.
+ * Tiles are on the S: row 4 from x 0 to 3, down the column x=3, row 7 from x 3 to 7, then
+ * six rows up the spine at x=7, row 1 from x 7 to 12, down the column x=12, and row 4
+ * from x 12 to the core. The near elbow is around x 5, rows 5-6; the far one is around
+ * x 8-11, rows 2-3.
  */
 const VETERAN_BUILDS_2: Build[] = [
-  // Beside the opening leg, where the run is paid for. Not in the fold on purpose: a
-  // board whose first two buys both sit in the corridor starves, because the corridor is
-  // three quarters of the way along a trace the enemies have to survive to reach.
-  { kind: 'firewallNode', x: 3, y: 1 },
-  // And the second one in the band, covering the outbound leg and the return leg at once.
-  { kind: 'firewallNode', x: 7, y: 2 },
-  // On the return leg, inside the second gun's range - so what the slow buys is more time
-  // in the one place on this board where the trace is covered twice.
-  { kind: 'honeypot', x: 7, y: 4 },
-  { kind: 'firewallNode', x: 3, y: 1, tier: 3, fromWave: 3 },
-  { kind: 'idsScanner', x: 8, y: 2, tier: 2, fromWave: 5 },
-  { kind: 'firewallNode', x: 7, y: 2, tier: 3, fromWave: 7 },
-  // Act two moves to the second band and the run-out. The Turret's tile sees only the
-  // last leg, deliberately: it is this board's one long straight, and the ROOTKIT has to
-  // be shootable somewhere that is not the fold.
-  { kind: 'aesTurret', x: 12, y: 7, fromWave: 9 },
-  { kind: 'idsScanner', x: 8, y: 6, fromWave: 10 },
-  { kind: 'aesTurret', x: 12, y: 7, tier: 2, fromWave: 12 },
-  { kind: 'firewallNode', x: 9, y: 6, fromWave: 14 },
+  // On the way in, covering the entry leg and the first column down. Not in the elbow on
+  // purpose: the elbow is good real estate but it is not where the run starts, and the
+  // opening kills are what pay for everything behind them.
+  { kind: 'firewallNode', x: 2, y: 5 },
+  // And the second in the near elbow, where the bottom leg and the spine both pass.
+  { kind: 'firewallNode', x: 5, y: 6 },
+  // On the bottom leg, inside both of them.
+  { kind: 'honeypot', x: 5, y: 7 },
+  { kind: 'firewallNode', x: 2, y: 5, tier: 3, fromWave: 3 },
+  { kind: 'idsScanner', x: 5, y: 5, tier: 2, fromWave: 5 },
+  { kind: 'firewallNode', x: 5, y: 6, tier: 3, fromWave: 7 },
+  // Act two moves to the far elbow and the top leg, which is the half of the run the
+  // opening cannot reach - and the ROOTKIT has to be shootable somewhere up there.
+  { kind: 'aesTurret', x: 9, y: 2, fromWave: 9 },
+  { kind: 'idsScanner', x: 10, y: 2, fromWave: 10 },
+  { kind: 'aesTurret', x: 9, y: 2, tier: 2, fromWave: 12 },
+  { kind: 'firewallNode', x: 11, y: 3, fromWave: 14 },
 ];
 
 /** The three the opening 100 Cycles buys, shared by every level 2 layout that has one. */
 const LEVEL2_OPENING: Build[] = [
-  { kind: 'firewallNode', x: 3, y: 1 },
-  { kind: 'firewallNode', x: 7, y: 2 },
-  { kind: 'honeypot', x: 7, y: 4 },
+  { kind: 'firewallNode', x: 2, y: 5 },
+  { kind: 'firewallNode', x: 5, y: 6 },
+  { kind: 'honeypot', x: 5, y: 7 },
 ];
 
 const LEVEL2_LOADOUTS: Loadout[] = [
@@ -555,10 +551,10 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'breadth: the same opening, then a new tier-1 tower every couple of waves',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'idsScanner', x: 8, y: 6, fromWave: 3 },
-      { kind: 'aesTurret', x: 12, y: 7, fromWave: 5 },
-      { kind: 'firewallNode', x: 9, y: 6, fromWave: 7 },
-      { kind: 'honeypot', x: 12, y: 8, fromWave: 9 },
+      { kind: 'idsScanner', x: 9, y: 2, fromWave: 3 },
+      { kind: 'aesTurret', x: 11, y: 3, fromWave: 5 },
+      { kind: 'firewallNode', x: 10, y: 2, fromWave: 7 },
+      { kind: 'honeypot', x: 10, y: 1, fromWave: 9 },
     ],
   },
   {
@@ -566,9 +562,9 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'depth: the same opening, then every Cycle into upgrading the three towers it has',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'firewallNode', x: 3, y: 1, tier: 3, fromWave: 3 },
-      { kind: 'firewallNode', x: 7, y: 2, tier: 3, fromWave: 5 },
-      { kind: 'honeypot', x: 7, y: 4, tier: 3, fromWave: 7 },
+      { kind: 'firewallNode', x: 2, y: 5, tier: 3, fromWave: 3 },
+      { kind: 'firewallNode', x: 5, y: 6, tier: 3, fromWave: 5 },
+      { kind: 'honeypot', x: 5, y: 7, tier: 3, fromWave: 7 },
     ],
   },
   {
@@ -576,8 +572,8 @@ const LEVEL2_LOADOUTS: Loadout[] = [
     note: 'the gamble: stay tier 1 at the front and bank for a tier-3 AES Turret late',
     builds: [
       ...LEVEL2_OPENING,
-      { kind: 'idsScanner', x: 8, y: 2, tier: 2, fromWave: 3 },
-      { kind: 'aesTurret', x: 12, y: 7, tier: 3, fromWave: 5 },
+      { kind: 'idsScanner', x: 5, y: 5, tier: 2, fromWave: 3 },
+      { kind: 'aesTurret', x: 9, y: 2, tier: 3, fromWave: 5 },
     ],
   },
   {

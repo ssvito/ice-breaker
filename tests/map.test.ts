@@ -106,69 +106,88 @@ function bestTile(level: LevelData): number {
   }));
 }
 
-test('level 2 folds back, and a tower between the lanes covers both', () => {
-  // The axis of the board, gated rather than trusted to the drawing. Two things have to
-  // be true together: a leg that travels backwards, and tiles that reach trace on both
-  // sides of themselves. Either alone is a different board - a backwards leg far from its
-  // outbound one is a longer level 1, and two lanes with no gap are one thick lane nobody
-  // can build in.
+/** How many times the trace reverses its vertical direction. Level 1 never does. */
+function verticalReversals(level: LevelData): number {
+  const steps = level.waypoints
+    .slice(1)
+    .map((to, i) => Math.sign(to.y - level.waypoints[i].y))
+    .filter((step) => step !== 0);
+  return steps.slice(1).filter((step, i) => step !== steps[i]).length;
+}
+
+test('level 2 doubles back, and it does it on the vertical axis', () => {
+  // The axis of the board, gated rather than trusted to the drawing. What makes an S an S
+  // is that it reverses: down, up, down. Level 1's turns all go the same way, so it scores
+  // zero here and could not pass this by accident.
   //
-  // Reach, not adjacency. The first draft of this board put its legs two rows apart, where
-  // "covers both" meant "one row above and one row below" and could be gated by counting
-  // neighbours. The corners moved them four rows apart, which is the whole reason the
-  // board works - so what has to be asserted is what a *tower* can see, which is the thing
-  // that was really being measured all along.
+  // **And the trace never goes backwards in x**, which is worth asserting rather than just
+  // noting: it is what makes the S cheaper than a horizontal fold (27 tiles against 29 for
+  // a five-column one), because a column walked back is paid for twice and a row is not.
   const level = levels[1];
-  const backwards = level.waypoints.some((to, i) => i > 0 && to.x < level.waypoints[i - 1].x);
-  assert.ok(backwards, 'level 2 has no leg that runs back');
+  assert.ok(verticalReversals(level) >= 2, `level 2 reverses vertically ${verticalReversals(level)} times`);
+  assert.equal(verticalReversals(levels[0]), 0, 'level 1 was supposed to be the board that never doubles back');
 
-  const trace = rasterizePath(level.waypoints);
-  const straddling = [...buildableTileSet(level)].filter((key) => {
+  for (let i = 1; i < level.waypoints.length; i++) {
+    assert.ok(
+      level.waypoints[i].x >= level.waypoints[i - 1].x,
+      `segment ${i} runs backwards - the S is meant to cost rows, not columns`,
+    );
+  }
+});
+
+test('the inside of a bend is worth more than anywhere on level 1', () => {
+  // The board's whole thesis as a number. An elbow tile sees trace running two ways at
+  // once - the leg coming in and the leg going out - so it covers two stretches where a
+  // tile beside a straight leg covers one.
+  //
+  // Asserted as a comparison rather than as a constant, because the constant is a reading
+  // and readings are meant to move. What must not move is the direction: a level 2 whose
+  // best tile is no better than level 1's is a longer level 1, and the milestone would
+  // have shipped a drawing instead of a board.
+  const elbows = [...buildableTileSet(levels[1])].filter((key) => {
     const [x, y] = key.split(',').map(Number);
-    const sees = (dir: number) =>
-      trace.some((tile) => Math.sign(tile.y - y) === dir && Math.hypot(tile.x - x, tile.y - y) <= REACH);
-    return sees(-1) && sees(1);
+    const near = rasterizePath(levels[1].waypoints).filter((t) => Math.hypot(t.x - x, t.y - y) <= REACH);
+    return (
+      near.some((t) => t.x < x) && near.some((t) => t.x > x) && near.some((t) => t.y < y) && near.some((t) => t.y > y)
+    );
   });
-  assert.ok(straddling.length >= 20, `only ${straddling.length} tiles see trace on both sides`);
-
-  // And the fold has to actually pay, which is the claim a count cannot make on its own:
-  // level 1's legs meet at their turns too, but a tower there catches a sliver of each.
+  assert.ok(elbows.length >= 16, `only ${elbows.length} tiles see the trace on all four sides`);
   assert.ok(
-    bestTile(level) > bestTile(levels[0]),
-    `the fold buys nothing: best tile covers ${bestTile(level)} against level 1's ${bestTile(levels[0])}`,
+    bestTile(levels[1]) > bestTile(levels[0]),
+    `the bends buy nothing: best tile covers ${bestTile(levels[1])} against level 1's ${bestTile(levels[0])}`,
   );
 });
 
-test('level 2 runs corner to corner and uses every row', () => {
-  // The player's constraint, and it turned out to be the load-bearing one. Reaching both
-  // corners forces the three legs four rows apart instead of two, and that is what took
-  // the board from clearing the curve untouched to taking a leak at 1x like level 1 does.
-  // Gated so it cannot drift back: a later edit that pulls the legs inward would quietly
-  // hand the fold its old strength back, and nothing else here would notice.
-  const level = levels[1];
-  const trace = rasterizePath(level.waypoints);
+test('level 2 enters and leaves level with itself', () => {
+  // The player's constraint, and the shape reads as an S because of it: in and out at the
+  // same height on opposite edges, so everything between them is the detour. Gated so a
+  // later edit cannot quietly turn it back into a diagonal sweep, which is a different
+  // board wearing the same waypoints.
+  const trace = rasterizePath(levels[1].waypoints);
   const first = trace[0];
   const last = trace[trace.length - 1];
 
-  assert.deepEqual({ x: first.x, y: first.y }, { x: 0, y: 0 }, 'spawn is not the top-left corner');
-  assert.deepEqual({ x: last.x, y: last.y }, { x: 15, y: 8 }, 'the core is not the bottom-right corner');
-
-  const rows = new Set(trace.map((tile) => tile.y));
-  assert.equal(rows.size, level.rows, `the trace uses ${rows.size} of ${level.rows} rows`);
+  assert.equal(first.x, 0, 'spawn is not on the left edge');
+  assert.equal(last.x, levels[1].cols - 1, 'the core is not on the right edge');
+  assert.equal(first.y, last.y, 'spawn and core are not at the same height');
 });
 
-test('the fold costs trace, and the trace is not what costs the player', () => {
+test('the detour costs trace, and the trace is not what costs the player', () => {
   // Both halves of this milestone's central finding, as numbers that cannot drift.
   //
-  // The cost: spawn and core are on opposite edges, so the trace owes 15 columns whatever
-  // it does, and every column the middle leg walks back is paid for twice. There is no
-  // fold at level 1's length.
+  // The cost: level 1's trace is a minimal path from edge to edge, so every row the S
+  // spends going somewhere it has already been is paid for twice. There is no second
+  // board at level 1's length.
   assert.equal(pathLength(levels[0].waypoints), 19);
-  assert.equal(pathLength(levels[1].waypoints), 29);
+  assert.equal(pathLength(levels[1].waypoints), 27);
 
-  // And what it does not cost: this board was 29 tiles in its first draft too, with the
-  // legs two rows apart, and it cleared the curve without taking a scratch. Same length,
-  // same curve, different difficulty - so the ten extra tiles are not what a player pays.
-  // Coverage is. The control that established it lives in `balance.test.ts`.
-  assert.equal(levels[1].waypoints[2].y - levels[1].waypoints[0].y, 4, 'the legs are no longer four rows apart');
+  // And what it does not cost: this board was drawn three times over the milestone - a
+  // 29-tile horizontal fold that cleared the curve untouched, a 29-tile corner sweep that
+  // bled at 0.79x, and this 27-tile S at 0.96x. Two of them were the same length and the
+  // furthest apart in difficulty, and the shortest is not the easiest. Length is not the
+  // dial. The control that says what is lives in `balance.test.ts`.
+  assert.ok(
+    pathLength(levels[1].waypoints) > pathLength(levels[0].waypoints),
+    'level 2 is meant to be the longer trace - if it is not, the finding above needs re-reading',
+  );
 });

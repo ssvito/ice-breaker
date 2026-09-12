@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { boards, findLoadout, MARGIN_MAX, MARGIN_MIN, runBalance, runMargin } from '../src/balance.ts';
 import type { Board, Loadout } from '../src/balance.ts';
-import { levels } from '../src/map.ts';
+import { buildableTileSet, levels, rasterizePath, REACH } from '../src/map.ts';
 import { RUNS } from '../src/runs.ts';
 import { MAX_CORE_HEALTH, STARTING_CYCLES } from '../src/game.ts';
 import { towerStats } from '../src/tower.ts';
@@ -220,66 +220,98 @@ const waveCountOfActOne = 8;
  *
  * That gate says the shipped curve must draw blood from the best declared board and must
  * not kill it. It is a statement about the *curve*, and the curve is tuned against the
- * board it was written for. RECURSION 02 runs the same curve and clears it untouched -
- * measured at 1.15x to first blood against MAINFRAME's 0.65x - so running the same gate
- * over every board would fail, and the only way to make it pass would be to flatten the
- * second board into the first.
+ * board it was written for. RECURSION 02 runs the same curve on a different shape, and
+ * while it does now bleed under 1x, holding a second board to the first board's exact
+ * band would only ever be satisfied by flattening the second into the first.
  *
- * What is gated here instead is the thing that is actually true of the fold, and it is a
- * stronger claim than "it is easier": **the corridor is the board.** Same trace, same
- * Cycles, same order - towers in the corridor clear the curve, towers outside it lose the
- * core. That is what makes the extra trace honest rather than a discount, and it is the
- * measurement that overturned this milestone's own premise, so it is the one worth
- * keeping under a test.
+ * What is gated here instead is the thing that is actually true of the S, and it is a
+ * stronger claim than any margin: **the bends are the board.** Same trace, same Cycles,
+ * same order, every gun moved at most two tiles to the dullest tile near it - and the run
+ * loses the core, first leaking at roughly level 1's own number on a trace eight tiles
+ * longer. That is the measurement that overturned this milestone's premise, and it
+ * survived the board being redrawn twice, so it is the one worth keeping under a test.
  */
-test('on the fold, the corridor is worth the run - and outside it the board is no easier than level 1', () => {
+test('on the S, the bends are worth the run - and off them the board is no easier than level 1', () => {
   const fold = boards[1];
   const inside = findLoadout(fold, 'veteran')!;
 
-  // The same ladder, in the same order, on tiles that see one lane each: row 1 over the
-  // outbound leg and row 7 under the run-out, which is all level 1 has ever offered.
-  //
-  // Only the guns move. The Honeypot is an `onPath` tower, so sending it to row 7 would
-  // put it on a tile the rules refuse - and a refused build does not make a weaker run,
-  // it **blocks the order behind it**, so the run would lose with 40 Cycles spent and the
-  // test would be reading a jam as a reading. Leaving it exactly where it is also makes
-  // the control tighter: the slow is identical on both sides and the only variable left
-  // is where the things that shoot are standing.
+  /** How much trace a tower here would cover, at opening range. */
+  const coverage = (x: number, y: number) =>
+    rasterizePath(fold.level.waypoints).filter((t) => Math.hypot(t.x - x, t.y - y) <= REACH).length;
+
+  /**
+   * The same neighbourhood, the wrong tile: the least useful buildable tile within two of
+   * where the veteran line put this gun, never reusing one. A rule rather than a hand-
+   * picked list, so the control cannot be accused of being drawn to lose - and a short
+   * leash, so it is still a line a player could plausibly build rather than a line that
+   * abandoned the trace.
+   */
+  const taken = new Set<string>();
+  const moved = new Map<string, { x: number; y: number }>();
+  function dullestNear(x: number, y: number): { x: number; y: number } {
+    const key = `${x},${y}`;
+    const already = moved.get(key);
+    if (already) return already;
+
+    let best = { x, y };
+    let bestCover = Infinity;
+    for (const tile of buildableTileSet(fold.level)) {
+      if (taken.has(tile)) continue;
+      const [tx, ty] = tile.split(',').map(Number);
+      if (Math.hypot(tx - x, ty - y) > 2) continue;
+      const cover = coverage(tx, ty);
+      if (cover > 0 && cover < bestCover) {
+        bestCover = cover;
+        best = { x: tx, y: ty };
+      }
+    }
+    taken.add(`${best.x},${best.y}`);
+    moved.set(key, best);
+    return best;
+  }
+
   const outside: Loadout = {
     name: 'outside',
-    note: 'the veteran line with every gun off the corridor',
+    note: 'the veteran line with every gun nudged off the bends',
+    // Only the guns move. The Honeypot is an `onPath` tower, so sending it off the trace
+    // would put it on a tile the rules refuse - and a refused build does not make a weaker
+    // run, it **blocks the order behind it**, so the run would lose with 40 Cycles spent
+    // and the test would be reading a jam as a reading. Leaving it put also tightens the
+    // control: the slow is identical on both sides and the only variable left is where the
+    // things that shoot are standing.
     builds: inside.builds.map((build) =>
-      towerStats(build.kind).placement === 'onPath' ? build : { ...build, y: build.y < 4 ? 1 : 7 },
+      towerStats(build.kind).placement === 'onPath' ? build : { ...build, ...dullestNear(build.x, build.y) },
     ),
   };
 
-  const withCorridor = runMargin(inside, { level: fold.level });
+  const withBends = runMargin(inside, { level: fold.level });
   const without = runMargin(outside, { level: fold.level });
-
   const outsideRun = runBalance(outside, { level: fold.level });
-  assert.equal(runBalance(inside, { level: fold.level }).status, 'won', 'the corridor line should clear the curve');
-  assert.equal(outsideRun.status, 'lost', 'the same Cycles off the corridor should lose');
-  // And it lost for being weak, not for jamming on a tile the rules refuse - without
-  // this the assertion above passes for the wrong reason. Checked against a curve it can
-  // beat comfortably, because that separates the two: an unaffordable build is a run that
-  // did not earn enough, an illegal one is unbought at any wealth.
+
+  assert.equal(runBalance(inside, { level: fold.level }).status, 'won', 'the elbow line should clear the curve');
+  assert.equal(outsideRun.status, 'lost', 'the same Cycles two tiles away should lose');
+  assert.ok(
+    without.firstLeak! < withBends.firstLeak!,
+    `the bends bought nothing: ${without.firstLeak}x off them against ${withBends.firstLeak}x on them`,
+  );
+
+  // It lost for being weak, not for jamming on a tile the rules refuse - without this the
+  // assertion above passes for the wrong reason. Checked against a curve it can beat
+  // comfortably, because that separates the two: an unaffordable build is a run that did
+  // not earn enough, an illegal one is unbought at any wealth.
   assert.deepEqual(
     runBalance(outside, { level: fold.level, hpScale: 0.25 }).unbought,
     [],
-    'the off-corridor line stands on a tile the rules refuse, so it proves nothing',
-  );
-  assert.ok(
-    without.firstLeak! < withCorridor.firstLeak!,
-    `the corridor bought nothing: ${without.firstLeak}x off it against ${withCorridor.firstLeak}x on it`,
+    'the off-bend line stands on a tile the rules refuse, so it proves nothing',
   );
 
-  // And the half of it that is about the trace rather than the corridor: ten more tiles
-  // of path, on their own, are worth nothing. Trace that no tower covers is not time
-  // under fire, it is enemies walking for free - which is why this board's length was
-  // allowed to grow at all.
+  // And the half of it that is about the trace rather than the bends: eight more tiles of
+  // path, on their own, are worth nothing. Trace that no tower covers is not time under
+  // fire, it is enemies walking for free - which is why this board's length was allowed to
+  // grow at all.
   const mainframe = runMargin(findLoadout(MAINFRAME, 'veteran')!, { level: MAINFRAME.level });
   assert.ok(
     without.firstLeak! <= mainframe.firstLeak! * 1.15,
-    `the extra trace made the fold easier by itself: ${without.firstLeak}x against level 1's ${mainframe.firstLeak}x`,
+    `the extra trace made the board easier by itself: ${without.firstLeak}x against level 1's ${mainframe.firstLeak}x`,
   );
 });
