@@ -451,6 +451,21 @@ canvas {
   touch-action: manipulation;
 }
 
+/* The interrupted run, first in the list. Same box as a board card because it is the same
+   kind of thing - something to press that starts a run - and brighter, because it is the
+   only row on this screen that is about a run which already exists. It carries no
+   thumbnail: a card's picture says which board you are going to, and this one is a board
+   you are already standing on. That absence is also what keeps the two apart at a glance,
+   before either label is read. */
+.shell-resume {
+  border-color: var(--term);
+  box-shadow: 0 0 18px rgba(57, 255, 136, 0.22);
+}
+
+.shell-resume[hidden] {
+  display: none;
+}
+
 /* 64px over a 16-wide board is exactly 4px a tile, which is the board renderer's own
    integer-scaling rule arriving in the chrome: at a fractional scale the one-tile trace
    would rasterise two pixels thick on some legs and one on others. The two layers stack,

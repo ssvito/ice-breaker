@@ -4,7 +4,7 @@ import type { TowerKind } from './tower.ts';
 import { ENEMY_KINDS } from './enemy.ts';
 import type { EnemyKind } from './enemy.ts';
 import { waveNumber } from './wave.ts';
-import type { GameState, GameStatus } from './game.ts';
+import type { GameState } from './game.ts';
 
 /**
  * A run as data: what the player did, what walked through, and how it ended.
@@ -74,7 +74,23 @@ export interface LoggedLeak {
 }
 
 /**
- * How the run ended, and the reason a pasted log is worth anything.
+ * How a run came out, and **not the same set as `GameStatus`**.
+ *
+ * `won` and `lost` are the two ways a run finishes. `suspended` is the third thing a log
+ * can say and the one v1.9 step 7 added: the run was put down still playing, and this log
+ * is a place to stand rather than a verdict.
+ *
+ * `playing` is deliberately not in here, and dropping it closed a hole rather than
+ * renaming one. The parser used to accept `end playing`, which is a contradiction in two
+ * words - a log claiming both that it is over and that it is not - and a reader had no
+ * way to tell it apart from an interrupted run. Now the last line says which of the two
+ * kinds of log this is, in its verb.
+ */
+export type RunOutcome = 'won' | 'lost' | 'suspended';
+
+/**
+ * How the run stood when the log was sealed, and the reason a pasted log is worth
+ * anything.
  *
  * Replaying a log recorded in this session can be checked against the state still in
  * memory. The case the milestone actually named cannot: a log typed into a bug report
@@ -83,11 +99,12 @@ export interface LoggedLeak {
  *
  * `tick` is also the run's length, which the actions cannot imply - a real run ended
  * fifteen seconds after its last tap, with the final wave walked and killed and nothing
- * left to press.
+ * left to press. On a suspended log it is where the run was put down, and the tick a
+ * resume has to land on exactly.
  */
 export interface RunEnd {
   tick: number;
-  status: GameStatus;
+  status: RunOutcome;
   coreHealth: number;
   cycles: number;
   wave: number;
@@ -110,7 +127,16 @@ export interface RunLog {
   end: RunEnd;
 }
 
-/** The envelope, closed around the run that just ended. */
+/**
+ * The envelope, closed around the run - **whether it ended or was only put down**.
+ *
+ * One function for both, because the state already knows which it is and a caller that
+ * had to say is a caller that can say it wrong. A run that reaches a verdict seals `won`
+ * or `lost`; a run interrupted mid-wave seals `suspended`, and nothing about the two
+ * halves above it changes - the same actions, the same leaks, the same clock. That is the
+ * whole of why save/resume was a tail on this milestone rather than a milestone of its
+ * own: a run in progress was already data, it just had nowhere to be written down.
+ */
 export function sealRunLog(runId: string, state: GameState): RunLog {
   return {
     run: runId,
@@ -119,7 +145,7 @@ export function sealRunLog(runId: string, state: GameState): RunLog {
     leaks: [...state.leaks],
     end: {
       tick: state.tick,
-      status: state.status,
+      status: state.status === 'playing' ? 'suspended' : state.status,
       coreHealth: state.coreHealth,
       cycles: state.cycles,
       wave: waveNumber(state.spawner),
@@ -151,10 +177,15 @@ export function formatRunLog(log: RunLog): string {
   ].sort((a, b) => a.tick - b.tick);
 
   const { tick, status, coreHealth, cycles, wave } = log.end;
+  // Two last lines rather than one with a third status inside it. `end` carries a verdict
+  // and `suspend` carries none, because there is none - and a reader that has to go three
+  // fields in to find out whether the run is over is a reader that will one day stop at
+  // the verdict. The verb is the first thing on the line and it answers the first question.
+  const ending = status === 'suspended' ? 'suspend' : `end ${status}`;
   return [
     `${HEADER} ${log.run} ${log.curve}`,
     ...body.map((line) => line.text),
-    `${tick} end ${status} ${coreHealth} ${cycles} ${wave}`,
+    `${tick} ${ending} ${coreHealth} ${cycles} ${wave}`,
   ].join('\n');
 }
 
@@ -176,7 +207,8 @@ function parseTile(fields: string[]): { x: number; y: number } | null {
   return x === null || y === null ? null : { x, y };
 }
 
-const STATUSES: GameStatus[] = ['playing', 'won', 'lost'];
+/** The two verdicts, and only those: a log that ends with `end` ended. */
+const VERDICTS: RunOutcome[] = ['won', 'lost'];
 
 /**
  * Text back into a log, or `null` - never a partial one.
@@ -217,12 +249,18 @@ export function parseRunLog(text: string): RunLog | null {
     if (tick === null || tick < previousTick) return null;
     previousTick = tick;
 
-    if (verb === 'end') {
-      const status = STATUSES.find((known) => known === rest[0]);
-      const coreHealth = wholeNumber(rest[1]);
-      const cycles = wholeNumber(rest[2]);
-      const wave = wholeNumber(rest[3]);
-      if (rest.length !== 4 || !status || coreHealth === null || cycles === null || wave === null) return null;
+    if (verb === 'end' || verb === 'suspend') {
+      // The verdict is a field on `end` and absent from `suspend`, so the standing the two
+      // share - core, Cycles, wave - starts one token later on one of them.
+      const suspended = verb === 'suspend';
+      const status = suspended ? 'suspended' : VERDICTS.find((known) => known === rest[0]);
+      const standing = suspended ? rest : rest.slice(1);
+      const coreHealth = wholeNumber(standing[0]);
+      const cycles = wholeNumber(standing[1]);
+      const wave = wholeNumber(standing[2]);
+      if (standing.length !== 3 || !status || coreHealth === null || cycles === null || wave === null) {
+        return null;
+      }
       end = { tick, status, coreHealth, cycles, wave };
       continue;
     }
@@ -254,8 +292,10 @@ export function parseRunLog(text: string): RunLog | null {
     return null;
   }
 
-  // A run with no ending is not a finished run, and this format only describes finished
-  // ones. The day a run can be suspended and resumed, that is a different last line.
+  // A log with no last line is not a log. That used to read "not a finished run, and this
+  // format only describes finished ones"; the day a run could be suspended arrived with a
+  // second last line rather than with none, because a log still has to say where it stands
+  // or a replay of it has nothing to be wrong about.
   if (!end) return null;
   return { run: header[1], curve: header[2], actions, leaks, end };
 }

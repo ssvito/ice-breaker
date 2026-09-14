@@ -130,8 +130,19 @@ export function replayRun(log: RunLog, options: ReplayOptions = {}): ReplayOutco
   if (refused) return { replayed: false, refused };
 
   const board = RUNS.find((run) => run.id === log.run)!;
+  /**
+   * A suspended log is replayed to where it was put down and no further. Nothing else
+   * about the replay changes, which is the point of the whole step: **resuming a run is
+   * replaying one**, and the only difference is that it is not over. The same driver, the
+   * same loop, the same comparison afterwards - so a save that would not reproduce is
+   * caught by the gate a recorded run is already checked against.
+   */
   const { driver, driven } = replayDriver(log, options.name ?? 'played');
-  const balance: BalanceOptions = { level: board.map, overclock: options.overclock };
+  const balance: BalanceOptions = {
+    level: board.map,
+    overclock: options.overclock,
+    untilTick: log.end.status === 'suspended' ? log.end.tick : undefined,
+  };
   const report = runSimulation(driver, balance);
   const state = driven()!;
 
@@ -182,7 +193,10 @@ function compare(log: RunLog, state: GameState): string[] {
   ];
 
   const end = log.end;
-  if (state.status !== end.status) differences.push(`status: recorded ${end.status}, replayed ${state.status}`);
+  // A suspended log replays to a run that is still going, which is the one place the log's
+  // own word and the state's are not the same word for the same fact.
+  const expected = end.status === 'suspended' ? 'playing' : end.status;
+  if (state.status !== expected) differences.push(`status: recorded ${end.status}, replayed ${state.status}`);
   if (state.coreHealth !== end.coreHealth) {
     differences.push(`core HP: recorded ${end.coreHealth}, replayed ${state.coreHealth}`);
   }

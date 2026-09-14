@@ -110,6 +110,20 @@ export interface BalanceOptions {
   level?: LevelData;
   /** Safety net for a layout that can neither clear a wave nor lose - default 20 simulated minutes. */
   maxTicks?: number;
+  /**
+   * Stop here, on purpose - which is a different thing from `maxTicks` and is why it is a
+   * different option. The safety net firing means the instrument gave up and the report
+   * says `timeout`; this means the run was only ever meant to reach this tick, and what
+   * comes back is a run still playing.
+   *
+   * It exists for the resume: a suspended log is replayed to where it was put down, and
+   * the state at that tick is the run handed back to the player. **The turn at that tick
+   * is taken and the tick itself is not**, which is the shape of the moment being
+   * restored - the player taps, and then the phone rings before the next frame. So the
+   * loop breaks between a player's turn and the step that would have followed it, which
+   * is the one place in a run where nothing is half-done.
+   */
+  untilTick?: number;
   /** Run-wide multiplier over every wave's own `hpScale`. 1 is the shipped curve. */
   hpScale?: number;
   /**
@@ -270,7 +284,7 @@ export function withOverclock(driver: RunDriver): RunDriver {
 }
 
 export function runSimulation(base: RunDriver, options: BalanceOptions = {}): RunReport {
-  const { level = level1, maxTicks = 60 * 60 * 20, hpScale = 1 } = options;
+  const { level = level1, maxTicks = 60 * 60 * 20, hpScale = 1, untilTick = Infinity } = options;
 
   // Applied here rather than by every caller, so a loadout, a margin bisect and a
   // replayed human run all take the policy the same way and by the same name.
@@ -308,6 +322,12 @@ export function runSimulation(base: RunDriver, options: BalanceOptions = {}): Ru
     // What the player's turn cost, with the early call's bonus taken back out of the
     // delta: money that arrived is not money that was not spent.
     wave.spent += calledEarly + cyclesBeforeActing - state.cycles;
+
+    // Asked to stop here: the turn is taken and the tick is not. Everything above this
+    // line is the player's half of the tick and it is complete, so the report is a report
+    // of the run as it actually stands - which the caller is about to hand back to
+    // somebody to keep playing.
+    if (state.tick >= untilTick) break;
 
     const cyclesBeforeTick = state.cycles;
     const healthBeforeTick = state.coreHealth;

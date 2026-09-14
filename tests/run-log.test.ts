@@ -239,12 +239,33 @@ test('a leak and an action on the same tick print in the order they happened', (
   assert.deepEqual(parseRunLog(formatRunLog(log)), log);
 });
 
+/**
+ * The other last line, and the reason it is a verb rather than a third status: a reader
+ * finds out whether the run is over from the first word after the tick, not from a field
+ * three tokens in. A suspended log carries no verdict because there is none to carry.
+ */
+test('a run put down says so in its last line, and carries no verdict', () => {
+  const state = fresh();
+  placeTower(state, 'firewallNode', { x: 1, y: 3 });
+  step(state, 10);
+
+  const log = sealRunLog(RUN, state);
+  assert.equal(log.end.status, 'suspended');
+
+  const lines = formatRunLog(log).split('\n');
+  assert.equal(lines[lines.length - 1], `10 suspend ${MAX_CORE_HEALTH} ${state.cycles} 1`);
+  assert.deepEqual(parseRunLog(formatRunLog(log)), log);
+});
+
 test('an unreadable log is null rather than a partial one', () => {
   const state = fresh();
   placeTower(state, 'firewallNode', { x: 1, y: 3 });
   step(state, 10);
+  // Put down mid-run, so this is the suspended shape; the finished one is beside it,
+  // because the two last lines can be broken in different places.
   const text = formatRunLog(sealRunLog(RUN, state));
   const [header, ...body] = text.split('\n');
+  const finished = formatRunLog(sealRunLog(RUN, playToTheEnd()));
 
   const refused: Record<string, string> = {
     'nothing at all': '',
@@ -255,8 +276,16 @@ test('an unreadable log is null rather than a partial one', () => {
     'no ending': [header, ...body.slice(0, -1)].join('\n'),
     'two endings': `${text}\n10 end lost 0 0 1`,
     'a line after the ending': `${text}\n10 call`,
-    'a verdict nobody reaches': text.replace(' end playing', ' end elsewhere'),
-    'half an ending': text.replace(/ end \w+ \d+ \d+ \d+/, ' end won 2 54'),
+    'a verdict nobody reaches': finished.replace(' end lost', ' end elsewhere'),
+    // The hole the suspended log closed rather than inherited. `playing` used to be a
+    // status this parser took, which let one line claim both that the run is over and
+    // that it is not - and left a reader no way to tell a finished run from an
+    // interrupted one. An ending carries a verdict now, and a run still going says
+    // `suspend` instead of carrying a non-verdict.
+    'a run that is over and not over': finished.replace(' end lost', ' end playing'),
+    'half an ending': finished.replace(/ end \w+ \d+ \d+ \d+/, ' end won 2 54'),
+    'half a suspension': text.replace(/ suspend \d+ \d+ \d+/, ' suspend 5 980'),
+    'a suspension with a verdict in it': text.replace(' suspend ', ' suspend won '),
     'a verb nobody writes': [header, '10 rebuild 1 3', ...body].join('\n'),
     'a tower that does not exist': [header, '10 place rootkitNode 1 3', ...body].join('\n'),
     'an enemy that does not exist': [header, '10 leak grayware', ...body].join('\n'),

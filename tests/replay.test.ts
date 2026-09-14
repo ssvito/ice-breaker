@@ -9,9 +9,11 @@ import {
   sellTower,
   stepGame,
   TICK_MS,
+  towerAt,
   upgradeTower,
 } from '../src/game.ts';
-import { parseRunLog, sealRunLog } from '../src/run-log.ts';
+import type { GameState } from '../src/game.ts';
+import { formatRunLog, parseRunLog, sealRunLog } from '../src/run-log.ts';
 import type { RunLog } from '../src/run-log.ts';
 import { replayRun } from '../src/replay.ts';
 import { RUNS } from '../src/runs.ts';
@@ -69,6 +71,49 @@ function scriptedRun(): RunLog {
 }
 
 /**
+ * The player's turn, taken by hand.
+ *
+ * Deliberately not `replayDriver` - this file's job is to disagree with the replay if the
+ * replay is wrong, and a test that drives a run through the same code it is testing can
+ * only ever agree with it. It is the same handful of lines `scriptedRun` above is built
+ * out of, which is what a player's turn actually is.
+ */
+function apply(state: GameState, log: RunLog, cursor: number): number {
+  while (cursor < log.actions.length && log.actions[cursor].tick === state.tick) {
+    const action = log.actions[cursor++];
+    if (action.action === 'call') {
+      callWaveEarly(state);
+      continue;
+    }
+    if (action.action === 'place') {
+      placeTower(state, action.tower, action);
+      continue;
+    }
+    const tower = towerAt(state, action);
+    if (!tower) continue;
+    if (action.action === 'upgrade') upgradeTower(state, tower);
+    else if (action.action === 'sell') sellTower(state, tower);
+    else overclockTower(state, tower);
+  }
+  return cursor;
+}
+
+/**
+ * Play a log into a state up to a tick, and return where in the log that left off.
+ *
+ * The trailing `apply` is the taps that landed on the final tick with no tick behind them
+ * yet, which is what a run put down mid-wave has: the player taps, and then the phone
+ * rings before the next frame.
+ */
+function drive(state: GameState, log: RunLog, cursor: number, untilTick: number): number {
+  while (state.status === 'playing' && state.tick < untilTick) {
+    cursor = apply(state, log, cursor);
+    stepGame(state, TICK_MS);
+  }
+  return apply(state, log, cursor);
+}
+
+/**
  * The gate this step exists for: a run somebody played, played again, landing on the same
  * everything. "The same everything" is deliberately more than the verdict - the actions
  * the replay managed to take and the enemies that walked through are compared too, so a
@@ -101,6 +146,54 @@ test('a scripted run covering sell and Overclock replays too', () => {
   const outcome = replayRun(log);
   assert.ok(outcome.replayed);
   assert.deepEqual(outcome.differences, []);
+});
+
+/**
+ * v1.9 step 7, and the claim it is allowed to make: **an interruption changes nothing.**
+ *
+ * The flawless run is cut at tick 3993 - `upgrade 4 6`, a little past the midpoint, with
+ * the board busy. Two things about that tick are chosen rather than convenient. It is
+ * mid-wave, so the state being restored is not a lull with nothing on it but towers. And
+ * it falls exactly on a tap, which is the case the save had to be built for: the action
+ * and the interruption land between the same two frames, so the log carries an action on
+ * the tick it ends. A resume that stopped one turn early would drop it, the upgrade would
+ * be missing from a board the player watched it land on, and the difference would show up
+ * here as an action recorded and not replayed.
+ *
+ * Then it is played out and compared against the whole log rather than against a verdict:
+ * every action, every enemy through the gate, the clock, the money and the ending. The
+ * run that was interrupted is the run that was played, line for line.
+ */
+test('a run put down mid-wave comes back as the same run', () => {
+  assert.ok(HUMAN_RUN);
+  const board = RUNS[1];
+  const CUT = 3993;
+
+  const interrupted = createGameState(board.map);
+  const cursor = drive(interrupted, HUMAN_RUN, 0, CUT);
+  assert.equal(interrupted.tick, CUT);
+  assert.ok(interrupted.enemies.length > 0, 'the cut should land mid-wave, with the board busy');
+  assert.equal(
+    interrupted.actions[interrupted.actions.length - 1].tick,
+    CUT,
+    'the cut should land on the tick of a tap, which is the case the drain exists for',
+  );
+
+  // Through text, because text is what the slot holds - and a save that survives being
+  // formatted and read back is a save that survives being pasted into a bug report.
+  const saved = sealRunLog(board.id, interrupted);
+  assert.equal(saved.end.status, 'suspended');
+  const reread = parseRunLog(formatRunLog(saved));
+  assert.deepEqual(reread, saved, 'a suspended log should survive the round trip through text');
+
+  const outcome = replayRun(reread!);
+  assert.ok(outcome.replayed, 'a suspended log of this game should replay');
+  assert.deepEqual(outcome.differences, [], 'the run did not come back where it was put down');
+  assert.equal(outcome.state.tick, CUT, 'a resume lands on the tick it was suspended at');
+
+  // And played on from there, it is the run that was played.
+  drive(outcome.state, HUMAN_RUN, cursor, Infinity);
+  assert.deepEqual(sealRunLog(board.id, outcome.state), HUMAN_RUN);
 });
 
 /**

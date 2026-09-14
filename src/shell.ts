@@ -25,8 +25,24 @@ import { pixelSvg } from './glyph.ts';
  */
 export interface ShellHandlers {
   onStart(run: RunDescriptor): void;
+  /** Pick the interrupted run back up, on the tick it was put down. */
+  onResume(): void;
   /** Let the waiting worker through and reload onto it. Free here: there is no run. */
   onReload(): void;
+}
+
+/**
+ * The run that was interrupted, if there is one - board, and how far in.
+ *
+ * Deliberately three facts and not a report. What this offer has to answer is "is this
+ * the run I think it is, and is it worth coming back to", and a board with a wave and a
+ * core answers both; anything more would be the post-run report arriving before the run
+ * is over.
+ */
+export interface ResumeSummary {
+  board: string;
+  wave: number;
+  coreHealth: number;
 }
 
 /**
@@ -72,6 +88,14 @@ export interface Shell {
    * whole design.
    */
   setLastRun(summary: RunSummary | null): void;
+  /**
+   * The interrupted run waiting to be picked up, or `null` for none.
+   *
+   * Only ever called at boot, and that is a fact about the app rather than about this
+   * method: the shell is the absence of a run, and the only way out of a run is through
+   * its ending, so a run that is still going can only be met by starting the app again.
+   */
+  setResumable(summary: ResumeSummary | null): void;
 }
 
 /**
@@ -212,6 +236,37 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
   const list = document.createElement('div');
   list.className = 'shell-runs';
   box.appendChild(list);
+
+  /**
+   * The interrupted run, offered back.
+   *
+   * **Inside the list and first in it**, because it is one of the things to press and not
+   * a reading: the report above says what happened, and this row says what to do about it.
+   * It borrows the cards' box and skips their thumbnail, which is the difference it needs
+   * to carry - a board card is a picture of somewhere to go, and this is somewhere you
+   * already are.
+   *
+   * It is never on screen with the report, and nothing enforces that because nothing has
+   * to: a run that ended clears the slot, and a run that was interrupted never ended.
+   */
+  const resume = document.createElement('button');
+  resume.type = 'button';
+  resume.className = 'shell-run shell-resume';
+  resume.hidden = true;
+  resume.addEventListener('click', () => handlers.onResume());
+  list.appendChild(resume);
+
+  const resumeText = document.createElement('span');
+  resumeText.className = 'shell-run-text';
+  resume.appendChild(resumeText);
+
+  const resumeName = document.createElement('span');
+  resumeName.className = 'shell-run-name';
+  resumeText.appendChild(resumeName);
+
+  const resumeStats = document.createElement('span');
+  resumeStats.className = 'shell-run-stats';
+  resumeText.appendChild(resumeStats);
 
   /**
    * One card per board: a picture of the map, its name, and what has been done on it.
@@ -366,6 +421,19 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
     for (const leak of groupLeaks(summary.leaks)) row(rows, `WAVE ${leak.wave}`, leak.text, false);
   }
 
+  function renderResume(summary: ResumeSummary | null): void {
+    resume.hidden = summary === null;
+    resumeStats.replaceChildren();
+    if (!summary) return;
+
+    // The board's name is the second half of the label rather than a line of its own: the
+    // verb is what the player is deciding about, and which board it was is how they
+    // recognise the run they left.
+    resumeName.textContent = `RESUME · ${summary.board}`;
+    row(resumeStats, 'WAVE', `${summary.wave}/${CURVE_LENGTH}`, false);
+    row(resumeStats, 'CORE', `${summary.coreHealth}/${MAX_CORE_HEALTH}`, false);
+  }
+
   function renderCard(runId: string, beaten: RecordKey[]): void {
     const card = cards.get(runId);
     const records = shown.get(runId);
@@ -397,6 +465,10 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       renderReport(summary);
     },
 
+    setResumable(summary: ResumeSummary | null): void {
+      renderResume(summary);
+    },
+
     setRecords(runId: string, next: Records, beaten: RecordKey[]): void {
       // An id that names no card is a board dropped from `runs.ts` with a record still on
       // the phone. There is nowhere to print it and nowhere it would be true, so it is
@@ -421,7 +493,12 @@ export function createShell(handlers: ShellHandlers, runs: RunDescriptor[], host
       // The keyboard gets the same single move the thumb gets. It also means the one
       // thing on screen is visibly the thing to press, which is the difference between
       // a start screen and a screen that has stopped.
-      if (visible) buttons[0]?.focus();
+      //
+      // An interrupted run takes that focus, which is the one place this screen does
+      // prefer something - and it is not a preference between boards, which is what the
+      // picker refused to express. Nothing was chosen here; a run was left unfinished, and
+      // the screen points at it.
+      if (visible) (resume.hidden ? buttons[0] : resume)?.focus();
     },
   };
 }

@@ -48,6 +48,8 @@ import { createShell } from './shell.ts';
 import { readRecords, recordRun } from './records.ts';
 import { formatRunLog, sealRunLog } from './run-log.ts';
 import type { RunLog } from './run-log.ts';
+import { replayRun } from './replay.ts';
+import { clearSave, readSave, saveRun } from './save.ts';
 import { RUNS } from './runs.ts';
 import type { RunDescriptor } from './runs.ts';
 
@@ -104,6 +106,22 @@ function startGame(): void {
    * answer available: the report step reads it, and until then the browser console does.
    */
   let lastRunLog: RunLog | null = null;
+
+  /**
+   * The interrupted run, already replayed and standing ready - or nothing, which is the
+   * usual case.
+   *
+   * **Replayed at boot rather than on the tap**, and that is the decision this variable
+   * is. An offer that fails when taken is worse than an offer that was never made: a save
+   * is only a save if it reproduces, and the only way to know it reproduces is to run it.
+   * So the button is drawn from a run that already exists, and a save that did not
+   * reproduce is deleted before the player is told about it.
+   *
+   * It costs the ticks of the run it is resuming, once, before the first frame. A run is
+   * minutes of *simulated* time and the harness measures whole ones in milliseconds with
+   * no rendering attached, which is the same thing this is doing.
+   */
+  let resumable: { on: RunDescriptor; run: GameState } | null = null;
 
   window.addEventListener('resize', () => {
     fitViewport(viewport);
@@ -312,6 +330,9 @@ function startGame(): void {
   const shell = createShell(
     {
       onStart: (run) => startRun(run),
+      onResume: () => {
+        if (resumable) beginRun(resumable.on, resumable.run);
+      },
       onReload: () => updates.apply(),
     },
     RUNS,
@@ -327,6 +348,54 @@ function startGame(): void {
    * when they move - and `main.ts` stays the only module that knows where they live.
    */
   for (const run of RUNS) shell.setRecords(run.id, readRecords(run.id), []);
+
+  /**
+   * The saved run, read, replayed and offered - or dropped without a word.
+   *
+   * **Every refusal ends in `clearSave()`**, and that is deliberate rather than tidy: a
+   * save that cannot be resumed is a button that does nothing, and leaving it in the slot
+   * would offer it again on every boot. The refusals are the envelope's own - a log from
+   * another curve or a board this build no longer has - plus the one that matters most
+   * here, which is a replay that lands somewhere other than where the log says it was put
+   * down. That one is the determinism gate arriving in the player's hands: the same
+   * comparison `tests/replay.test.ts` runs against a recorded run, run against theirs,
+   * before their run is handed back to them.
+   */
+  function offerResume(): void {
+    const saved = readSave();
+    if (!saved) return;
+
+    const outcome = replayRun(saved, { name: 'resume' });
+    if (!outcome.replayed || outcome.differences.length > 0) {
+      clearSave();
+      return;
+    }
+
+    const on = RUNS.find((run) => run.id === saved.run)!;
+    resumable = { on, run: outcome.state };
+    shell.setResumable({ board: on.name, wave: saved.end.wave, coreHealth: saved.end.coreHealth });
+  }
+  offerResume();
+
+  /**
+   * Write the run down when the app goes away, which on the device this is for is the
+   * only warning there is. A phone call, a home swipe, a tab the OS decides it needs the
+   * memory of: all of them are `visibilitychange`, and none of them is `beforeunload` -
+   * which mobile browsers fire unreliably or not at all. `pagehide` covers the navigation
+   * the first one can miss, and writing twice costs a few dozen lines of text.
+   *
+   * Not a timer, and not every tick. There is exactly one moment the run needs to be on
+   * disk, and it is the moment before there is no longer a page to hold it. A hard crash
+   * with the app in the foreground still loses the run, and that is the one case this
+   * does not cover - there is no event for it.
+   */
+  function suspend(): void {
+    if (state) saveRun(currentRun.id, state);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) suspend();
+  });
+  window.addEventListener('pagehide', suspend);
 
   function applyLayout(): void {
     // The only thing left that the two orientations disagree about: a turned board
@@ -525,15 +594,36 @@ function startGame(): void {
    * argument - today the map, later the kind of run and the difficulty.
    */
   function startRun(run: RunDescriptor): void {
-    currentRun = run;
+    // A run in progress is the run in progress, and starting one replaces whatever was in
+    // the slot. Two runs cannot both be going - `state` is a single nullable run and that
+    // is the whole of the app's state machine - so there is nothing to keep and no
+    // confirm to ask for: tapping a board is an unambiguous "play this now", and the
+    // offer disappearing is the answer to it.
+    clearSave();
+    beginRun(run, createGameState(run.map));
+  }
+
+  /**
+   * Take a state and make it the run on screen. Split out of `startRun()` so that a run
+   * picked back up and a run started fresh arrive by the same door - everything below
+   * this line is about there being a run rather than about where it came from, and a
+   * resume that re-derived any of it separately would be a second way to be wrong about
+   * what a run owns.
+   */
+  function beginRun(on: RunDescriptor, run: GameState): void {
+    currentRun = on;
     // The board is a bake of the map, so it is redone when, and only when, the map
     // under the run changes.
-    if (run.map !== runMap) {
-      runMap = run.map;
+    if (on.map !== runMap) {
+      runMap = on.map;
       board = prerenderBoard(runMap);
       spawnTile = runMap.waypoints[0];
     }
-    state = createGameState(runMap);
+    state = run;
+    // Whatever was on offer in the shell was about the run that is now on screen, so the
+    // offer is spent whether it was taken or not.
+    resumable = null;
+    shell.setResumable(null);
     selection = null;
     buildFocus = false;
     waveFocus = false;
@@ -564,6 +654,9 @@ function startGame(): void {
    * run, not about whether they stayed to look at it.
    */
   function finishRun(run: GameState): void {
+    // The run is over, so there is nowhere to resume it to. What a finished run leaves
+    // behind is the record and the report, and both are written a few lines down.
+    clearSave();
     // Sealed on the tick the run ends, for the same reason the record is filed there: it
     // is a fact about the run and not about whether the player stayed to look at it.
     lastRunLog = sealRunLog(currentRun.id, run);
